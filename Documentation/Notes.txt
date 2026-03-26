@@ -1,1 +1,17 @@
 Add your comments and info in this file to convey to the Teammates, just in case if you want to.
+
+<=== Folder Structure ===>
+
+project/
+│
+├── frontend/
+│   └── index.html
+│
+├── backend/
+│   └── app.py
+│
+├── c_backend/
+│   ├── backend.c
+│   └── backend.exe
+│
+└── requirements.txt
