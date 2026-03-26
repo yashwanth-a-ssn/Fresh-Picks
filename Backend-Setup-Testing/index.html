@@ -5,30 +5,23 @@
 </head>
 <body>
 
-<h2>Add Two Numbers</h2>
+<h2>Test C Backend</h2>
 
-<input type="number" id="a">
-<input type="number" id="b">
-<button onclick="sendData()">Add</button>
+<button onclick="runBackend()">Run Backend</button>
 
-<p id="result"></p>
+<pre id="output"></pre>
 
 <script>
-function sendData() {
-    const a = document.getElementById("a").value;
-    const b = document.getElementById("b").value;
+function runBackend() {
+    console.log("Button clicked");   // 👈 add this
 
-    fetch("http://127.0.0.1:5000/add", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({a: parseInt(a), b: parseInt(b)})
-    })
+    fetch("http://127.0.0.1:5000/test")
     .then(res => res.json())
     .then(data => {
-        document.getElementById("result").innerText = "Result: " + data.result;
-    });
+        console.log("DATA:", data);  // 👈 add this
+        document.getElementById("output").innerText = data.output;
+    })
+    .catch(err => console.error("ERROR:", err));
 }
 </script>
 
