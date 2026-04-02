@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+<!--
+  index.html - Fresh Picks: Landing Page
+  ========================================
+  The first page users see. Displays two portal cards:
+    1. Admin Portal -> /login?role=admin
+    2. User Portal  -> /login?role=user
+
+  Extends base.html (inherits navbar, footer, CSS, JS).
+  Team: CodeCrafters | SDP-1
+-->
+
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<div class="container">
+
+    <!-- Hero section: app name + tagline -->
+    <div class="hero-section">
+        <h1>
+            <i class="bi bi-basket2-fill me-3" style="font-size:2.5rem; -webkit-text-fill-color: var(--accent);"></i>
+            Fresh Picks
+        </h1>
+        <p>Your neighbourhood grocery store, now online. Fresh produce, fast delivery.</p>
+    </div>
+
+    <!-- Two portal cards side by side (stacks on mobile) -->
+    <div class="row justify-content-center g-4 pb-5">
+
+        <!-- ── Admin Portal Card ── -->
+        <div class="col-md-5 col-lg-4">
+            <!--
+                onclick: navigate to login page with role=admin in URL.
+                Flask reads this parameter to know which C function to call.
+            -->
+            <div class="card portal-card"
+                 onclick="window.location.href='/login?role=admin'"
+                 role="button"
+                 tabindex="0"
+                 onkeypress="if(event.key==='Enter') window.location.href='/login?role=admin'">
+
+                <div class="card-body">
+                    <!-- Icon -->
+                    <span class="portal-icon">🛡️</span>
+
+                    <!-- Title -->
+                    <h3 class="card-title">Admin Portal</h3>
+
+                    <!-- Description -->
+                    <p class="card-text mb-3">
+                        Manage products, orders, and store settings.
+                        Access the full admin dashboard.
+                    </p>
+
+                    <!-- Badge to indicate role -->
+                    <span class="badge bg-primary mb-3">Administrator</span>
+
+                    <!-- CTA Button -->
+                    <div>
+                        <a href="/login?role=admin" class="btn btn-primary btn-full">
+                            <i class="bi bi-shield-lock me-2"></i>Admin Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End Admin Portal Card -->
+
+        <!-- ── User Portal Card ── -->
+        <div class="col-md-5 col-lg-4">
+            <div class="card portal-card"
+                 onclick="window.location.href='/login?role=user'"
+                 role="button"
+                 tabindex="0"
+                 onkeypress="if(event.key==='Enter') window.location.href='/login?role=user'">
+
+                <div class="card-body">
+                    <span class="portal-icon">🛒</span>
+                    <h3 class="card-title">User Portal</h3>
+                    <p class="card-text mb-3">
+                        Browse fresh produce, manage your orders,
+                        and update your profile.
+                    </p>
+                    <span class="badge bg-success mb-3" style="color:#1E1E1E!important;">Customer</span>
+                    <div>
+                        <a href="/login?role=user" class="btn btn-primary btn-full">
+                            <i class="bi bi-person-circle me-2"></i>User Login
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- End User Portal Card -->
+
+    </div>
+    <!-- End portal cards row -->
+
+    <!-- New user? Register link -->
+    <div class="text-center pb-4">
+        <p class="text-muted">
+            New customer?
+            <a href="/register">Create an account &rarr;</a>
+        </p>
+    </div>
+
+</div>
+{% endblock %}

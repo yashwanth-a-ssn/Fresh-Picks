@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+<!--
+  login.html - Fresh Picks: Shared Login Page
+  =============================================
+  Used by both Admins and Users. The `role` URL parameter
+  (passed by Flask as a template variable) controls:
+    - The page title/heading
+    - Which API endpoint is called (/api/login with role in body)
+
+  Flow:
+    1. User fills form and clicks Login
+    2. JS fetch() sends POST to /api/login with {username, password, role}
+    3. Flask calls C binary (login_admin or login_user)
+    4. On SUCCESS: store user_id/role in localStorage, redirect to dashboard
+    5. On ERROR: show error message on the page
+
+  Team: CodeCrafters | SDP-1
+-->
+
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+    <div class="auth-card card">
+        <div class="card-body">
+
+            <!-- ── Page Header ── -->
+            <div class="auth-header">
+                <!-- Icon changes based on role -->
+                <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">
+                    {% if role == 'admin' %}🛡️{% else %}🛒{% endif %}
+                </div>
+                <h2>
+                    {% if role == 'admin' %}Admin Login{% else %}User Login{% endif %}
+                </h2>
+                <p>
+                    {% if role == 'admin' %}
+                        Sign in to the administrator dashboard.
+                    {% else %}
+                        Welcome back! Sign in to your account.
+                    {% endif %}
+                </p>
+            </div>
+            <!-- End Header -->
+
+            <!-- ── Alert Box (hidden by default, shown on error/success) ── -->
+            <!--
+                id="alertBox" -> JS finds this element by its ID
+                d-none        -> Bootstrap class that sets display:none
+            -->
+            <div id="alertBox" class="alert d-none mb-3" role="alert"></div>
+
+            <!-- ── Login Form ── -->
+            <!--
+                We use a regular <div> instead of <form> to prevent
+                browser's default form submission. We handle everything
+                with JavaScript fetch() instead.
+            -->
+            <div>
+                <!-- Username Field -->
+                <div class="mb-3">
+                    <label for="username" class="form-label">
+                        <i class="bi bi-person me-1"></i>Username
+                    </label>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="username"
+                        placeholder="Enter your username"
+                        autocomplete="username"
+                        autofocus
+                    >
+                </div>
+
+                <!-- Password Field -->
+                <div class="mb-4">
+                    <label for="password" class="form-label">
+                        <i class="bi bi-lock me-1"></i>Password
+                    </label>
+                    <input
+                        type="password"
+                        class="form-control"
+                        id="password"
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                    >
+                </div>
+
+                <!-- Submit Button -->
+                <button class="btn btn-primary btn-full mb-3"
+                        id="loginBtn"
+                        onclick="handleLogin()">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>
+                    Sign In
+                </button>
+
+                <!-- Role toggle links -->
+                <div class="text-center">
+                    {% if role == 'admin' %}
+                        <a href="/login?role=user" class="text-muted" style="font-size:0.85rem;">
+                            <i class="bi bi-arrow-left me-1"></i>Go to User Login
+                        </a>
+                    {% else %}
+                        <p class="mb-2" style="font-size:0.85rem; color:var(--text-muted);">
+                            Don't have an account?
+                            <a href="/register">Register here</a>
+                        </p>
+                        <a href="/login?role=admin" class="text-muted" style="font-size:0.85rem;">
+                            <i class="bi bi-shield-lock me-1"></i>Admin Login
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- End Form -->
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+    /*
+     * LOGIN PAGE JAVASCRIPT
+     * ======================
+     * All the interactivity for the login form lives here.
+     * We use fetch() to send data to Flask without reloading the page.
+     */
+
+    /*
+     * CONSTANT: role
+     * The role value injected by Flask (Jinja2 template variable).
+     * It will be either "admin" or "user".
+     */
+    const ROLE = "{{ role }}";
+
+    /*
+     * FUNCTION: showAlert
+     * PURPOSE:  Show a colored message box above the form.
+     * PARAMS:
+     *   message (string): Text to show
+     *   type    (string): "success" or "danger" (Bootstrap alert types)
+     */
+    function showAlert(message, type) {
+        const alertBox = document.getElementById("alertBox");
+        /* Remove previous type classes */
+        alertBox.className = `alert alert-${type}`;
+        /* Set the message text */
+        alertBox.textContent = message;
+        /* Make the alert visible (remove the d-none class) */
+        alertBox.classList.remove("d-none");
+    }
+
+    /*
+     * FUNCTION: setLoading
+     * PURPOSE:  Toggle the login button between normal and loading states.
+     *           This prevents users from clicking multiple times.
+     * PARAMS:
+     *   isLoading (bool): true = show spinner, false = restore button
+     */
+    function setLoading(isLoading) {
+        const btn = document.getElementById("loginBtn");
+        if (isLoading) {
+            /* Disable button and show spinner */
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-sm"></span> Signing in...';
+        } else {
+            /* Re-enable button with original text */
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Sign In';
+        }
+    }
+
+    /*
+     * FUNCTION: handleLogin
+     * PURPOSE:  Main login handler. Called when user clicks "Sign In".
+     *
+     * STEPS:
+     *   1. Read username and password from the form inputs
+     *   2. Validate they are not empty
+     *   3. Send a POST request to /api/login with the data as JSON
+     *   4. Read the response JSON from Flask
+     *   5. On success: save info to localStorage and redirect
+     *   6. On failure: show error message
+     */
+    async function handleLogin() {
+        /* Step 1: Read form values */
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+
+        /* Step 2: Validate inputs */
+        if (!username || !password) {
+            showAlert("Please enter both username and password.", "danger");
+            return; /* Stop here if validation fails */
+        }
+
+        /* Step 3: Show loading state */
+        setLoading(true);
+
+        try {
+            /*
+             * Step 4: Send POST request to Flask
+             * fetch() is the modern way to make HTTP requests in JavaScript.
+             * We send the data as JSON (a format Flask can easily read).
+             */
+            const response = await fetch("/api/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    role:     ROLE  /* "admin" or "user" */
+                })
+            });
+
+            /* Parse the JSON response from Flask */
+            const result = await response.json();
+
+            /* Step 5: Handle the result */
+            if (result.status === "SUCCESS") {
+                /*
+                 * Save login info to localStorage so the navbar and
+                 * other pages can know the user is logged in.
+                 */
+                localStorage.setItem("user_id",  result.user_id);
+                localStorage.setItem("role",     result.role);
+                localStorage.setItem("username", username);
+
+                showAlert("Login successful! Redirecting...", "success");
+
+                /* Redirect to the appropriate dashboard after a short delay */
+                setTimeout(() => {
+                    window.location.href = result.redirect;
+                }, 800);
+
+            } else {
+                /* Step 6: Show error message */
+                showAlert(result.message || "Login failed. Please try again.", "danger");
+                setLoading(false); /* Re-enable button on error */
+            }
+
+        } catch (error) {
+            /* Network or server error */
+            showAlert("Could not connect to server. Is Flask running?", "danger");
+            setLoading(false);
+        }
+    }
+
+    /*
+     * KEYBOARD SHORTCUT: Allow pressing Enter in the password field
+     * to submit the form, instead of having to click the button.
+     */
+    document.getElementById("password").addEventListener("keypress", function(event) {
+        if (event.key === "Enter") {
+            handleLogin();
+        }
+    });
+</script>
+{% endblock %}
