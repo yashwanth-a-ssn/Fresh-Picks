@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+<!--
+  profile.html - Fresh Picks: User Profile Page
+  ===============================================
+  Displays the logged-in user's profile data (fetched from users.txt
+  via the C backend) and provides a Change Password form.
+
+  On page load:
+    1. JavaScript sends POST to /api/get_profile
+    2. Flask calls C binary: ./auth get_profile <user_id>
+    3. C reads users.txt and prints: SUCCESS|id|username|full_name|phone|address
+    4. Flask parses and returns JSON
+    5. JS populates the profile fields on the page
+
+  Team: CodeCrafters | SDP-1
+-->
+
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    <!-- Page Heading -->
+    <div class="d-flex align-items-center mb-4">
+        <a href="/user_home" class="btn btn-secondary btn-sm me-3">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h3 class="mb-0 text-bright">
+                <i class="bi bi-person-circle me-2" style="color:var(--accent);"></i>My Profile
+            </h3>
+            <p class="text-muted mb-0" style="font-size:0.85rem;">View and manage your account details.</p>
+        </div>
+    </div>
+
+    <!-- Loading indicator (shown while fetching profile) -->
+    <div id="profileLoader" class="text-center py-4">
+        <div class="spinner-sm" style="width:2rem;height:2rem;border-width:3px;"></div>
+        <p class="text-muted mt-2">Loading profile...</p>
+    </div>
+
+    <!-- Main content (hidden until profile loads) -->
+    <div id="profileContent" class="d-none">
+        <div class="row g-4">
+
+            <!-- ── Profile Info Card ── -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-person-badge me-2"></i>Personal Information
+                    </div>
+                    <div class="card-body">
+
+                        <div class="profile-field">
+                            <span class="profile-field-label">User ID</span>
+                            <span class="profile-field-value">
+                                <span class="id-badge" id="pf-user-id">—</span>
+                            </span>
+                        </div>
+
+                        <div class="profile-field">
+                            <span class="profile-field-label">Username</span>
+                            <span class="profile-field-value" id="pf-username">—</span>
+                        </div>
+
+                        <div class="profile-field">
+                            <span class="profile-field-label">Full Name</span>
+                            <span class="profile-field-value" id="pf-full-name">—</span>
+                        </div>
+
+                        <div class="profile-field">
+                            <span class="profile-field-label">Phone Number</span>
+                            <span class="profile-field-value" id="pf-phone">—</span>
+                        </div>
+
+                        <div class="profile-field">
+                            <span class="profile-field-label">Address</span>
+                            <span class="profile-field-value" id="pf-address">—</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Change Password Card ── -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-lock-fill me-2"></i>Change Password
+                    </div>
+                    <div class="card-body">
+
+                        <!-- Alert for password form feedback -->
+                        <div id="passAlertBox" class="alert d-none mb-3" role="alert"></div>
+
+                        <div class="mb-3">
+                            <label for="old_password" class="form-label">
+                                <i class="bi bi-lock me-1"></i>Current Password
+                            </label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="old_password"
+                                   placeholder="Enter current password">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">
+                                <i class="bi bi-lock-fill me-1"></i>New Password
+                            </label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="new_password"
+                                   placeholder="Enter new password">
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="confirm_password" class="form-label">
+                                <i class="bi bi-lock-fill me-1"></i>Confirm New Password
+                            </label>
+                            <input type="password"
+                                   class="form-control"
+                                   id="confirm_password"
+                                   placeholder="Repeat new password">
+                        </div>
+
+                        <button class="btn btn-primary btn-full"
+                                id="changePassBtn"
+                                onclick="handleChangePassword()">
+                            <i class="bi bi-arrow-repeat me-2"></i>Update Password
+                        </button>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    <!-- End profile content -->
+
+    <!-- Error state (shown if profile fetch fails) -->
+    <div id="profileError" class="d-none">
+        <div class="alert alert-danger">
+            <i class="bi bi-x-circle me-2"></i>
+            <strong>Could not load profile.</strong>
+            <span id="profileErrorMsg"></span>
+            <div class="mt-2">
+                <a href="/user_home" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i>Back to Home
+                </a>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+    /*
+     * PROFILE PAGE JAVASCRIPT
+     * ========================
+     * On page load: Fetch profile data from Flask, then display it.
+     * Also handles the change password form submission.
+     */
+
+    /*
+     * FUNCTION: loadProfile
+     * PURPOSE:  Fetch the user's profile data from /api/get_profile.
+     *           Flask uses the session's user_id to look them up in users.txt.
+     *
+     * STEPS:
+     *   1. POST to /api/get_profile (no body needed — Flask uses session)
+     *   2. On success: populate all the profile fields on the page
+     *   3. On error: show error state
+     */
+    async function loadProfile() {
+        try {
+            const response = await fetch("/api/get_profile", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({}) /* Empty body — server uses session */
+            });
+
+            const result = await response.json();
+
+            if (result.status === "SUCCESS") {
+                /* Populate each field from the returned data */
+                document.getElementById("pf-user-id").textContent   = result.user_id  || "—";
+                document.getElementById("pf-username").textContent  = result.username  || "—";
+                document.getElementById("pf-full-name").textContent = result.full_name || "—";
+                document.getElementById("pf-phone").textContent     = result.phone     || "—";
+                document.getElementById("pf-address").textContent   = result.address   || "—";
+
+                /* Hide loader, show content */
+                document.getElementById("profileLoader").classList.add("d-none");
+                document.getElementById("profileContent").classList.remove("d-none");
+
+            } else {
+                showProfileError(result.message || "Failed to load profile data.");
+            }
+
+        } catch (err) {
+            showProfileError("Could not connect to server. Is Flask running?");
+        }
+    }
+
+    /*
+     * FUNCTION: showProfileError
+     * PURPOSE:  Show the error panel with a message
+     */
+    function showProfileError(msg) {
+        document.getElementById("profileLoader").classList.add("d-none");
+        document.getElementById("profileError").classList.remove("d-none");
+        document.getElementById("profileErrorMsg").textContent = " " + msg;
+    }
+
+    /*
+     * FUNCTION: showPassAlert
+     * PURPOSE:  Show a message in the change-password section
+     */
+    function showPassAlert(message, type) {
+        const box = document.getElementById("passAlertBox");
+        box.className = `alert alert-${type}`;
+        box.innerHTML = message;
+        box.classList.remove("d-none");
+    }
+
+    /*
+     * FUNCTION: handleChangePassword
+     * PURPOSE:  Validate input and send new password to /api/change_pass_user
+     */
+    async function handleChangePassword() {
+        const old_pass     = document.getElementById("old_password").value.trim();
+        const new_pass     = document.getElementById("new_password").value.trim();
+        const confirm_pass = document.getElementById("confirm_password").value.trim();
+
+        /* Validation */
+        if (!old_pass || !new_pass || !confirm_pass) {
+            showPassAlert("Please fill in all three password fields.", "danger");
+            return;
+        }
+
+        if (new_pass !== confirm_pass) {
+            showPassAlert("New passwords do not match.", "danger");
+            return;
+        }
+
+        if (new_pass.length < 4) {
+            showPassAlert("New password must be at least 4 characters.", "danger");
+            return;
+        }
+
+        /* Show loading state */
+        const btn = document.getElementById("changePassBtn");
+        btn.disabled  = true;
+        btn.innerHTML = '<span class="spinner-sm"></span> Updating...';
+
+        try {
+            const response = await fetch("/api/change_pass_user", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({
+                    old_password: old_pass,
+                    new_password: new_pass
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === "SUCCESS") {
+                showPassAlert(
+                    '<i class="bi bi-check-circle me-1"></i>' + result.message,
+                    "success"
+                );
+                /* Clear fields after success */
+                document.getElementById("old_password").value     = "";
+                document.getElementById("new_password").value     = "";
+                document.getElementById("confirm_password").value = "";
+            } else {
+                showPassAlert(
+                    '<i class="bi bi-x-circle me-1"></i>' + result.message,
+                    "danger"
+                );
+            }
+
+        } catch (err) {
+            showPassAlert("Server error. Is Flask running?", "danger");
+        }
+
+        /* Restore button */
+        btn.disabled  = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Update Password';
+    }
+
+    /* Load profile data as soon as the page is ready */
+    loadProfile();
+</script>
+{% endblock %}

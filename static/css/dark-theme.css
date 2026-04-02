@@ -1,0 +1,616 @@
+/*
+ * dark-theme.css - Fresh Picks: VS Code Inspired Dark Theme
+ * ===========================================================
+ * A modern, clean SaaS dark theme. All colors come from CSS
+ * custom properties (variables) at the top — change one place
+ * to restyle the entire app.
+ *
+ * Color Palette:
+ *   Background:   #1E1E1E  (VS Code editor background)
+ *   Surface/Card: #252526  (VS Code sidebar)
+ *   Border:       #3E3E42  (VS Code separator lines)
+ *   Text Primary: #CCCCCC  (VS Code default text)
+ *   Text Muted:   #858585  (VS Code comments)
+ *   Accent Blue:  #007ACC  (VS Code blue - links, buttons)
+ *   Accent Hover: #005F9E  (Darker blue on hover)
+ *   Success:      #4EC9B0  (VS Code teal)
+ *   Error/Danger: #F44747  (VS Code red)
+ *   Warning:      #CE9178  (VS Code orange)
+ *
+ * Team: CodeCrafters | Project: Fresh Picks | SDP-1
+ */
+
+/* ─────────────────────────────────────────────
+   CSS CUSTOM PROPERTIES (Variables)
+   Change values here to restyle everything.
+   ─────────────────────────────────────────── */
+:root {
+    --bg-primary:    #1E1E1E;   /* Main page background */
+    --bg-surface:    #252526;   /* Cards, panels, navbar */
+    --bg-elevated:   #2D2D30;   /* Input fields, hover states */
+    --border-color:  #3E3E42;   /* Borders and dividers */
+    --text-primary:  #CCCCCC;   /* Main text color */
+    --text-muted:    #858585;   /* Subtitles, hints */
+    --text-bright:   #FFFFFF;   /* Headings, important text */
+    --accent:        #007ACC;   /* Primary blue accent */
+    --accent-hover:  #005F9E;   /* Darker blue on hover */
+    --accent-light:  #1F8AD2;   /* Lighter blue for links */
+    --success:       #4EC9B0;   /* Success messages */
+    --danger:        #F44747;   /* Error messages */
+    --warning:       #CE9178;   /* Warning messages */
+    --font-main:     'Segoe UI', 'Inter', system-ui, sans-serif;
+    --font-mono:     'Consolas', 'Courier New', monospace;
+    --radius:        6px;        /* Standard border radius */
+    --radius-lg:     10px;       /* Larger border radius for cards */
+    --transition:    0.2s ease;  /* Standard transition speed */
+}
+
+/* ─────────────────────────────────────────────
+   RESET & BASE STYLES
+   ─────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+}
+
+body {
+    /* Main background color */
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 14px;
+    line-height: 1.6;
+    /* Flex layout to push footer to bottom */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Main content area grows to fill space, pushing footer down */
+main {
+    flex: 1;
+    padding: 2rem 0;
+}
+
+/* ─────────────────────────────────────────────
+   TYPOGRAPHY
+   ─────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-bright);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+p { color: var(--text-primary); }
+
+a {
+    color: var(--accent-light);
+    text-decoration: none;
+    transition: color var(--transition);
+}
+
+a:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+/* ─────────────────────────────────────────────
+   NAVBAR
+   ─────────────────────────────────────────── */
+.navbar {
+    background-color: var(--bg-surface) !important;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.75rem 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Brand logo text */
+.navbar-brand {
+    color: var(--text-bright) !important;
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: -0.02em;
+}
+
+/* The blue dot accent in the brand */
+.navbar-brand .brand-dot {
+    color: var(--accent);
+}
+
+/* Nav links */
+.navbar-nav .nav-link {
+    color: var(--text-muted) !important;
+    transition: color var(--transition);
+    padding: 0.4rem 0.75rem !important;
+    border-radius: var(--radius);
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--text-primary) !important;
+    background-color: var(--bg-elevated);
+}
+
+/* Active nav link */
+.navbar-nav .nav-link.active {
+    color: var(--accent-light) !important;
+}
+
+/* Hamburger menu button */
+.navbar-toggler {
+    border-color: var(--border-color) !important;
+    padding: 0.3rem 0.5rem;
+}
+
+.navbar-toggler-icon {
+    /* Custom hamburger using a CSS data URI */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28204, 204, 204, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}
+
+/* Collapsible navbar on mobile */
+.navbar-collapse {
+    background-color: var(--bg-surface);
+}
+
+
+/* ─────────────────────────────────────────────
+   FOOTER
+   ─────────────────────────────────────────── */
+footer {
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
+    color: var(--text-muted);
+    padding: 1.25rem 0;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+footer a {
+    color: var(--text-muted);
+}
+
+footer a:hover {
+    color: var(--accent-light);
+}
+
+
+/* ─────────────────────────────────────────────
+   CARDS
+   ─────────────────────────────────────────── */
+.card {
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: transform var(--transition), box-shadow var(--transition);
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.card-header {
+    background-color: var(--bg-elevated) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-bright) !important;
+    font-weight: 600;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+}
+
+.card-body {
+    padding: 1.5rem;
+}
+
+.card-title {
+    color: var(--text-bright);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.card-text {
+    color: var(--text-muted);
+}
+
+
+/* ─────────────────────────────────────────────
+   FORMS - Inputs, Labels, Textareas
+   ─────────────────────────────────────────── */
+.form-label {
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+}
+
+.form-control, .form-select {
+    background-color: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius) !important;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9rem;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.2) !important;
+    outline: none;
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-primary) !important;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.7;
+}
+
+/* Validation feedback */
+.valid-feedback   { color: var(--success); }
+.invalid-feedback { color: var(--danger); }
+
+.form-control.is-valid   { border-color: var(--success) !important; }
+.form-control.is-invalid { border-color: var(--danger)  !important; }
+
+
+/* ─────────────────────────────────────────────
+   BUTTONS
+   ─────────────────────────────────────────── */
+.btn {
+    border-radius: var(--radius) !important;
+    font-weight: 500;
+    font-size: 0.88rem;
+    padding: 0.55rem 1.25rem;
+    transition: all var(--transition);
+    letter-spacing: 0.01em;
+}
+
+/* Primary (blue) button */
+.btn-primary {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #fff !important;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover) !important;
+    border-color: var(--accent-hover) !important;
+    box-shadow: 0 4px 12px rgba(0, 122, 204, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Outline button */
+.btn-outline-primary {
+    color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--accent) !important;
+    color: #fff !important;
+}
+
+/* Secondary (muted) button */
+.btn-secondary {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color) !important;
+}
+
+/* Danger button */
+.btn-danger {
+    background-color: var(--danger) !important;
+    border-color: var(--danger) !important;
+}
+
+/* Full width button helper */
+.btn-full { width: 100%; }
+
+
+/* ─────────────────────────────────────────────
+   ALERTS (Success / Error messages shown to user)
+   ─────────────────────────────────────────── */
+.alert {
+    border-radius: var(--radius) !important;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    border: 1px solid transparent;
+}
+
+.alert-success {
+    background-color: rgba(78, 201, 176, 0.15) !important;
+    border-color: rgba(78, 201, 176, 0.4) !important;
+    color: var(--success) !important;
+}
+
+.alert-danger {
+    background-color: rgba(244, 71, 71, 0.15) !important;
+    border-color: rgba(244, 71, 71, 0.4) !important;
+    color: var(--danger) !important;
+}
+
+.alert-info {
+    background-color: rgba(0, 122, 204, 0.15) !important;
+    border-color: rgba(0, 122, 204, 0.4) !important;
+    color: var(--accent-light) !important;
+}
+
+.alert-warning {
+    background-color: rgba(206, 145, 120, 0.15) !important;
+    border-color: rgba(206, 145, 120, 0.4) !important;
+    color: var(--warning) !important;
+}
+
+
+/* ─────────────────────────────────────────────
+   BADGES
+   ─────────────────────────────────────────── */
+.badge {
+    font-weight: 500;
+    font-size: 0.72rem;
+    padding: 0.3em 0.65em;
+    border-radius: 4px;
+}
+
+.badge.bg-primary { background-color: var(--accent) !important; }
+.badge.bg-success { background-color: var(--success) !important; color: #1E1E1E !important; }
+.badge.bg-danger  { background-color: var(--danger) !important; }
+
+
+/* ─────────────────────────────────────────────
+   DIVIDERS
+   ─────────────────────────────────────────── */
+hr {
+    border-color: var(--border-color);
+    opacity: 1;
+    margin: 1.5rem 0;
+}
+
+
+/* ─────────────────────────────────────────────
+   PAGE-SPECIFIC: Landing Page Hero
+   ─────────────────────────────────────────── */
+.hero-section {
+    text-align: center;
+    padding: 4rem 1rem 2rem;
+}
+
+.hero-section h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--text-bright) 0%, var(--accent-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1rem;
+}
+
+.hero-section p {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    max-width: 500px;
+    margin: 0 auto 2.5rem;
+}
+
+/* Portal cards on landing page */
+.portal-card {
+    cursor: pointer;
+    border: 2px solid var(--border-color) !important;
+    transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition) !important;
+    text-align: center;
+    padding: 2rem 1.5rem !important;
+}
+
+.portal-card:hover {
+    border-color: var(--accent) !important;
+    transform: translateY(-4px) !important;
+    box-shadow: 0 12px 32px rgba(0, 122, 204, 0.2) !important;
+}
+
+.portal-card .portal-icon {
+    font-size: 2.8rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.portal-card h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+
+/* ─────────────────────────────────────────────
+   PAGE-SPECIFIC: Auth Forms (Login / Register)
+   ─────────────────────────────────────────── */
+.auth-wrapper {
+    min-height: calc(100vh - 140px); /* Account for navbar + footer */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 440px;
+}
+
+.auth-card .card-body {
+    padding: 2rem;
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 1.75rem;
+}
+
+.auth-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.3rem;
+}
+
+.auth-header p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* OTP input styling */
+.otp-field {
+    font-family: var(--font-mono) !important;
+    letter-spacing: 0.3em;
+    font-size: 1.2rem !important;
+    text-align: center;
+}
+
+
+/* ─────────────────────────────────────────────
+   PAGE-SPECIFIC: Dashboard / Profile
+   ─────────────────────────────────────────── */
+.welcome-banner {
+    background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+}
+
+.welcome-banner h2 {
+    font-size: 1.6rem;
+    margin-bottom: 0.25rem;
+}
+
+.welcome-banner p {
+    color: var(--text-muted);
+    margin: 0;
+}
+
+/* Profile info display */
+.profile-field {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.profile-field:last-child {
+    border-bottom: none;
+}
+
+.profile-field-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.2rem;
+}
+
+.profile-field-value {
+    color: var(--text-bright);
+    font-size: 0.95rem;
+}
+
+/* ID badge pill */
+.id-badge {
+    display: inline-block;
+    background-color: rgba(0, 122, 204, 0.15);
+    color: var(--accent-light);
+    border: 1px solid rgba(0, 122, 204, 0.3);
+    border-radius: 4px;
+    padding: 0.2em 0.6em;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+}
+
+
+/* ─────────────────────────────────────────────
+   UTILITY CLASSES
+   ─────────────────────────────────────────── */
+.text-accent   { color: var(--accent-light) !important; }
+.text-success  { color: var(--success) !important; }
+.text-danger   { color: var(--danger) !important; }
+.text-muted    { color: var(--text-muted) !important; }
+.text-bright   { color: var(--text-bright) !important; }
+.bg-surface    { background-color: var(--bg-surface) !important; }
+.bg-elevated   { background-color: var(--bg-elevated) !important; }
+.border-accent { border-color: var(--accent) !important; }
+
+/* Loading spinner */
+.spinner-sm {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Fade-in animation for pages */
+.fade-in {
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ─────────────────────────────────────────────
+   BOOTSTRAP OVERRIDES - make Bootstrap match theme
+   ─────────────────────────────────────────── */
+.list-group-item {
+    background-color: var(--bg-surface) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.table {
+    color: var(--text-primary) !important;
+}
+
+.table th {
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-color: var(--border-color) !important;
+}
+
+.table td {
+    border-color: var(--border-color) !important;
+    vertical-align: middle;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: rgba(255,255,255,0.03) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Scrollbar styling (Chrome/Edge) */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
