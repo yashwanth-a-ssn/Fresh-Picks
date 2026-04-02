@@ -29,23 +29,29 @@ Team: CodeCrafters | Project: Fresh Picks | SDP-1
 """
 
 from flask import (
-    Flask, render_template, request,
-    jsonify, session, redirect, url_for
+    Flask,              # Creates and initializes the web application
+    render_template,    # Renders HTML templates for frontend pages
+    request,            # Retrieves incoming data from client requests
+    jsonify,            # Converts data into JSON HTTP responses
+    session,            # Stores user session data across requests
+    redirect,           # Redirects user to a different route
+    url_for             # Generates dynamic URLs for application routes
 )
 from bridge import run_c_binary  # Our reusable C-caller function
+# Executes C backend binary and returns output
 
 # ─────────────────────────────────────────────────────────────
 # Flask App Setup
 # ─────────────────────────────────────────────────────────────
 app = Flask(
     __name__,
-    template_folder="../templates",   # HTML files are in /templates/
-    static_folder="../static"         # CSS/JS files are in /static/
+    template_folder = "../templates",   # HTML files are in /templates/
+    static_folder = "../static"         # CSS/JS files are in /static/
 )
 
 # Secret key for session encryption.
 # In production, use a long random string from os.urandom(24).
-app.secret_key = "fresh_picks_secret_codecrafters_2024"
+app.secret_key = "fresh_picks_secret_codecrafters_2026"
 
 
 # =============================================================
@@ -70,6 +76,9 @@ def login():
       /login?role=user
       /login?role=admin
     """
+    # request.args is a dictionary-like object in Flask that stores:
+    # request.args.get("key", default_value)
+    # Data sent via URL query parameters (GET request)
     role = request.args.get("role", "user")  # Default to user if not specified
     return render_template("login.html", role=role)
 
@@ -170,6 +179,7 @@ def api_login():
             # The C binary returns the user_id as 'data'
             session["user_id"] = result["data"]
 
+        # jsonify() => POST a JSON File to Frontend API
         return jsonify({
             "status":   "SUCCESS",
             "message":  "Login successful",
@@ -188,6 +198,7 @@ def api_register():
     Accepts JSON with: { username, password, full_name, phone, address }
     Calls the C binary to write the new user to users.txt.
     """
+    # get_json() => Extract Data from a JSON File
     data      = request.get_json()
     username  = data.get("username", "").strip()
     password  = data.get("password", "").strip()
@@ -224,6 +235,7 @@ def api_get_profile():
         return jsonify({"status": "ERROR", "message": "Not logged in"})
 
     user_id = session["user_id"]
+    # run_c_binary(command, argument_list)
     result  = run_c_binary("auth", ["get_profile", user_id])
 
     if result["status"] == "SUCCESS":

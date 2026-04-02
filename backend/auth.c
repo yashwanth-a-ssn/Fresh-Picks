@@ -57,6 +57,8 @@ void generate_user_id(char *out_id) {
     }
 
     /* Zero-pad to 3 digits: U001, U002, ... */
+    // sprintf() => writes the fromatted data into a string ptr
+    // out_id => string ptr
     sprintf(out_id, "U%03d", count + 1);
 }
 
@@ -79,6 +81,8 @@ void login_user(const char *username, const char *password) {
         char temp[MAX_LINE_LEN];
         strcpy(temp, line); /* strtok modifies string, use a copy */
 
+        // In the first call of strtok pass the str
+        // Pass NULL for consecutive calls, it will fetch automatically.
         char *t_id    = strtok(temp, DELIMITER); /* user_id  */
         char *t_uname = strtok(NULL, DELIMITER); /* username */
         char *t_pass  = strtok(NULL, DELIMITER); /* password */
@@ -353,13 +357,58 @@ int main(int argc, char *argv[]) {
 
     char *action = argv[1]; /* The action string, e.g. "login_user" */
 
-    if      (strcmp(action, "login_user") == 0)       { if (argc<4) {PRINT_ERROR("Missing args");return 1;} login_user(argv[2], argv[3]); }
-    else if (strcmp(action, "login_admin") == 0)      { if (argc<4) {PRINT_ERROR("Missing args");return 1;} login_admin(argv[2], argv[3]); }
-    else if (strcmp(action, "register") == 0)         { if (argc<7) {PRINT_ERROR("Missing args");return 1;} register_user(argv[2], argv[3], argv[4], argv[5], argv[6]); }
-    else if (strcmp(action, "get_profile") == 0)      { if (argc<3) {PRINT_ERROR("Missing args");return 1;} get_profile(argv[2]); }
-    else if (strcmp(action, "change_pass_user") == 0) { if (argc<5) {PRINT_ERROR("Missing args");return 1;} change_pass_user(argv[2], argv[3], argv[4]); }
-    else if (strcmp(action, "change_pass_admin") == 0){ if (argc<4) {PRINT_ERROR("Missing args");return 1;} change_pass_admin(argv[2], argv[3]); }
-    else { PRINT_ERROR("Unknown action"); return 1; }
+    if (strcmp(action, "login_user") == 0) {
+        if (argc<4) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+
+        login_user(argv[2], argv[3]);
+    }
+    else if (strcmp(action, "login_admin") == 0) {
+        if (argc<4) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+        
+        login_admin(argv[2], argv[3]);
+    }
+    else if (strcmp(action, "register") == 0) {
+        if (argc<7) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+
+        register_user(argv[2], argv[3], argv[4], argv[5], argv[6]);
+    }
+    else if (strcmp(action, "get_profile") == 0) {
+        if (argc<3) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+
+        get_profile(argv[2]);
+    }
+    else if (strcmp(action, "change_pass_user") == 0) {
+        if (argc<5) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+
+        change_pass_user(argv[2], argv[3], argv[4]); 
+    }
+    else if (strcmp(action, "change_pass_admin") == 0) {
+        if (argc<4) {
+            PRINT_ERROR("Missing args");
+            return 1;
+        }
+        
+        change_pass_admin(argv[2], argv[3]);
+    }
+    else {
+        PRINT_ERROR("Unknown action");
+        return 1;
+    }
 
     return 0;
 }
