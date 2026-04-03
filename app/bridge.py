@@ -6,8 +6,8 @@ use to call C binaries. This avoids code duplication and prevents
 merge conflicts since everyone imports from this single file.
 
 HOW IT WORKS:
-    1. Flask route calls run_c_binary("auth", ["login_user", "alice", "pass"])
-    2. This function builds the shell command: ./auth login_user alice pass
+    1. Flask route calls run_c_binary("auth", ["login_user", "Yashwanth", "Yash@123"])
+    2. This function builds the shell command: ./auth login_user Yashwanth Yash@123
     3. subprocess.run() executes the C binary
     4. The C binary prints to stdout: SUCCESS|U001
     5. We parse this and return a clean Python dict: {"status": "SUCCESS", "data": "U001"}
@@ -30,6 +30,9 @@ import os          # Used to build the correct file path
 # CONSTANT: Path to the backend folder where C binaries live.
 # os.path.dirname(__file__) gets the folder of THIS file (app/).
 # We then go up one level (..) and into backend/.
+# os.path.dirname(__file__) → /home/yash/project/app
+# os.path.join("/home/yash/project/app", "..", "backend")
+#             → /home/yash/project/backend 
 # ─────────────────────────────────────────────────────────────
 BACKEND_DIR = os.path.join(os.path.dirname(__file__), "..", "backend")
 
@@ -51,7 +54,7 @@ def run_c_binary(executable_name, args_list):
         executable_name (str): Name of the compiled binary.
                                 Example: "auth"
         args_list (list):       List of string arguments to pass.
-                                Example: ["login_user", "alice", "pass123"]
+                                Example: ["login_user", "Yashwanth", "Yash@123"]
 
     RETURNS:
         dict with keys:
@@ -71,7 +74,7 @@ def run_c_binary(executable_name, args_list):
     binary_path = os.path.join(BACKEND_DIR, executable_name)
 
     # Step 2: Build the full command list
-    # Example: ["../backend/auth", "login_user", "alice", "pass123"]
+    # Example: ["../backend/auth", "login_user", "Yashwanth", "Yash@123"]
     command = [binary_path] + args_list
 
     try:

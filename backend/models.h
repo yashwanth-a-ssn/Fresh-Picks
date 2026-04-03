@@ -20,6 +20,7 @@
 #define MAX_STR_LEN     100   /* Maximum length for most string fields */
 #define MAX_LINE_LEN    512   /* Maximum length for one line in a text file */
 #define MAX_ID_LEN      20    /* Maximum length for a user ID string */
+#define MAX_ADD_LEN     256   /* Maximum length for address in DB text file */
 
 /* File paths - adjust if your folder layout changes */
 #define USERS_FILE      "users.txt"
