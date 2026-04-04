@@ -11,6 +11,8 @@
 #        chmod +x build.sh
 #   3. Run it:
 #        ./build.sh
+#           (or below on windows powershell) 
+#        bash build.sh 
 #
 # OR compile manually (if you use VS Code's Code Runner):
 #   gcc -o auth auth.c -Wall
@@ -45,5 +47,7 @@ fi
 echo ""
 echo "================================================"
 echo "  All binaries compiled! Ready to run Flask."
-echo "  Next step: cd ../app && python app.py"
+echo "  Next step: Run app.py"
+echo "  Git Bash: cd ../app && python app.py"
+echo "  Powershell: cd ../app; python app.py"
 echo "================================================"
