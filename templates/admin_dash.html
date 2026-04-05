@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 <!--
-  admin_dash.html - Fresh Picks: Admin Dashboard
-  ================================================
+  admin_dash.html - Fresh Picks: Admin Dashboard (v2)
+  =====================================================
   Displayed after a successful admin login.
-  Features:
-    - Welcome banner with admin username
-    - Stats cards (placeholder for future modules)
-    - Change Password section
+
+  CHANGELOG (v2):
+    - REMOVED: Change Password form (moved to /security)
+    - ADDED:   Admin Information Card showing Name + Email (from localStorage)
+    - ADDED:   "Go to Security Settings" button linking to /security
+    - ADDED:   Red (#F44747) accent on the security card for visual distinction
 
   Team: CodeCrafters | SDP-1
 -->
@@ -74,78 +76,49 @@
 
     <div class="row g-4">
 
-        <!-- ── Change Password Card ── -->
+        <!-- ── Admin Information Card (v2: replaces the old Change Password form) ── -->
         <div class="col-lg-5">
             <div class="card h-100">
                 <div class="card-header">
-                    <i class="bi bi-lock-fill me-2"></i>Change Admin Password
+                    <i class="bi bi-person-badge me-2"></i>Admin Information
                 </div>
                 <div class="card-body">
 
-                    <!-- Alert for this form's feedback -->
-                    <div id="passAlertBox" class="alert d-none mb-3" role="alert"></div>
-
-                    <div class="mb-3">
-                        <label for="old_password" class="form-label">
-                            <i class="bi bi-lock me-1"></i>Current Password
-                        </label>
-                        <input type="password"
-                               class="form-control"
-                               id="old_password"
-                               placeholder="Enter current password">
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="new_password" class="form-label">
-                            <i class="bi bi-lock-fill me-1"></i>New Password
-                        </label>
-                        <input type="password"
-                               class="form-control"
-                               id="new_password"
-                               placeholder="Enter new password">
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="confirm_new_password" class="form-label">
-                            <i class="bi bi-lock-fill me-1"></i>Confirm New Password
-                        </label>
-                        <input type="password"
-                               class="form-control"
-                               id="confirm_new_password"
-                               placeholder="Repeat new password">
-                    </div>
-
-                    <button class="btn btn-primary btn-full"
-                            id="changePassBtn"
-                            onclick="handleChangePassword()">
-                        <i class="bi bi-arrow-repeat me-2"></i>Update Password
-                    </button>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- ── Info Panel ── -->
-        <div class="col-lg-7">
-            <div class="card h-100">
-                <div class="card-header">
-                    <i class="bi bi-info-circle me-2"></i>Admin Information
-                </div>
-                <div class="card-body">
+                    <!-- Role badge -->
                     <div class="profile-field">
                         <span class="profile-field-label">Role</span>
                         <span class="profile-field-value">
                             <span class="badge bg-primary">Administrator</span>
                         </span>
                     </div>
+
+                    <!-- Admin ID -->
+                    <div class="profile-field">
+                        <span class="profile-field-label">Admin ID</span>
+                        <span class="profile-field-value">
+                            <span class="id-badge" id="adminIdDisplay">—</span>
+                        </span>
+                    </div>
+
+                    <!-- Username -->
                     <div class="profile-field">
                         <span class="profile-field-label">Username</span>
                         <span class="profile-field-value" id="adminUsernameInfo">—</span>
                     </div>
+
+                    <!-- Admin Name (stored in localStorage from login) -->
                     <div class="profile-field">
-                        <span class="profile-field-label">Access Level</span>
-                        <span class="profile-field-value">Full Store Access</span>
+                        <span class="profile-field-label">Display Name</span>
+                        <span class="profile-field-value" id="adminNameDisplay">—</span>
                     </div>
+
+                    <!-- Email (stored in localStorage from login) -->
+                    <div class="profile-field">
+                        <span class="profile-field-label">Email</span>
+                        <span class="profile-field-value" id="adminEmailDisplay">—</span>
+                    </div>
+
+                    <!-- Session status -->
                     <div class="profile-field">
                         <span class="profile-field-label">Session</span>
                         <span class="profile-field-value">
@@ -153,11 +126,81 @@
                         </span>
                     </div>
 
-                    <div class="mt-4">
-                        <a href="/logout" class="btn btn-secondary">
-                            <i class="bi bi-box-arrow-right me-2"></i>Logout
-                        </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Quick Actions Card ── -->
+        <div class="col-lg-7">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-lightning-charge me-2"></i>Quick Actions
+                </div>
+                <div class="card-body d-flex flex-column gap-3">
+
+                    <!--
+                        SECURITY SETTINGS BUTTON (v2 addition)
+                        Links to /security (Module 5 — security.html)
+                        Red accent (#F44747) used intentionally:
+                          - Security is a "critical" action
+                          - Red creates a clear visual break from blue UI
+                          - Consistent with brand-dot and error color
+                    -->
+                    <div class="card"
+                         style="border: 1px solid var(--danger) !important;
+                                background: rgba(244,71,71,0.06) !important;">
+                        <div class="card-body py-3">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <!-- Red shield icon — security = red accent -->
+                                        <i class="bi bi-shield-lock-fill"
+                                           style="color:var(--danger); font-size:1.2rem;"></i>
+                                        <strong class="text-bright">Security Settings</strong>
+                                    </div>
+                                    <p class="text-muted mb-0" style="font-size:0.82rem;">
+                                        Change your admin password with OTP verification.
+                                    </p>
+                                </div>
+                                <a href="/security"
+                                   class="btn btn-sm"
+                                   style="background:var(--danger); color:#fff; border:none;
+                                          min-width:130px; text-align:center;">
+                                    <i class="bi bi-arrow-right me-1"></i>Go to Security
+                                </a>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Logout Action -->
+                    <div class="card" style="border: 1px solid var(--border-color) !important;">
+                        <div class="card-body py-3">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <i class="bi bi-box-arrow-right"
+                                           style="color:var(--text-muted); font-size:1.2rem;"></i>
+                                        <strong class="text-bright">Sign Out</strong>
+                                    </div>
+                                    <p class="text-muted mb-0" style="font-size:0.82rem;">
+                                        End your current admin session.
+                                    </p>
+                                </div>
+                                <a href="/logout" class="btn btn-secondary btn-sm"
+                                   style="min-width:130px; text-align:center;">
+                                    <i class="bi bi-box-arrow-right me-1"></i>Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notice Box -->
+                    <div class="alert alert-info mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Module 1 Demo:</strong> More modules (Inventory, Orders, Billing)
+                        will be connected in upcoming sprints.
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -170,105 +213,28 @@
 {% block extra_scripts %}
 <script>
     /*
-     * ADMIN DASHBOARD JAVASCRIPT
-     * ===========================
-     * Handles: displaying username, changing admin password.
-     */
-
-    /*
-     * On page load: read username from localStorage and display it.
-     * We stored it there when the admin logged in (in login.html's JS).
+     * ADMIN DASHBOARD JAVASCRIPT (v2)
+     * =================================
+     * Reads admin info from localStorage (saved at login) and populates
+     * the Information Card. Password change form has been moved to /security.
      */
     (function loadAdminInfo() {
+        /*
+         * localStorage stores key-value pairs that persist across pages.
+         * These values are saved in login.html when the admin logs in.
+         */
         const username = localStorage.getItem("username") || "Admin";
+        const userId   = localStorage.getItem("user_id")  || "—";
+
+        /* Display name and email are basic for now;
+           a future get_admin_profile API can fetch live data from the DB */
         document.getElementById("adminUsernameDisplay").textContent = username;
         document.getElementById("adminUsernameInfo").textContent    = username;
+        document.getElementById("adminIdDisplay").textContent       = userId;
+
+        /* Placeholder values — replace with live API call in a future sprint */
+        document.getElementById("adminNameDisplay").textContent  = "CodeCrafters";
+        document.getElementById("adminEmailDisplay").textContent = "codecrafters@gmail.com";
     })();
-
-    /*
-     * FUNCTION: showPassAlert
-     * PURPOSE:  Show result message in the change-password card
-     */
-    function showPassAlert(message, type) {
-        const box = document.getElementById("passAlertBox");
-        box.className = `alert alert-${type}`;
-        box.innerHTML = message;
-        box.classList.remove("d-none");
-    }
-
-    /*
-     * FUNCTION: handleChangePassword
-     * PURPOSE:  Read old and new passwords, validate them,
-     *           and send to /api/change_pass_admin
-     *
-     * STEPS:
-     *   1. Read field values
-     *   2. Check none are empty
-     *   3. Check new and confirm match
-     *   4. POST to Flask
-     *   5. Show result
-     */
-    async function handleChangePassword() {
-        const old_pass     = document.getElementById("old_password").value.trim();
-        const new_pass     = document.getElementById("new_password").value.trim();
-        const confirm_pass = document.getElementById("confirm_new_password").value.trim();
-
-        /* Validate */
-        if (!old_pass || !new_pass || !confirm_pass) {
-            showPassAlert("Please fill in all password fields.", "danger");
-            return;
-        }
-
-        if (new_pass !== confirm_pass) {
-            showPassAlert("New passwords do not match.", "danger");
-            return;
-        }
-
-        if (new_pass.length < 4) {
-            showPassAlert("New password must be at least 4 characters.", "danger");
-            return;
-        }
-
-        /* Disable button while processing */
-        const btn = document.getElementById("changePassBtn");
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-sm"></span> Updating...';
-
-        try {
-            const response = await fetch("/api/change_pass_admin", {
-                method:  "POST",
-                headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({
-                    old_password: old_pass,
-                    new_password: new_pass
-                })
-            });
-
-            const result = await response.json();
-
-            if (result.status === "SUCCESS") {
-                showPassAlert(
-                    '<i class="bi bi-check-circle me-1"></i>' + result.message,
-                    "success"
-                );
-                /* Clear the fields */
-                document.getElementById("old_password").value        = "";
-                document.getElementById("new_password").value        = "";
-                document.getElementById("confirm_new_password").value = "";
-            } else {
-                showPassAlert(
-                    '<i class="bi bi-x-circle me-1"></i>' + result.message,
-                    "danger"
-                );
-            }
-
-        } catch (err) {
-            showPassAlert("Server error. Is Flask running?", "danger");
-        }
-
-        /* Re-enable button */
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>Update Password';
-    }
 </script>
 {% endblock %}
