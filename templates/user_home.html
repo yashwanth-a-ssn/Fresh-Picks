@@ -113,13 +113,18 @@
                         </span>
                     </div>
 
-                    <!-- Full Name (v2 addition — fetched from live profile API) -->
                     <div class="profile-field">
                         <span class="profile-field-label">Full Name</span>
                         <span class="profile-field-value" id="summaryFullName">—</span>
                     </div>
 
-                    <!-- Email (v2 addition — fetched from live profile API) -->
+                    <!-- Phone (fetched from live profile API) -->
+                    <div class="profile-field">
+                        <span class="profile-field-label">Phone</span>
+                        <span class="profile-field-value" id="summaryPhone">—</span>
+                    </div>
+
+                    <!-- Email (fetched from live profile API) -->
                     <div class="profile-field">
                         <span class="profile-field-label">Email</span>
                         <span class="profile-field-value" id="summaryEmail">—</span>
@@ -217,7 +222,7 @@
 
         document.getElementById("userDisplay").textContent     = username;
         document.getElementById("summaryUsername").textContent = username;
-        document.getElementById("summaryUserId").textContent   = userId;
+        /* User ID field removed from the card per task spec — no update needed */
     })();
 
     /*
@@ -235,8 +240,9 @@
             const result = await response.json();
 
             if (result.status === "SUCCESS") {
-                /* Populate the Name and Email fields from the live database */
+                /* Populate Full Name, Phone, and Email from the live database */
                 document.getElementById("summaryFullName").textContent = result.full_name || "—";
+                document.getElementById("summaryPhone").textContent    = result.phone     || "—";
                 document.getElementById("summaryEmail").textContent    = result.email     || "—";
             }
             /* If it fails silently, the fields just remain "—" — no error shown */

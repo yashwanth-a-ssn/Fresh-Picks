@@ -193,7 +193,11 @@ def admin_dash():
     if session.get("role") != "admin":
         return redirect(url_for("login", role="admin"))
 
-    return render_template("admin_dash.html", username=session.get("username"))
+    return render_template(
+        "admin_dash.html",
+        username   = session.get("username"),
+        admin_name = session.get("admin_name", "Admin")  # Passed to {{ admin_name }} in template
+    )
 
 
 @app.route("/profile")
@@ -275,15 +279,21 @@ def api_login():
         result = run_c_binary("auth", ["login_user", username, password])
 
     # Step 4: If login succeeded, save user info in session
+    
     if result["status"] == "SUCCESS":
         session["role"]     = role
         session["username"] = username
 
-        # C binary returns the actual ID (user_id or admin_id)
-        # For users: "U1001"; for admins: "A1001"
-        session["user_id"] = result["data"]
+        if role == "admin":
+            # C now returns: SUCCESS|admin_id|admin_name
+            # result["data"] is everything after "SUCCESS|", so: "admin_id|admin_name"
+            admin_parts = result["data"].split("|")
+            session["user_id"]    = admin_parts[0] if len(admin_parts) > 0 else "A1001"
+            session["admin_name"] = admin_parts[1] if len(admin_parts) > 1 else "Admin"
+        else:
+            # For users, C returns: SUCCESS|user_id (unchanged)
+            session["user_id"]    = result["data"]
 
-        # jsonify() => POST a JSON File to Frontend API
         return jsonify({
             "status":   "SUCCESS",
             "message":  "Login successful",
@@ -310,13 +320,26 @@ def api_register():
     full_name = data.get("full_name", "").strip()
     email     = data.get("email",     "").strip()
     phone     = data.get("phone",     "").strip()
-    address   = data.get("address",   "").strip()
 
-    # Validate all fields are present
-    if not all([username, password, full_name, email, phone, address]):
+    # Receive the 4 address sub-fields separately from the frontend form.
+    # Each field is collected individually for clear display later.
+    door   = data.get("door",   "").strip()  # e.g. "No 11, FF2"
+    street = data.get("street", "").strip()  # e.g. "Elumalai Street"
+    area   = data.get("area",   "").strip()  # e.g. "West Tambaram"
+    pincode= data.get("pincode","").strip()  # e.g. "600045"
+
+    # Concatenate into a single CSV string for storage in users.txt.
+    # The pipe (|) delimiter is already used between fields, so we use
+    # a comma to separate address sub-parts within the address field.
+    # This matches the schema note: "store as csv within the address field."
+    address = f"{door},{street},{area},{pincode}"
+
+    # Validate all required fields are present
+    if not all([username, password, full_name, email, phone, door, street, area, pincode]):
         return jsonify({"status": "ERROR", "message": "All fields are required"})
 
-    # Call the C binary to register
+    # Call the C binary — now 8 args: register + 6 user fields
+    # argv: auth register username password full_name email phone address
     result = run_c_binary("auth", ["register", username, password,
                                    full_name, email, phone, address])
 
@@ -384,9 +407,15 @@ def api_change_password():
     role    = session.get("role")     # "user" or "admin"
     user_id = session.get("user_id")  # "U1001" or "A1001"
 
-    # Call the unified C change_password action
-    result = run_c_binary("auth", ["change_password", role, user_id,
-                                   old_password, new_password])
+    # Route to the correct C function based on role.
+    # For users:  change_pass_user  <user_id>  <old> <new>
+    # For admins: change_pass_admin <admin_id> <old> <new>
+    if role == "admin":
+        result = run_c_binary("auth", ["change_pass_admin", user_id,
+                                       old_password, new_password])
+    else:
+        result = run_c_binary("auth", ["change_pass_user", user_id,
+                                       old_password, new_password])
 
     return jsonify({"status": result["status"], "message": result["data"]})
 

@@ -24,7 +24,7 @@
             <div>
                 <h2>
                     <i class="bi bi-shield-check me-2" style="color:var(--accent);"></i>
-                    Welcome, <span id="adminUsernameDisplay" style="color:var(--accent-light);">Admin</span>!
+                    Welcome! <span style="color:var(--accent-light);">{{ admin_name | default("Admin") }}</span>
                 </h2>
                 <p>You are logged in as <strong>Administrator</strong>. Manage your store below.</p>
             </div>
@@ -228,9 +228,9 @@
 
         /* Display name and email are basic for now;
            a future get_admin_profile API can fetch live data from the DB */
-        document.getElementById("adminUsernameDisplay").textContent = username;
-        document.getElementById("adminUsernameInfo").textContent    = username;
-        document.getElementById("adminIdDisplay").textContent       = userId;
+        /* adminUsernameDisplay removed — greeting is now rendered server-side via Jinja2 */
+        document.getElementById("adminUsernameInfo").textContent = username;
+        document.getElementById("adminIdDisplay").textContent    = userId;
 
         /* Placeholder values — replace with live API call in a future sprint */
         document.getElementById("adminNameDisplay").textContent  = "CodeCrafters";

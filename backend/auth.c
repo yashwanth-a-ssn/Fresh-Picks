@@ -17,6 +17,15 @@
  *     SUCCESS|<data>   or   ERROR|<reason>
  *   Flask reads this output and sends it back as JSON.
  *
+ * DB SCHEMA — users.txt (7 fields):
+ *   user_id|username|password|full_name|email|phone|address
+ *   Field indices (0-based after strtok):
+ *     [0] user_id   [1] username  [2] password
+ *     [3] full_name [4] email     [5] phone    [6] address
+ *
+ * DB SCHEMA — admin_creds.txt (5 fields):
+ *   admin_id|username|password|admin_name|email
+ *
  * Team: CodeCrafters | Project: Fresh Picks | SDP-1
  */
 
@@ -67,6 +76,10 @@ void generate_user_id(char *out_id) {
    PURPOSE:  Validate user credentials against users.txt
    PARAMS:   username, password - what the user typed
    OUTPUT:   SUCCESS|user_id  OR  ERROR|message
+
+   SCHEMA:   user_id|username|password|full_name|email|phone|address
+             We only need fields [0]=user_id, [1]=username, [2]=password
+             to authenticate. The rest are skipped here.
    ──────────────────────────────────────────────────────────── */
 void login_user(const char *username, const char *password) {
     FILE *fp = fopen(USERS_FILE, "r");
@@ -83,9 +96,9 @@ void login_user(const char *username, const char *password) {
 
         // In the first call of strtok pass the str
         // Pass NULL for consecutive calls, it will fetch automatically.
-        char *t_id    = strtok(temp, DELIMITER); /* user_id  */
-        char *t_uname = strtok(NULL, DELIMITER); /* username */
-        char *t_pass  = strtok(NULL, DELIMITER); /* password */
+        char *t_id    = strtok(temp, DELIMITER); /* field [0]: user_id  */
+        char *t_uname = strtok(NULL, DELIMITER); /* field [1]: username */
+        char *t_pass  = strtok(NULL, DELIMITER); /* field [2]: password */
 
         if (!t_id || !t_uname || !t_pass) continue; /* Malformed line */
 
@@ -104,46 +117,74 @@ void login_user(const char *username, const char *password) {
    FUNCTION: login_admin
    PURPOSE:  Validate admin credentials against admin_creds.txt
    PARAMS:   username, password - what the admin typed
-   OUTPUT:   SUCCESS|admin  OR  ERROR|message
+   OUTPUT:   SUCCESS|admin_id|admin_name  OR  ERROR|message
+
+   SCHEMA:   admin_id|username|password|admin_name|email
+             We read all 5 fields so we can return admin_name
+             to Flask, which stores it in the session.
    ──────────────────────────────────────────────────────────── */
 void login_admin(const char *username, const char *password) {
     FILE *fp = fopen(ADMIN_FILE, "r");
     if (fp == NULL) { PRINT_ERROR("Admin database not found"); return; }
 
     char line[MAX_LINE_LEN];
-    if (fgets(line, sizeof(line), fp) == NULL) {
-        fclose(fp);
-        PRINT_ERROR("Admin database is empty");
-        return;
-    }
-    fclose(fp);
-    trim_newline(line);
-
     char temp[MAX_LINE_LEN];
-    strcpy(temp, line);
 
-    char *stored_user = strtok(temp, DELIMITER); /* username field */
-    char *stored_pass = strtok(NULL, DELIMITER); /* password field */
+    /*
+     * WHY loop instead of reading just one line?
+     * The schema note says admin_creds.txt supports multiple admin accounts.
+     * We loop through every row to find the matching username+password pair.
+     */
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        trim_newline(line);
+        if (strlen(line) < 3) continue; /* Skip blank/empty lines */
 
-    if (!stored_user || !stored_pass) { PRINT_ERROR("Admin database format error"); return; }
+        strcpy(temp, line); /* strtok will destroy temp; line stays intact */
 
-    if (strcmp(stored_user, username) == 0 && strcmp(stored_pass, password) == 0) {
-        PRINT_SUCCESS("admin");
-    } else {
-        PRINT_ERROR("Invalid admin credentials");
+        /* Parse all 5 fields: admin_id|username|password|admin_name|email */
+        char *t_admin_id   = strtok(temp, DELIMITER); /* field [0]: admin_id   */
+        char *t_user       = strtok(NULL, DELIMITER); /* field [1]: username   */
+        char *t_pass       = strtok(NULL, DELIMITER); /* field [2]: password   */
+        char *t_admin_name = strtok(NULL, DELIMITER); /* field [3]: admin_name */
+        /* field [4] email not needed for login, intentionally skipped */
+
+        if (!t_admin_id || !t_user || !t_pass) continue; /* Malformed row */
+
+        if (strcmp(t_user, username) == 0 && strcmp(t_pass, password) == 0) {
+            fclose(fp);
+            /*
+             * Return admin_id AND admin_name pipe-separated.
+             * Flask will split on '|' to extract both fields and
+             * store them in the session for the dashboard greeting.
+             * Format: SUCCESS|admin_id|admin_name
+             */
+            printf("SUCCESS|%s|%s\n",
+                   t_admin_id,
+                   t_admin_name ? t_admin_name : "Admin");
+            return;
+        }
     }
+
+    fclose(fp);
+    PRINT_ERROR("Invalid admin credentials");
 }
 
 /* ─────────────────────────────────────────────────────────────
    FUNCTION: register_user
    PURPOSE:  Add a new user to users.txt.
              First checks username is unique, then appends.
-   PARAMS:   username, password, full_name, phone, address
+   PARAMS:   username, password, full_name, email, phone, address
    OUTPUT:   SUCCESS|new_user_id  OR  ERROR|message
+
+   SCHEMA:   user_id|username|password|full_name|email|phone|address
+             We write all 7 fields. Previously only 6 were written
+             (email was missing), causing a segfault / field misalignment
+             when get_profile tried to read field [4] (email) and got
+             phone data instead. This is the root cause of the bug.
    ──────────────────────────────────────────────────────────── */
 void register_user(const char *username, const char *password,
-                   const char *full_name, const char *phone,
-                   const char *address) {
+                   const char *full_name, const char *email,
+                   const char *phone, const char *address) {
 
     /* Step 1: Check for duplicate username */
     FILE *fp = fopen(USERS_FILE, "r");
@@ -156,8 +197,8 @@ void register_user(const char *username, const char *password,
 
             char temp[MAX_LINE_LEN];
             strcpy(temp, line);
-            strtok(temp, DELIMITER);                     /* skip user_id */
-            char *t_u = strtok(NULL, DELIMITER);         /* get username */
+            strtok(temp, DELIMITER);                     /* skip user_id  [0] */
+            char *t_u = strtok(NULL, DELIMITER);         /* get username  [1] */
 
             if (t_u && strcmp(t_u, username) == 0) {
                 fclose(fp);
@@ -172,12 +213,25 @@ void register_user(const char *username, const char *password,
     char new_id[MAX_ID_LEN];
     generate_user_id(new_id);
 
-    /* Step 3: Append to users.txt */
+    /* Step 3: Append to users.txt with ALL 7 fields
+     *
+     * WHY 7 fields?
+     *   The schema is: user_id|username|password|full_name|email|phone|address
+     *   If we write fewer fields, every subsequent strtok call in get_profile
+     *   will be off by one — e.g., phone data lands in the email slot.
+     *   That misalignment is what caused the segmentation fault.
+     */
     fp = fopen(USERS_FILE, "a"); /* Append mode */
     if (fp == NULL) { PRINT_ERROR("Could not write to database"); return; }
 
-    fprintf(fp, "%s|%s|%s|%s|%s|%s\n",
-            new_id, username, password, full_name, phone, address);
+    fprintf(fp, "%s|%s|%s|%s|%s|%s|%s\n",
+            new_id,    /* [0] user_id   */
+            username,  /* [1] username  */
+            password,  /* [2] password  */
+            full_name, /* [3] full_name */
+            email,     /* [4] email     */
+            phone,     /* [5] phone     */
+            address);  /* [6] address   */
     fclose(fp);
 
     PRINT_SUCCESS(new_id); /* Return new user's ID */
@@ -187,8 +241,12 @@ void register_user(const char *username, const char *password,
    FUNCTION: get_profile
    PURPOSE:  Find user by ID and return their info (no password).
    PARAMS:   user_id - the ID to search for
-   OUTPUT:   SUCCESS|id|username|full_name|phone|address
+   OUTPUT:   SUCCESS|user_id|username|full_name|email|phone|address
              OR  ERROR|message
+
+   SCHEMA:   user_id|username|password|full_name|email|phone|address
+             We tokenize all 7 fields and skip [2] (password) for security.
+             The remaining 6 fields are returned to Flask as pipe-delimited data.
    ──────────────────────────────────────────────────────────── */
 void get_profile(const char *user_id) {
     FILE *fp = fopen(USERS_FILE, "r");
@@ -203,25 +261,44 @@ void get_profile(const char *user_id) {
         char temp[MAX_LINE_LEN];
         strcpy(temp, line);
 
-        char *t_id   = strtok(temp, DELIMITER);
-        char *t_u    = strtok(NULL, DELIMITER);
-        char *t_pass = strtok(NULL, DELIMITER); /* Extracted but not returned */
-        char *t_name = strtok(NULL, DELIMITER);
-        char *t_ph   = strtok(NULL, DELIMITER);
-        char *t_addr = strtok(NULL, DELIMITER);
+        /*
+         * Tokenize all 7 fields in order.
+         * This must exactly match the write order in register_user().
+         * If register_user() ever writes more/fewer fields, update here too.
+         */
+        char *t_id    = strtok(temp, DELIMITER); /* [0] user_id   */
+        char *t_u     = strtok(NULL, DELIMITER); /* [1] username  */
+        char *t_pass  = strtok(NULL, DELIMITER); /* [2] password  — extracted but NOT returned */
+        char *t_name  = strtok(NULL, DELIMITER); /* [3] full_name */
+        char *t_email = strtok(NULL, DELIMITER); /* [4] email     */
+        char *t_ph    = strtok(NULL, DELIMITER); /* [5] phone     */
+        char *t_addr  = strtok(NULL, DELIMITER); /* [6] address   */
 
-        (void)t_pass; /* We have it but intentionally skip it for security */
+        /*
+         * (void)t_pass: We intentionally discard the password.
+         * Casting to void suppresses the "unused variable" compiler warning
+         * while making it clear this is a deliberate security decision.
+         */
+        (void)t_pass;
 
         if (!t_id) continue;
 
         if (strcmp(t_id, user_id) == 0) {
             fclose(fp);
-            printf("SUCCESS|%s|%s|%s|%s|%s\n",
+            /*
+             * Return 6 fields (no password).
+             * Flask's api_get_profile splits on '|' to build the JSON response.
+             * Order must match what Flask expects:
+             *   parts[0]=user_id, [1]=username, [2]=full_name,
+             *   [3]=email, [4]=phone, [5]=address
+             */
+            printf("SUCCESS|%s|%s|%s|%s|%s|%s\n",
                    t_id,
-                   t_u    ? t_u    : "",
-                   t_name ? t_name : "",
-                   t_ph   ? t_ph   : "",
-                   t_addr ? t_addr : "");
+                   t_u     ? t_u     : "",
+                   t_name  ? t_name  : "",
+                   t_email ? t_email : "",
+                   t_ph    ? t_ph    : "",
+                   t_addr  ? t_addr  : "");
             return;
         }
     }
@@ -236,6 +313,11 @@ void get_profile(const char *user_id) {
              the updated password for that user_id.
    PARAMS:   user_id, old_password, new_password
    OUTPUT:   SUCCESS|Password changed  OR  ERROR|message
+
+   SCHEMA:   user_id|username|password|full_name|email|phone|address
+             We tokenize all 7 fields, verify old password in [2],
+             then rebuild the line with new_password in slot [2].
+             All 7 fields must be written back or data will be lost.
    ──────────────────────────────────────────────────────────── */
 void change_pass_user(const char *user_id, const char *old_password,
                       const char *new_password) {
@@ -261,12 +343,14 @@ void change_pass_user(const char *user_id, const char *old_password,
         char temp[MAX_LINE_LEN];
         strcpy(temp, lines[i]);
 
-        char *t_id   = strtok(temp, DELIMITER);
-        char *t_u    = strtok(NULL, DELIMITER);
-        char *t_pass = strtok(NULL, DELIMITER);
-        char *t_name = strtok(NULL, DELIMITER);
-        char *t_ph   = strtok(NULL, DELIMITER);
-        char *t_addr = strtok(NULL, DELIMITER);
+        /* Tokenize all 7 fields */
+        char *t_id    = strtok(temp, DELIMITER); /* [0] user_id   */
+        char *t_u     = strtok(NULL, DELIMITER); /* [1] username  */
+        char *t_pass  = strtok(NULL, DELIMITER); /* [2] password  */
+        char *t_name  = strtok(NULL, DELIMITER); /* [3] full_name */
+        char *t_email = strtok(NULL, DELIMITER); /* [4] email     */
+        char *t_ph    = strtok(NULL, DELIMITER); /* [5] phone     */
+        char *t_addr  = strtok(NULL, DELIMITER); /* [6] address   */
 
         if (!t_id) continue;
 
@@ -276,14 +360,19 @@ void change_pass_user(const char *user_id, const char *old_password,
                 return;
             }
             found = 1;
-            /* Rebuild this line with new password */
-            sprintf(lines[i], "%s|%s|%s|%s|%s|%s",
+            /*
+             * Rebuild this line with new_password replacing [2].
+             * ALL 7 fields must be written back.
+             * Omitting email (field [4]) here would corrupt the DB.
+             */
+            sprintf(lines[i], "%s|%s|%s|%s|%s|%s|%s",
                     t_id,
-                    t_u    ? t_u    : "",
+                    t_u     ? t_u     : "",
                     new_password,
-                    t_name ? t_name : "",
-                    t_ph   ? t_ph   : "",
-                    t_addr ? t_addr : "");
+                    t_name  ? t_name  : "",
+                    t_email ? t_email : "",
+                    t_ph    ? t_ph    : "",
+                    t_addr  ? t_addr  : "");
             break;
         }
     }
@@ -305,40 +394,72 @@ void change_pass_user(const char *user_id, const char *old_password,
 /* ─────────────────────────────────────────────────────────────
    FUNCTION: change_pass_admin
    PURPOSE:  Verify old admin password and rewrite admin_creds.txt
-   PARAMS:   old_password, new_password
+   PARAMS:   admin_id, old_password, new_password
    OUTPUT:   SUCCESS|Admin password changed  OR  ERROR|message
+
+   SCHEMA:   admin_id|username|password|admin_name|email
+             We load all rows, find the matching admin_id, verify
+             old password, then rewrite all 5 fields with the new one.
    ──────────────────────────────────────────────────────────── */
-void change_pass_admin(const char *old_password, const char *new_password) {
+void change_pass_admin(const char *admin_id, const char *old_password,
+                       const char *new_password) {
     FILE *fp = fopen(ADMIN_FILE, "r");
     if (fp == NULL) { PRINT_ERROR("Admin database not found"); return; }
 
+    /* Step 1: Load all admin rows into memory */
+    char lines[20][MAX_LINE_LEN]; /* Admins are few; 20 is a safe upper bound */
+    int count = 0;
+    int found = 0;
     char line[MAX_LINE_LEN];
-    if (fgets(line, sizeof(line), fp) == NULL) {
-        fclose(fp);
-        PRINT_ERROR("Admin database is empty");
-        return;
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        trim_newline(line);
+        if (strlen(line) > 1) {
+            strcpy(lines[count++], line);
+        }
     }
     fclose(fp);
-    trim_newline(line);
 
-    char temp[MAX_LINE_LEN];
-    strcpy(temp, line);
+    /* Step 2: Find matching admin_id and verify old password */
+    for (int i = 0; i < count; i++) {
+        char temp[MAX_LINE_LEN];
+        strcpy(temp, lines[i]);
 
-    char *stored_user = strtok(temp, DELIMITER);
-    char *stored_pass = strtok(NULL, DELIMITER);
+        /* Parse all 5 fields */
+        char *t_aid   = strtok(temp, DELIMITER); /* [0] admin_id   */
+        char *t_u     = strtok(NULL, DELIMITER); /* [1] username   */
+        char *t_pass  = strtok(NULL, DELIMITER); /* [2] password   */
+        char *t_name  = strtok(NULL, DELIMITER); /* [3] admin_name */
+        char *t_email = strtok(NULL, DELIMITER); /* [4] email      */
 
-    if (!stored_user || !stored_pass) { PRINT_ERROR("Admin database format error"); return; }
+        if (!t_aid) continue;
 
-    if (strcmp(stored_pass, old_password) != 0) {
-        PRINT_ERROR("Old password is incorrect");
-        return;
+        if (strcmp(t_aid, admin_id) == 0) {
+            if (!t_pass || strcmp(t_pass, old_password) != 0) {
+                PRINT_ERROR("Old password is incorrect");
+                return;
+            }
+            found = 1;
+            /* Rebuild with new password; preserve all 5 fields */
+            sprintf(lines[i], "%s|%s|%s|%s|%s",
+                    t_aid,
+                    t_u     ? t_u     : "",
+                    new_password,
+                    t_name  ? t_name  : "",
+                    t_email ? t_email : "");
+            break;
+        }
     }
 
-    /* Overwrite file with new password */
+    if (!found) { PRINT_ERROR("Admin not found"); return; }
+
+    /* Step 3: Rewrite entire admin file */
     fp = fopen(ADMIN_FILE, "w");
     if (fp == NULL) { PRINT_ERROR("Could not update admin database"); return; }
 
-    fprintf(fp, "%s|%s\n", stored_user, new_password);
+    for (int i = 0; i < count; i++) {
+        fprintf(fp, "%s\n", lines[i]);
+    }
     fclose(fp);
 
     PRINT_SUCCESS("Admin password changed successfully");
@@ -358,52 +479,37 @@ int main(int argc, char *argv[]) {
     char *action = argv[1]; /* The action string, e.g. "login_user" */
 
     if (strcmp(action, "login_user") == 0) {
-        if (argc<4) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-
+        if (argc < 4) { PRINT_ERROR("Missing args"); return 1; }
         login_user(argv[2], argv[3]);
     }
     else if (strcmp(action, "login_admin") == 0) {
-        if (argc<4) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-        
+        if (argc < 4) { PRINT_ERROR("Missing args"); return 1; }
         login_admin(argv[2], argv[3]);
     }
     else if (strcmp(action, "register") == 0) {
-        if (argc<7) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-
-        register_user(argv[2], argv[3], argv[4], argv[5], argv[6]);
+        /*
+         * argv layout: auth register username password full_name email phone address
+         * Index:         [0]   [1]     [2]      [3]     [4]       [5]   [6]   [7]
+         * We now require 8 args (argc >= 8) because email is field [5].
+         */
+        if (argc < 8) { PRINT_ERROR("Missing args"); return 1; }
+        register_user(argv[2], argv[3], argv[4], argv[5], argv[6], argv[7]);
     }
     else if (strcmp(action, "get_profile") == 0) {
-        if (argc<3) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-
+        if (argc < 3) { PRINT_ERROR("Missing args"); return 1; }
         get_profile(argv[2]);
     }
     else if (strcmp(action, "change_pass_user") == 0) {
-        if (argc<5) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-
-        change_pass_user(argv[2], argv[3], argv[4]); 
+        if (argc < 5) { PRINT_ERROR("Missing args"); return 1; }
+        change_pass_user(argv[2], argv[3], argv[4]);
     }
     else if (strcmp(action, "change_pass_admin") == 0) {
-        if (argc<4) {
-            PRINT_ERROR("Missing args");
-            return 1;
-        }
-        
-        change_pass_admin(argv[2], argv[3]);
+        /*
+         * argv layout: auth change_pass_admin admin_id old_pass new_pass
+         * Index:         [0]   [1]             [2]      [3]      [4]
+         */
+        if (argc < 5) { PRINT_ERROR("Missing args"); return 1; }
+        change_pass_admin(argv[2], argv[3], argv[4]);
     }
     else {
         PRINT_ERROR("Unknown action");
