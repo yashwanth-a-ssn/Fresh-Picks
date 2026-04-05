@@ -1,2 +1,2 @@
-U001|Yashwanth|Yash@123|Yashwanth A|6382717541|Elumalai Street, West Tambaram, Chennai
-U002|Wolfrahh|Wolfrahh@123|Wolfrahh|wolfrahhstudios@gmail.com|6382717541
+U001|Yashwanth|Yash@123|Yashwanth A|yashwantharumugam2007@gmail.com|6382717541|No 11 - Flat No 11,Elumalai Street,West Tambaram,600045
+U002|Wolfrahh|Wolf@123|Wolfrahh|wolfrahh@gmail.com|6382717541|No 7,New State Bank Colony,West Tambaram,600045
