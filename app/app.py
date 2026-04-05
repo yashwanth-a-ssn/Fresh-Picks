@@ -444,8 +444,6 @@ if __name__ == "__main__":
     # ACCESS:   https://localhost:5000
     # ══════════════════════════════════════════════════════════
 
-    # HOST = "127.0.0.1"   # <- UNCOMMENT for Version A (Local)
-
     # ══════════════════════════════════════════════════════════
     # VERSION B — DEMO MODE (Wi-Fi, all devices on same network)
     # ══════════════════════════════════════════════════════════
@@ -479,7 +477,13 @@ if __name__ == "__main__":
     # USE WHEN: College demo, professor review, team testing.
     # ══════════════════════════════════════════════════════════
 
-    HOST = "0.0.0.0"   # <- UNCOMMENT for Version B (Demo/Wi-Fi)
+    # LAUNCH MODE
+
+    # UNCOMMENT for Version A (Local)
+    # HOST = "127.0.0.1"   
+
+    # UNCOMMENT for Version B (Demo/Wi-Fi)
+    HOST = "0.0.0.0"   
 
     PORT  = 5000   # Flask's standard dev port. Free to use without admin rights.
     DEBUG = True   # Auto-reload on code changes. Set False for production.
@@ -536,16 +540,11 @@ if __name__ == "__main__":
     else:
         print("  Mode :  VERSION B - Demo / Wi-Fi Mode (INADDR_ANY)")
         print(f"  Local:  https://localhost:{PORT}")
-        print(f"  Wi-Fi:  https://<your-IPv4>:{PORT}")
-        print()
-        print("  Find your IPv4:")
-        print("    Windows  -> CMD      -> ipconfig")
-        print("    Mac      -> Terminal -> ifconfig en0")
-        print("    Linux    -> Terminal -> ip addr show wlan0")
+        print(f"  Wi-Fi:  https://{get_local_ip()}:{PORT}")
 
     print()
     print("  Browser shows a warning? That is normal.")
-    print("  Click: Advanced -> Proceed to <address> (unsafe)")
+    print(f"  Click: Advanced -> Proceed to <address> (unsafe)")
     print("=" * 56)
     print()
 

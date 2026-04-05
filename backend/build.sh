@@ -5,16 +5,18 @@
 # This script compiles all C source files into executable
 # binaries that Flask will call using subprocess.
 #
-# HOW TO RUN:
+# HOW TO RUN (Windows / Linux / macOS):
 #   1. Open a terminal in the Fresh-Picks/backend/ folder
-#   2. Make this script executable (only needed once):
-#        chmod +x build.sh
-#   3. Run it:
-#        ./build.sh
-#           (or below on windows powershell) 
-#        bash build.sh 
 #
-# OR compile manually (if you use VS Code's Code Runner):
+#   2. Run the script:
+#      • On Linux / macOS:
+#           chmod +x build.sh      # one-time setup
+#           ./build.sh
+#
+#      • On Windows (PowerShell / Git Bash):
+#           bash build.sh
+#
+# OR compile manually (e.g., using VS Code Code Runner):
 #   gcc -o auth auth.c -Wall
 #
 # Team: CodeCrafters | Project: Fresh Picks | SDP-1
@@ -50,4 +52,5 @@ echo "  All binaries compiled! Ready to run Flask."
 echo "  Next step: Run app.py"
 echo "  Git Bash: cd ../app && python app.py"
 echo "  Powershell: cd ../app; python app.py"
+echo "  macOS / Linux: cd ../app && python3 app.py"
 echo "================================================"
