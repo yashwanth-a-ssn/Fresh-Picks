@@ -1,0 +1,854 @@
+{% extends "base.html" %}
+{#
+  cart.html - Fresh Picks: Cart, Checkout & Invoice Page
+  =======================================================
+  This page handles three sequential states in one template:
+    STATE 1: CART VIEW    — user sees their items, can remove, sees total
+    STATE 2: CHECKOUT     — user picks a delivery slot and clicks "Pay"
+    STATE 3: INVOICE      — order confirmation with delivery boy details
+
+  DATA FLOW:
+    On load     → JS calls /api/view_cart → C reads DLL from user's cart file
+    Remove item → JS calls /api/remove_item → C removes DLL node and re-saves
+    Checkout    → JS calls /api/checkout → C does stock recheck, freebie logic,
+                  CLL delivery assignment, saves order, clears cart file
+    Invoice     → rendered by JS from the checkout API response
+
+  Team: CodeCrafters | Project: Fresh Picks | SDP-1
+#}
+
+{% block title %}My Cart{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    {# ── Back Navigation ── #}
+    <div class="d-flex align-items-center mb-4">
+        <a href="/vegetables" class="btn btn-secondary btn-sm me-3">
+            <i class="bi bi-arrow-left me-1"></i>Continue Shopping
+        </a>
+        <div>
+            <h3 class="mb-0 text-bright">
+                <i class="bi bi-cart3 me-2" style="color:var(--accent);"></i>
+                <span id="pageTitle">My Cart</span>
+            </h3>
+        </div>
+    </div>
+
+    {# ── Loading State ── #}
+    <div id="loadingState" class="text-center py-5">
+        <div class="spinner-sm"
+             style="width:2rem; height:2rem; border-width:3px; margin:0 auto;"></div>
+        <p class="text-muted mt-3">Loading your cart...</p>
+    </div>
+
+    {# ── Alert Box ── #}
+    <div id="alertBox" class="alert d-none mb-3" role="alert"></div>
+
+    {# ══════════════════════════════════════════════════════
+       STATE 1: CART VIEW
+       ══════════════════════════════════════════════════════ #}
+    <div id="cartState" class="d-none">
+        <div class="row g-4">
+
+            {# ── Left Column: Cart Items ── #}
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-ul me-2"></i>Cart Items</span>
+                        <span id="itemCount" class="badge bg-primary"></span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="cartItemsList"></div>
+                    </div>
+                </div>
+
+                {# Freebie Notice — shown when total >= ₹500 #}
+                <div id="freebieNotice" class="d-none mt-3">
+                    <div class="alert"
+                         style="background:rgba(78,201,176,0.12);
+                                border:1px solid rgba(78,201,176,0.4);
+                                color:var(--success);">
+                        <i class="bi bi-gift-fill me-2"></i>
+                        <strong>Freebie unlocked!</strong>
+                        You'll receive free Curry Leaves &amp; Coriander with your order
+                        (applied automatically at checkout).
+                    </div>
+                </div>
+            </div>
+
+            {# ── Right Column: Order Summary ── #}
+            <div class="col-lg-4">
+                <div class="card" style="position:sticky; top:80px;">
+                    <div class="card-header">
+                        <i class="bi bi-receipt me-2"></i>Order Summary
+                    </div>
+                    <div class="card-body">
+
+                        {# Subtotal / Total display #}
+                        <div class="profile-field">
+                            <span class="profile-field-label">Subtotal</span>
+                            <span class="profile-field-value" id="subtotalDisplay">₹0.00</span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">Delivery</span>
+                            <span class="profile-field-value" style="color:var(--success);">
+                                FREE
+                            </span>
+                        </div>
+                        <div class="profile-field" style="border-bottom:none;">
+                            <span class="profile-field-label">Grand Total</span>
+                            <span class="profile-field-value"
+                                  style="font-size:1.3rem; font-weight:700; color:var(--accent-light);"
+                                  id="grandTotalDisplay">₹0.00</span>
+                        </div>
+
+                        {# Minimum Order Progress Bar #}
+                        <div class="mt-3 mb-3">
+                            <div class="d-flex justify-content-between mb-1"
+                                 style="font-size:0.78rem; color:var(--text-muted);">
+                                <span>Min. order: ₹100</span>
+                                <span id="progressText"></span>
+                            </div>
+                            <div class="progress"
+                                 style="height:6px; background:var(--bg-elevated); border-radius:3px;">
+                                <div id="summaryProgressBar"
+                                     class="progress-bar"
+                                     role="progressbar"
+                                     style="width:0%; transition:width 0.4s ease,
+                                            background-color 0.4s ease;">
+                                </div>
+                            </div>
+                        </div>
+
+                        {# Freebie unlock indicator #}
+                        <div id="freebieProgressBox"
+                             style="background:rgba(78,201,176,0.08);
+                                    border:1px dashed rgba(78,201,176,0.3);
+                                    border-radius:var(--radius);
+                                    padding:0.6rem 0.85rem;
+                                    font-size:0.78rem;
+                                    margin-bottom:1rem;">
+                            <i class="bi bi-gift me-1" style="color:var(--success);"></i>
+                            <span id="freebieProgressText" style="color:var(--text-muted);"></span>
+                        </div>
+
+                        {# Proceed Button — triggers checkout panel #}
+                        <button id="proceedBtn"
+                                onclick="showCheckoutPanel()"
+                                class="btn btn-primary btn-full"
+                                disabled>
+                            <i class="bi bi-arrow-right me-2"></i>Proceed to Checkout
+                        </button>
+
+                        <div id="minOrderWarning"
+                             class="text-center mt-2"
+                             style="font-size:0.78rem; color:var(--danger); display:none;">
+                            Add ₹<span id="amtNeeded">0</span> more to proceed
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {# End Cart State #}
+
+    {# ══════════════════════════════════════════════════════
+       STATE 2: CHECKOUT PANEL
+       Shown when user clicks "Proceed to Checkout"
+       ══════════════════════════════════════════════════════ #}
+    <div id="checkoutState" class="d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-truck me-2"></i>Select Delivery Slot
+                    </div>
+                    <div class="card-body">
+
+                        <p class="text-muted mb-3" style="font-size:0.85rem;">
+                            Choose when you'd like your order delivered.
+                            Morning slots get priority dispatch.
+                        </p>
+
+                        {#
+                           DELIVERY SLOT CARDS
+                           Each is a clickable card that sets the hidden slot value.
+                           Priority:
+                             Morning   → Priority 1 (most urgent in admin heap)
+                             Afternoon → Priority 2
+                             Evening   → Priority 3
+                        #}
+                        <div class="d-flex flex-column gap-3 mb-4">
+
+                            {# Morning Slot #}
+                            <div class="slot-card"
+                                 data-slot="Morning"
+                                 onclick="selectSlot('Morning', this)"
+                                 style="border:2px solid var(--border-color);
+                                        border-radius:var(--radius-lg);
+                                        padding:1rem 1.25rem;
+                                        cursor:pointer;
+                                        transition:all 0.2s ease;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <span style="font-size:1.5rem;">🌅</span>
+                                    <div>
+                                        <div class="text-bright fw-bold">Morning</div>
+                                        <div class="text-muted" style="font-size:0.8rem;">
+                                            7:00 AM – 11:00 AM &nbsp;·&nbsp;
+                                            <span style="color:var(--success);">Highest Priority</span>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-check-circle-fill ms-auto d-none slot-check"
+                                       style="color:var(--success); font-size:1.1rem;"></i>
+                                </div>
+                            </div>
+
+                            {# Afternoon Slot #}
+                            <div class="slot-card"
+                                 data-slot="Afternoon"
+                                 onclick="selectSlot('Afternoon', this)"
+                                 style="border:2px solid var(--border-color);
+                                        border-radius:var(--radius-lg);
+                                        padding:1rem 1.25rem;
+                                        cursor:pointer;
+                                        transition:all 0.2s ease;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <span style="font-size:1.5rem;">☀️</span>
+                                    <div>
+                                        <div class="text-bright fw-bold">Afternoon</div>
+                                        <div class="text-muted" style="font-size:0.8rem;">
+                                            12:00 PM – 4:00 PM
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-check-circle-fill ms-auto d-none slot-check"
+                                       style="color:var(--success); font-size:1.1rem;"></i>
+                                </div>
+                            </div>
+
+                            {# Evening Slot #}
+                            <div class="slot-card"
+                                 data-slot="Evening"
+                                 onclick="selectSlot('Evening', this)"
+                                 style="border:2px solid var(--border-color);
+                                        border-radius:var(--radius-lg);
+                                        padding:1rem 1.25rem;
+                                        cursor:pointer;
+                                        transition:all 0.2s ease;">
+                                <div class="d-flex align-items-center gap-3">
+                                    <span style="font-size:1.5rem;">🌙</span>
+                                    <div>
+                                        <div class="text-bright fw-bold">Evening</div>
+                                        <div class="text-muted" style="font-size:0.8rem;">
+                                            5:00 PM – 8:00 PM
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-check-circle-fill ms-auto d-none slot-check"
+                                       style="color:var(--success); font-size:1.1rem;"></i>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        {# Hidden: holds selected slot value #}
+                        <input type="hidden" id="selectedSlot" value="">
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-secondary"
+                                    onclick="backToCart()"
+                                    style="flex:1;">
+                                <i class="bi bi-arrow-left me-1"></i>Back to Cart
+                            </button>
+                            <button id="payNowBtn"
+                                    onclick="confirmPayment()"
+                                    class="btn btn-primary"
+                                    style="flex:2;"
+                                    disabled>
+                                <i class="bi bi-credit-card me-2"></i>Confirm &amp; Pay
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {# End Checkout State #}
+
+    {# ══════════════════════════════════════════════════════
+       STATE 3: INVOICE / RECEIPT
+       Shown after successful payment
+       ══════════════════════════════════════════════════════ #}
+    <div id="invoiceState" class="d-none">
+        <div class="row justify-content-center">
+            <div class="col-lg-7">
+
+                {# Success Animation Header #}
+                <div class="text-center mb-4"
+                     style="padding:2rem 0 1rem;">
+                    <div style="width:70px; height:70px;
+                                background:rgba(78,201,176,0.15);
+                                border:2px solid var(--success);
+                                border-radius:50%;
+                                display:flex; align-items:center; justify-content:center;
+                                margin:0 auto 1rem;
+                                font-size:1.8rem;">✓</div>
+                    <h3 class="text-bright">Order Confirmed!</h3>
+                    <p class="text-muted">
+                        Your fresh produce is on its way.
+                    </p>
+                </div>
+
+                {# Invoice Card #}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span>
+                            <i class="bi bi-receipt me-2"></i>Invoice
+                        </span>
+                        <span id="inv-order-id" class="id-badge"></span>
+                    </div>
+                    <div class="card-body">
+
+                        {# Order Details #}
+                        <div class="profile-field">
+                            <span class="profile-field-label">Delivery Slot</span>
+                            <span class="profile-field-value" id="inv-slot"></span>
+                        </div>
+                        <div class="profile-field">
+                            <span class="profile-field-label">Status</span>
+                            <span class="profile-field-value">
+                                <span class="badge bg-success" style="color:#1E1E1E!important;">
+                                    PAID ✓
+                                </span>
+                            </span>
+                        </div>
+
+                        {# Delivery Boy Card #}
+                        <div class="profile-field">
+                            <span class="profile-field-label">Delivery Partner</span>
+                            <span class="profile-field-value">
+                                <div class="d-flex align-items-center gap-2 mt-1"
+                                     style="background:var(--bg-elevated);
+                                            border-radius:var(--radius);
+                                            padding:0.6rem 0.85rem;">
+                                    <span style="font-size:1.2rem;">🛵</span>
+                                    <div>
+                                        <div class="text-bright fw-bold" id="inv-boy-name"></div>
+                                        <div class="text-muted" style="font-size:0.8rem;">
+                                            <i class="bi bi-telephone me-1"></i>
+                                            <span id="inv-boy-phone"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </span>
+                        </div>
+
+                        {# Items Ordered #}
+                        <div class="mt-3">
+                            <div style="font-size:0.75rem; color:var(--text-muted);
+                                        text-transform:uppercase; letter-spacing:0.08em;
+                                        margin-bottom:0.5rem;">Items Ordered</div>
+                            <div id="inv-items-list"></div>
+                        </div>
+
+                        <hr>
+
+                        {# Total #}
+                        <div class="d-flex justify-content-between align-items-center"
+                             style="padding:0.5rem 0;">
+                            <span class="text-bright fw-bold">Total Paid</span>
+                            <span id="inv-total"
+                                  style="color:var(--accent-light);
+                                         font-size:1.3rem;
+                                         font-weight:700;"></span>
+                        </div>
+
+                        {# Action Buttons #}
+                        <div class="d-flex gap-2 mt-4 flex-wrap">
+                            <a href="/vegetables" class="btn btn-primary" style="flex:1;">
+                                <i class="bi bi-basket me-1"></i>Continue Shopping
+                            </a>
+                            <a href="/user_home" class="btn btn-secondary" style="flex:1;">
+                                <i class="bi bi-house me-1"></i>Dashboard
+                            </a>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    {# End Invoice State #}
+
+    {# ── Empty Cart State ── #}
+    <div id="emptyCartState" class="d-none">
+        <div class="text-center py-5">
+            <div style="font-size:4rem; margin-bottom:1rem;">🛒</div>
+            <h4 class="text-bright">Your cart is empty</h4>
+            <p class="text-muted">Add some fresh vegetables to get started!</p>
+            <a href="/vegetables" class="btn btn-primary mt-2">
+                <i class="bi bi-basket me-2"></i>Browse Products
+            </a>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+    /*
+     * CART PAGE — JAVASCRIPT
+     * =======================
+     * Manages three UI states: Cart → Checkout → Invoice
+     * Communicates with Flask API for all cart operations.
+     */
+
+    /* ── State Variables ────────────────────────────────── */
+    let cartItems  = [];    /* Array of cart item objects from API */
+    let cartTotal  = 0.0;   /* Grand total in ₹ */
+
+    /* ── Page Init ──────────────────────────────────────── */
+    window.addEventListener("DOMContentLoaded", loadCart);
+
+    /*
+     * FUNCTION: loadCart
+     * PURPOSE:  Fetch the user's cart from the server and render it.
+     *           This calls /api/view_cart → Flask → C (DLL traversal).
+     */
+    async function loadCart() {
+        try {
+            const resp   = await fetch("/api/view_cart", {
+                method:  "POST",
+                headers: {"Content-Type": "application/json"},
+                body:    "{}"
+            });
+            const result = await resp.json();
+
+            document.getElementById("loadingState").classList.add("d-none");
+
+            if (result.status !== "SUCCESS") {
+                showAlert(result.message || "Could not load cart.", "danger");
+                return;
+            }
+
+            cartItems = result.items || [];
+            cartTotal = parseFloat(result.total) || 0;
+
+            if (cartItems.length === 0) {
+                /* Cart is empty */
+                document.getElementById("emptyCartState").classList.remove("d-none");
+                return;
+            }
+
+            renderCartItems();
+            updateSummary();
+            document.getElementById("cartState").classList.remove("d-none");
+
+        } catch (e) {
+            document.getElementById("loadingState").classList.add("d-none");
+            showAlert("Could not connect to server. Is Flask running?", "danger");
+        }
+    }
+
+    /*
+     * FUNCTION: renderCartItems
+     * PURPOSE:  Build the list of cart item rows from cartItems array.
+     *           Each row shows: image, name, qty, unit price, subtotal, remove button.
+     *
+     *           FREE items (is_free === 1) are shown with a green "FREE" badge
+     *           and no remove button (you can't remove a freebie!).
+     */
+    function renderCartItems() {
+        const container = document.getElementById("cartItemsList");
+        container.innerHTML = "";
+
+        cartItems.forEach((item, idx) => {
+            const subtotal  = parseFloat(item.item_total).toFixed(2);
+            const unitPrice = item.is_free
+                ? "FREE"
+                : `₹${parseFloat(item.price_per_1000g).toFixed(2)}/kg`;
+
+            /* Convert grams to display: show in kg if ≥ 1000g */
+            const qtyDisplay = item.qty_g >= 1000
+                ? `${(item.qty_g / 1000).toFixed(2)} kg`
+                : `${item.qty_g} g`;
+
+            const rowHTML = `
+            <div class="cart-item-row"
+                 id="row-${item.veg_id}"
+                 style="display:flex;
+                        align-items:center;
+                        gap:1rem;
+                        padding:1rem 1.25rem;
+                        ${idx < cartItems.length - 1 ? 'border-bottom:1px solid var(--border-color);' : ''}
+                        transition:background 0.2s ease;">
+
+                {# Product thumbnail #}
+                <div style="width:52px; height:52px;
+                            border-radius:var(--radius);
+                            background:var(--bg-elevated);
+                            overflow:hidden; flex-shrink:0;
+                            display:flex; align-items:center; justify-content:center;">
+                    <img src="/static/img/${item.veg_id}.jpg"
+                         alt="${item.name}"
+                         style="width:100%; height:100%; object-fit:cover;"
+                         onerror="this.style.display='none';
+                                  this.nextElementSibling.style.display='block';">
+                    <span style="display:none; font-size:1.5rem;">🥦</span>
+                </div>
+
+                {# Item details #}
+                <div style="flex:1; min-width:0;">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="text-bright fw-bold"
+                              style="white-space:nowrap;">${item.name}</span>
+                        ${item.is_free ? `
+                        <span style="background:rgba(78,201,176,0.2);
+                                     border:1px solid rgba(78,201,176,0.4);
+                                     color:var(--success);
+                                     font-size:0.68rem;
+                                     font-weight:700;
+                                     padding:0.15em 0.5em;
+                                     border-radius:4px;">🎁 FREE</span>
+                        ` : ""}
+                    </div>
+                    <div style="color:var(--text-muted); font-size:0.78rem; margin-top:0.15rem;">
+                        ${qtyDisplay} &nbsp;·&nbsp; ${unitPrice}
+                    </div>
+                </div>
+
+                {# Subtotal #}
+                <div style="text-align:right; flex-shrink:0;">
+                    <div style="color:var(--accent-light);
+                                font-weight:700;
+                                white-space:nowrap;">
+                        ${item.is_free ? "₹0.00" : "₹" + subtotal}
+                    </div>
+                </div>
+
+                {# Remove button (only for paid items) #}
+                ${item.is_free ? "" : `
+                <button onclick="removeItem('${item.veg_id}')"
+                        style="background:none;
+                               border:none;
+                               color:var(--text-muted);
+                               cursor:pointer;
+                               padding:0.3rem;
+                               border-radius:4px;
+                               transition:color 0.2s ease;
+                               flex-shrink:0;"
+                        title="Remove item"
+                        onmouseover="this.style.color='var(--danger)'"
+                        onmouseout="this.style.color='var(--text-muted)'">
+                    <i class="bi bi-trash3" style="font-size:1rem;"></i>
+                </button>`}
+
+            </div>`;
+
+            container.insertAdjacentHTML("beforeend", rowHTML);
+        });
+
+        /* Update item count badge */
+        const paidCount = cartItems.filter(i => !i.is_free).length;
+        document.getElementById("itemCount").textContent =
+            `${paidCount} item${paidCount !== 1 ? "s" : ""}`;
+    }
+
+    /*
+     * FUNCTION: updateSummary
+     * PURPOSE:  Refresh the Order Summary card and progress bar.
+     *           Also shows/hides the freebie unlock notice.
+     */
+    function updateSummary() {
+        const MIN_ORDER = 100;
+        const FREEBIE_THRESHOLD = 500;
+
+        document.getElementById("subtotalDisplay").textContent  = `₹${cartTotal.toFixed(2)}`;
+        document.getElementById("grandTotalDisplay").textContent = `₹${cartTotal.toFixed(2)}`;
+
+        /* Progress bar */
+        const pct = Math.min((cartTotal / MIN_ORDER) * 100, 100);
+        const bar = document.getElementById("summaryProgressBar");
+        bar.style.width = pct + "%";
+
+        let color;
+        if (cartTotal < 75) {
+            color = "var(--danger)";
+            document.getElementById("progressText").innerHTML =
+                `<span style="color:var(--danger);">₹${cartTotal.toFixed(2)} / ₹100</span>`;
+        } else if (cartTotal < 100) {
+            color = "var(--warning)";
+            document.getElementById("progressText").innerHTML =
+                `<span style="color:var(--warning);">₹${cartTotal.toFixed(2)} / ₹100</span>`;
+        } else {
+            color = "var(--success)";
+            document.getElementById("progressText").innerHTML =
+                `<span style="color:var(--success);">✓ Ready!</span>`;
+        }
+        bar.style.backgroundColor = color;
+
+        /* Enable/disable checkout button */
+        const proceedBtn = document.getElementById("proceedBtn");
+        const minWarning = document.getElementById("minOrderWarning");
+
+        if (cartTotal >= MIN_ORDER) {
+            proceedBtn.disabled = false;
+            minWarning.style.display = "none";
+        } else {
+            proceedBtn.disabled = true;
+            minWarning.style.display = "block";
+            document.getElementById("amtNeeded").textContent =
+                (MIN_ORDER - cartTotal).toFixed(2);
+        }
+
+        /* Freebie progress box */
+        const freebieBox = document.getElementById("freebieProgressBox");
+        const freebieText = document.getElementById("freebieProgressText");
+        const freebieNotice = document.getElementById("freebieNotice");
+
+        if (cartTotal >= FREEBIE_THRESHOLD) {
+            freebieText.innerHTML = `<span style="color:var(--success);">
+                🎁 Freebie unlocked! Curry Leaves &amp; Coriander added at checkout.
+            </span>`;
+            freebieNotice.classList.remove("d-none");
+        } else {
+            const remaining = (FREEBIE_THRESHOLD - cartTotal).toFixed(2);
+            freebieText.innerHTML = `Add ₹${remaining} more to unlock free Curry Leaves &amp; Coriander`;
+            freebieNotice.classList.add("d-none");
+        }
+    }
+
+    /*
+     * FUNCTION: removeItem
+     * PURPOSE:  Remove an item from the cart.
+     *           Calls /api/remove_item → Flask → C (DLL node deletion).
+     *           On success, removes the row from the UI and recalculates total.
+     */
+    async function removeItem(veg_id) {
+        const row = document.getElementById(`row-${veg_id}`);
+        /* Animate row out */
+        row.style.opacity = "0.4";
+        row.style.pointerEvents = "none";
+
+        try {
+            const resp = await fetch("/api/remove_item", {
+                method:  "POST",
+                headers: {"Content-Type": "application/json"},
+                body:    JSON.stringify({ veg_id: veg_id })
+            });
+            const result = await resp.json();
+
+            if (result.status === "SUCCESS") {
+                /* Remove item from local cartItems array and recalculate total */
+                const removed = cartItems.find(i => i.veg_id === veg_id);
+                if (removed) {
+                    cartTotal -= parseFloat(removed.item_total);
+                    cartItems  = cartItems.filter(i => i.veg_id !== veg_id);
+                }
+
+                /* Remove row from DOM */
+                row.remove();
+
+                if (cartItems.length === 0) {
+                    /* Cart is now empty */
+                    document.getElementById("cartState").classList.add("d-none");
+                    document.getElementById("emptyCartState").classList.remove("d-none");
+                    return;
+                }
+
+                updateSummary();
+            } else {
+                showAlert(result.message || "Could not remove item.", "danger");
+                row.style.opacity = "1";
+                row.style.pointerEvents = "";
+            }
+        } catch (e) {
+            showAlert("Server error. Please try again.", "danger");
+            row.style.opacity = "1";
+            row.style.pointerEvents = "";
+        }
+    }
+
+    /* ────────────────────────────────────────────────────────────
+       CHECKOUT STATE
+       ─────────────────────────────────────────────────────────── */
+
+    let selectedSlot = "";
+
+    function showCheckoutPanel() {
+        document.getElementById("cartState").classList.add("d-none");
+        document.getElementById("checkoutState").classList.remove("d-none");
+        document.getElementById("pageTitle").textContent = "Choose Delivery Slot";
+    }
+
+    function backToCart() {
+        document.getElementById("checkoutState").classList.add("d-none");
+        document.getElementById("cartState").classList.remove("d-none");
+        document.getElementById("pageTitle").textContent = "My Cart";
+    }
+
+    /*
+     * FUNCTION: selectSlot
+     * PURPOSE:  Highlight the chosen delivery slot card and enable Pay button.
+     */
+    function selectSlot(slot, clickedCard) {
+        selectedSlot = slot;
+
+        /* Reset all cards */
+        document.querySelectorAll(".slot-card").forEach(card => {
+            card.style.borderColor = "var(--border-color)";
+            card.style.background  = "";
+            card.querySelector(".slot-check").classList.add("d-none");
+        });
+
+        /* Highlight selected card */
+        clickedCard.style.borderColor = "var(--success)";
+        clickedCard.style.background  = "rgba(78,201,176,0.07)";
+        clickedCard.querySelector(".slot-check").classList.remove("d-none");
+
+        document.getElementById("selectedSlot").value = slot;
+        document.getElementById("payNowBtn").disabled = false;
+    }
+
+    /*
+     * FUNCTION: confirmPayment
+     * PURPOSE:  The PAYMENT trigger — calls /api/checkout.
+     *
+     * WHAT HAPPENS INSIDE C (checkout command):
+     *   1. Load cart DLL from file
+     *   2. Check ₹100 minimum
+     *   3. STOCK RECHECK (race condition prevention)
+     *   4. Apply freebies if total >= ₹500
+     *   5. Deduct stock from vegetables.txt
+     *   6. Round-robin delivery boy assignment (CLL)
+     *   7. Build order, enqueue to FIFO queue
+     *   8. Write order to orders.txt
+     *   9. Delete cart file
+     *  10. Return order confirmation
+     *
+     * Flask returns all this as JSON. We then render the Invoice (State 3).
+     */
+    async function confirmPayment() {
+        const slot = document.getElementById("selectedSlot").value;
+        if (!slot) {
+            showAlert("Please select a delivery slot.", "danger");
+            return;
+        }
+
+        /* Disable button + show spinner */
+        const btn = document.getElementById("payNowBtn");
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-sm"></span> Processing payment...';
+
+        showAlert("", "");  /* Clear any old alert */
+
+        try {
+            const resp = await fetch("/api/checkout", {
+                method:  "POST",
+                headers: {"Content-Type": "application/json"},
+                body:    JSON.stringify({ delivery_slot: slot })
+            });
+            const result = await resp.json();
+
+            if (result.status === "SUCCESS") {
+                /* Payment confirmed! Show the invoice. */
+                renderInvoice(result);
+            } else {
+                /* Show the error (e.g., "Insufficient stock for Onion") */
+                showAlert(result.message || "Payment failed. Please try again.", "danger");
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-credit-card me-2"></i>Confirm &amp; Pay';
+            }
+
+        } catch (e) {
+            showAlert("Could not process payment. Check server connection.", "danger");
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-credit-card me-2"></i>Confirm &amp; Pay';
+        }
+    }
+
+    /* ────────────────────────────────────────────────────────────
+       INVOICE STATE
+       ─────────────────────────────────────────────────────────── */
+
+    /*
+     * FUNCTION: renderInvoice
+     * PURPOSE:  Populate and display the order confirmation receipt.
+     *           The `result` object comes from /api/checkout.
+     *
+     *           result fields:
+     *             order_id, total, slot, boy_name, boy_phone, items
+     */
+    function renderInvoice(result) {
+        /* Hide checkout panel, show invoice */
+        document.getElementById("checkoutState").classList.add("d-none");
+        document.getElementById("invoiceState").classList.remove("d-none");
+        document.getElementById("pageTitle").textContent = "Order Confirmed";
+
+        /* Populate invoice fields */
+        document.getElementById("inv-order-id").textContent  = result.order_id;
+        document.getElementById("inv-slot").textContent      = result.slot;
+        document.getElementById("inv-boy-name").textContent  = result.boy_name;
+        document.getElementById("inv-boy-phone").textContent = result.boy_phone;
+        document.getElementById("inv-total").textContent     = `₹${parseFloat(result.total).toFixed(2)}`;
+
+        /*
+         * Render the items list.
+         * `result.items` is a string like: "V1001:500,V1003:1000,VF101:50"
+         * We split on comma, then on colon to get (id, grams).
+         * Then we look up each item's name from `cartItems` (or use the ID as fallback).
+         */
+        const itemsContainer = document.getElementById("inv-items-list");
+        itemsContainer.innerHTML = "";
+
+        const itemParts = (result.items || "").split(",");
+        itemParts.forEach(part => {
+            const [id, grams] = part.split(":");
+            if (!id) return;
+
+            /* Try to find the item name from the cart items we loaded earlier */
+            const match      = cartItems.find(i => i.veg_id === id);
+            const name       = match ? match.name : id;
+            const isFree     = match ? match.is_free : (id.startsWith("VF") ? 1 : 0);
+            const qty        = parseInt(grams) || 0;
+            const qtyDisplay = qty >= 1000 ? `${(qty / 1000).toFixed(2)} kg` : `${qty} g`;
+
+            itemsContainer.insertAdjacentHTML("beforeend", `
+            <div style="display:flex;
+                        justify-content:space-between;
+                        align-items:center;
+                        padding:0.5rem 0;
+                        border-bottom:1px solid var(--border-color);
+                        font-size:0.88rem;">
+                <span class="text-bright">
+                    ${name}
+                    ${isFree ? `<span style="color:var(--success); font-size:0.7rem;
+                                             margin-left:0.4rem;">🎁 FREE</span>` : ""}
+                </span>
+                <span class="text-muted">${qtyDisplay}</span>
+            </div>`);
+        });
+
+        /* Smooth scroll to top so user sees the invoice header */
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    /* ────────────────────────────────────────────────────────────
+       UI HELPERS
+       ─────────────────────────────────────────────────────────── */
+
+    function showAlert(message, type) {
+        const box = document.getElementById("alertBox");
+        if (!message) { box.classList.add("d-none"); return; }
+        box.className = `alert alert-${type}`;
+        box.textContent = message;
+        box.classList.remove("d-none");
+        /* Auto-dismiss success alerts after 3s */
+        if (type === "success") setTimeout(() => box.classList.add("d-none"), 3000);
+    }
+</script>
+{% endblock %}

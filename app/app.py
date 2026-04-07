@@ -234,6 +234,28 @@ def logout():
     session.clear()  # Remove all session data
     return redirect(url_for("index"))
 
+@app.route("/vegetables")
+def vegetables():
+    """
+    PURPOSE: Serve the Product Listing page.
+    User must be logged in to shop. Redirect if not.
+    """
+    if "user_id" not in session or session.get("role") != "user":
+        return redirect(url_for("login", role="user"))
+    return render_template("vegetables.html")
+
+
+@app.route("/cart")
+def cart():
+    """
+    PURPOSE: Serve the Cart / Checkout / Invoice page.
+    The same template handles all three states (managed by JS on the frontend).
+    User must be logged in.
+    """
+    if "user_id" not in session or session.get("role") != "user":
+        return redirect(url_for("login", role="user"))
+    return render_template("cart.html")
+
 
 # =============================================================
 # API ROUTES - These return JSON, called by JavaScript fetch()
@@ -420,6 +442,349 @@ def api_change_password():
     return jsonify({"status": result["status"], "message": result["data"]})
 
 
+@app.route("/api/list_products", methods=["GET"])
+def api_list_products():
+    """
+    PURPOSE: Return all products from vegetables.txt as a JSON array.
+    Calls:   ./order list_products
+    C OUTPUT FORMAT (one vegetable per line after SUCCESS|):
+      veg_id|category|name|stock_g|price_per_1000g|tag|validity_days
+
+    PARSING:
+      Line 0 = "SUCCESS|"  (we ignore it)
+      Lines 1+ = one vegetable per line, pipe-delimited
+    """
+    result = run_c_binary("order", ["list_products"])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    # Split the raw output into individual vegetable lines.
+    # The first line from C is "SUCCESS|" (just the header).
+    # Each subsequent line is one vegetable.
+    raw_lines = result["raw_output"].strip().split("\n")
+    products  = []
+
+    for line in raw_lines[1:]:  # Skip the "SUCCESS|" header line
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 7:
+            continue  # Skip malformed lines
+
+        products.append({
+            "veg_id":          parts[0],
+            "category":        parts[1],
+            "name":            parts[2],
+            "stock_g":         int(parts[3]),
+            "price_per_1000g": float(parts[4]),
+            "tag":             parts[5],
+            "validity_days":   int(parts[6])
+        })
+
+    return jsonify({"status": "SUCCESS", "products": products})
+
+
+@app.route("/api/add_to_cart", methods=["POST"])
+def api_add_to_cart():
+    """
+    PURPOSE: Add or update one item in the user's cart.
+    Calls:   ./order add_to_cart <user_id> <veg_id> <qty_grams>
+
+    HOW THE C BACKEND WORKS:
+      1. Validates the quantity (> 0, multiple of 50g)
+      2. Looks up the vegetable in vegetables.txt to get name + price
+      3. Loads the user's cart DLL from carts/<user_id>_cart.txt
+      4. Calls dll_update_or_append() — updates qty if item exists, else adds new node
+      5. Saves the updated DLL back to the cart file
+
+    REQUEST JSON: { "veg_id": "V1001", "qty_g": 500 }
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data    = request.get_json()
+    veg_id  = data.get("veg_id", "").strip()
+    qty_g   = int(data.get("qty_g", 0))
+    user_id = session["user_id"]
+
+    if not veg_id or qty_g <= 0:
+        return jsonify({"status": "ERROR", "message": "Invalid item or quantity"})
+
+    result = run_c_binary("order", ["add_to_cart", user_id, veg_id, str(qty_g)])
+
+    return jsonify({
+        "status":  result["status"],
+        "message": result["data"]
+    })
+
+
+@app.route("/api/view_cart", methods=["POST"])
+def api_view_cart():
+    """
+    PURPOSE: Return all items in the user's current cart.
+    Calls:   ./order view_cart <user_id>
+
+    C OUTPUT FORMAT:
+      Line 0: SUCCESS|<grand_total>
+      Lines 1+: veg_id|name|qty_g|price_per_1000g|item_total|is_free
+
+    HOW THE C BACKEND WORKS:
+      1. Reads carts/<user_id>_cart.txt into a Doubly Linked List
+      2. Traverses the DLL from head to tail, printing each node
+      3. Also computes and prints the grand total (dll_get_total)
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    user_id = session["user_id"]
+    result  = run_c_binary("order", ["view_cart", user_id])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    # Parse the raw C output
+    lines     = result["raw_output"].strip().split("\n")
+    first     = lines[0]   # "SUCCESS|<total>"
+    total_str = first.split("|")[1] if "|" in first else "0"
+
+    items = []
+    for line in lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 6:
+            continue
+        items.append({
+            "veg_id":          parts[0],
+            "name":            parts[1],
+            "qty_g":           int(parts[2]),
+            "price_per_1000g": float(parts[3]),
+            "item_total":      float(parts[4]),
+            "is_free":         int(parts[5])
+        })
+
+    return jsonify({
+        "status": "SUCCESS",
+        "total":  float(total_str),
+        "items":  items
+    })
+
+
+@app.route("/api/remove_item", methods=["POST"])
+def api_remove_item():
+    """
+    PURPOSE: Remove one specific item from the user's cart.
+    Calls:   ./order remove_item <user_id> <veg_id>
+
+    HOW THE C BACKEND WORKS:
+      1. Loads cart DLL from file
+      2. Calls dll_remove(head, veg_id)
+         -> Finds the node by veg_id
+         -> Re-links: prev->next = node->next, node->next->prev = node->prev
+         -> Frees the node's memory
+      3. Saves the updated DLL back to file
+
+    REQUEST JSON: { "veg_id": "V1001" }
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data    = request.get_json()
+    veg_id  = data.get("veg_id", "").strip()
+    user_id = session["user_id"]
+
+    if not veg_id:
+        return jsonify({"status": "ERROR", "message": "No item specified"})
+
+    result = run_c_binary("order", ["remove_item", user_id, veg_id])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
+
+@app.route("/api/checkout", methods=["POST"])
+def api_checkout():
+    """
+    PURPOSE: Execute the full payment pipeline.
+    Calls:   ./order checkout <user_id> <delivery_slot>
+
+    THIS IS THE MOST COMPLEX ROUTE. Here's the full pipeline in C:
+
+    Step 1: Load the cart DLL from file
+    Step 2: Minimum order check (₹100)
+    Step 3: STOCK RECHECK (race condition prevention)
+            -> Even if stock was fine at "Add to Cart" time,
+               another user may have bought the same item before payment.
+               We verify CURRENT stock levels again, right before deducting.
+    Step 4: Apply freebies (if total >= ₹500, add VF101 + VF102 as free nodes)
+    Step 5: Deduct confirmed stock from vegetables.txt
+    Step 6: Round-robin delivery boy assignment using Circular Linked List
+            -> Find boy with last_assigned==1 in CLL
+            -> Move to ->next node
+            -> That boy gets this order
+            -> Update delivery_boys.txt
+    Step 7: Enqueue order to FIFO OrderQueue (simulating order processing)
+    Step 8: Append order to orders.txt
+    Step 9: Delete cart file (cart is now empty)
+    Step 10: Print confirmation: order_id|total|slot|boy_name|boy_phone|items
+
+    C OUTPUT: SUCCESS|<order_id>|<total>|<slot>|<boy_name>|<boy_phone>|<items>
+
+    REQUEST JSON: { "delivery_slot": "Morning" }
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data = request.get_json()
+    slot = data.get("delivery_slot", "").strip()
+    user_id = session["user_id"]
+
+    valid_slots = ["Morning", "Afternoon", "Evening"]
+    if slot not in valid_slots:
+        return jsonify({"status": "ERROR", "message": "Invalid delivery slot"})
+
+    result = run_c_binary("order", ["checkout", user_id, slot])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    # Parse C output: SUCCESS|order_id|total|slot|boy_name|boy_phone|items
+    # result["data"] is everything after the first "SUCCESS|"
+    # raw_output first line: "SUCCESS|ORD101|450.00|Morning|Ramesh|9876543210|V1001:500,..."
+    first_line = result["raw_output"].strip().split("\n")[0]
+    parts      = first_line.split("|")
+
+    # parts[0] = "SUCCESS"
+    # parts[1] = order_id
+    # parts[2] = total
+    # parts[3] = slot
+    # parts[4] = boy_name
+    # parts[5] = boy_phone
+    # parts[6] = items_string
+    if len(parts) < 7:
+        return jsonify({"status": "ERROR", "message": "Unexpected response from server"})
+
+    return jsonify({
+        "status":   "SUCCESS",
+        "order_id": parts[1],
+        "total":    float(parts[2]),
+        "slot":     parts[3],
+        "boy_name": parts[4],
+        "boy_phone":parts[5],
+        "items":    parts[6] if len(parts) > 6 else ""
+    })
+
+
+@app.route("/api/get_orders", methods=["GET"])
+def api_get_orders():
+    """
+    PURPOSE: Return all past orders for the currently logged-in user.
+    Calls:   ./order get_orders <user_id>
+    C filters orders.txt by user_id and returns matching rows.
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    user_id = session["user_id"]
+    result  = run_c_binary("order", ["get_orders", user_id])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    lines  = result["raw_output"].strip().split("\n")
+    orders = []
+
+    for line in lines[1:]:    # Skip the "SUCCESS|" header line
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 7:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "items":           parts[6]
+        })
+
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+
+@app.route("/api/admin_orders", methods=["GET"])
+def api_admin_orders():
+    """
+    PURPOSE: Return ALL orders sorted by delivery slot priority (Morning first).
+    Calls:   ./order admin_orders
+    ONLY accessible to admin role.
+
+    HOW THE C BACKEND WORKS:
+      1. Reads ALL orders from orders.txt into a Min-Heap
+         (Morning=Priority 1, Afternoon=2, Evening=3)
+      2. Repeatedly calls heap_extract_min() to print orders
+         in ascending priority order (most urgent first)
+      3. Flask returns the sorted list as a JSON array
+
+    C OUTPUT:
+      Line 0: SUCCESS|<count>
+      Lines 1+: one order per line, pipe-delimited, sorted by priority
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin access required"})
+
+    result = run_c_binary("order", ["admin_orders"])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    lines  = result["raw_output"].strip().split("\n")
+    orders = []
+
+    for line in lines[1:]:    # Skip "SUCCESS|<count>" header
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 7:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "items":           parts[6]
+        })
+
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+
+# ─────────────────────────────────────────────────────────────
+# NOTE FOR BRIDGE.PY:
+# ─────────────────────────────────────────────────────────────
+# The run_c_binary() function in bridge.py must return both
+# result["data"] (the part after "SUCCESS|" or "ERROR|")
+# AND result["raw_output"] (the complete stdout string).
+#
+# If your current bridge.py does not include "raw_output",
+# add this to the return dict in run_c_binary():
+#
+#   return {
+#       "status":     parts[0],
+#       "data":       "|".join(parts[1:]),
+#       "raw_output": output   # <-- ADD THIS LINE
+#   }
+#
+# This lets Flask parse multi-line output (used by list_products,
+# view_cart, get_orders, admin_orders).
+# ─────────────────────────────────────────────────────────────
+
+
 # =============================================================
 # START THE SERVER — with SSL/HTTPS
 # =============================================================
@@ -506,7 +871,10 @@ if __name__ == "__main__":
     # USE WHEN: College demo, professor review, team testing.
     # ══════════════════════════════════════════════════════════
 
-    # LAUNCH MODE
+
+    """
+    === LAUNCH MODE ===
+    """
 
     # UNCOMMENT for Version A (Local)
     # HOST = "127.0.0.1"   
