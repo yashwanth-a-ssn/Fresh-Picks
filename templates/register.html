@@ -1,21 +1,27 @@
 {% extends "base.html" %}
 <!--
-  register.html - Fresh Picks: User Registration Page
-  ====================================================
-  New user sign-up flow with a simulated OTP verification step.
+  register.html - Fresh Picks: User Registration Page (v2)
+  =========================================================
+  New user sign-up flow with email field and OTP modal verification.
+
+  CHANGELOG (v2):
+    - ADDED: Email field (between Full Name and Phone)
+    - CHANGED: OTP is shown in a Bootstrap MODAL (not inline) for cleaner UX
+    - CHANGED: API is called FIRST, then OTP modal appears on success
+               (Ensures the user is actually saved before OTP step)
+    - ADDED: Password complexity hint shown below password field
+    - ADDED: Real-time password complexity indicator
 
   TWO-STEP FLOW:
     Step 1 — Registration Form:
-      User enters: Full Name, Phone, Address, Username, Password
-      On submit -> Flask /api/register -> C binary writes to users.txt
-      -> A mock OTP "0000" is "sent" and displayed on screen
+      User enters: Full Name, Email, Phone, Address, Username, Password, Confirm Password
+      On submit → validate locally → POST to /api/register → C binary writes to users.txt
+      → On SUCCESS: Open OTP Modal
 
-    Step 2 — OTP Verification:
-      User must type "0000" into the OTP field and click "Verify"
-      -> On correct OTP: show success and redirect to login
-
-  This simulates a real-world OTP flow for demo purposes.
-  In production, you'd send a real SMS/email OTP.
+    Step 2 — OTP Modal:
+      A mock OTP "0000" is displayed in the modal.
+      User types it in and clicks Verify.
+      On correct OTP → redirect to login.
 
   Team: CodeCrafters | SDP-1
 -->
@@ -24,44 +30,23 @@
 
 {% block content %}
 <div class="auth-wrapper" style="align-items: flex-start; padding-top: 2rem;">
-    <div class="auth-card card" style="max-width: 500px;">
+    <div class="auth-card card" style="max-width: 520px;">
         <div class="card-body">
 
-            <!-- ── Step Indicator ── -->
+            <!-- ── Page Header ── -->
             <div class="auth-header">
                 <div style="font-size: 2rem; margin-bottom: 0.75rem;">📝</div>
                 <h2>Create Account</h2>
                 <p>Join FreshPicks for fresh groceries at your doorstep.</p>
             </div>
 
-            <!-- Progress steps indicator -->
-            <div class="d-flex justify-content-center gap-3 mb-4" id="stepIndicator">
-                <div id="step1Indicator" class="text-center">
-                    <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);
-                                color:#fff;display:inline-flex;align-items:center;justify-content:center;
-                                font-size:0.8rem;font-weight:700;">1</div>
-                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">Details</div>
-                </div>
-                <div style="flex:1;display:flex;align-items:center;padding-bottom:14px;">
-                    <div style="height:1px;width:100%;background:var(--border-color);"></div>
-                </div>
-                <div id="step2Indicator" class="text-center">
-                    <div id="step2Circle"
-                         style="width:28px;height:28px;border-radius:50%;
-                                background:var(--bg-elevated);border:1px solid var(--border-color);
-                                color:var(--text-muted);display:inline-flex;align-items:center;
-                                justify-content:center;font-size:0.8rem;font-weight:700;">2</div>
-                    <div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">Verify OTP</div>
-                </div>
-            </div>
-
-            <!-- Alert box -->
+            <!-- Alert box (shown on registration errors) -->
             <div id="alertBox" class="alert d-none mb-3" role="alert"></div>
 
             <!-- ══════════════════════════════════════
-                 STEP 1: Registration Form
+                 REGISTRATION FORM
                  ══════════════════════════════════════ -->
-            <div id="step1">
+            <div id="regForm">
                 <div class="row g-3">
 
                     <!-- Full Name -->
@@ -70,7 +55,19 @@
                             <i class="bi bi-person-badge me-1"></i>Full Name
                         </label>
                         <input type="text" class="form-control" id="full_name"
-                               placeholder="e.g., Alice Johnson">
+                               placeholder="e.g., Yashwanth A">
+                    </div>
+
+                    <!-- Email (NEW in v2) -->
+                    <div class="col-12">
+                        <label for="email" class="form-label">
+                            <i class="bi bi-envelope me-1"></i>Email Address
+                        </label>
+                        <input type="email" class="form-control" id="email"
+                               placeholder="e.g., yashwanth@gmail.com">
+                        <div class="form-text text-muted">
+                            Used for OTP and account recovery.
+                        </div>
                     </div>
 
                     <!-- Phone -->
@@ -79,7 +76,7 @@
                             <i class="bi bi-telephone me-1"></i>Phone Number
                         </label>
                         <input type="tel" class="form-control" id="phone"
-                               placeholder="e.g., 9876543210">
+                               placeholder="e.g., 6382717541">
                     </div>
 
                     <!-- Username -->
@@ -91,13 +88,42 @@
                                placeholder="Choose a username">
                     </div>
 
-                    <!-- Address -->
+                    <!-- Address — split into 4 sub-fields -->
+                    <!--
+                        WHY 4 SEPARATE FIELDS?
+                        The DB schema stores address as a CSV string inside the
+                        address column: "DoorNo,Street,Area,PIN"
+                        Collecting each part separately lets us:
+                          1. Validate PIN code format (digits only)
+                          2. Display each part on its own line in profile.html
+                          3. Avoid users entering comma-heavy freeform text that
+                             would break our CSV parsing later.
+                    -->
                     <div class="col-12">
-                        <label for="address" class="form-label">
+                        <label class="form-label">
                             <i class="bi bi-geo-alt me-1"></i>Address
                         </label>
-                        <input type="text" class="form-control" id="address"
-                               placeholder="e.g., 123 Main St, Chennai">
+                    </div>
+
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" id="door"
+                               placeholder="Door No (e.g., No 11 - Flat No FF2)">
+                    </div>
+
+                    <div class="col-md-7">
+                        <input type="text" class="form-control" id="street"
+                               placeholder="Street Name (e.g., Elumalai Street)">
+                    </div>
+
+                    <div class="col-md-7">
+                        <input type="text" class="form-control" id="area"
+                               placeholder="Area (e.g., West Tambaram)">
+                    </div>
+
+                    <div class="col-md-5">
+                        <input type="text" class="form-control" id="pincode"
+                               placeholder="PIN Code (e.g., 600045)"
+                               maxlength="6">
                     </div>
 
                     <!-- Password -->
@@ -106,7 +132,21 @@
                             <i class="bi bi-lock me-1"></i>Password
                         </label>
                         <input type="password" class="form-control" id="password"
-                               placeholder="Choose a password">
+                               placeholder="Min. 8 chars"
+                               oninput="updateStrengthBar(this.value)">
+                        <!--
+                            Password strength bar — updates in real time as user types.
+                            4 segments: Upper, Lower, Digit, Special.
+                        -->
+                        <div class="mt-2 d-flex gap-1" id="strengthBar">
+                            <div class="flex-fill" id="sb1" style="height:4px; border-radius:2px; background:var(--border-color); transition:background 0.2s;"></div>
+                            <div class="flex-fill" id="sb2" style="height:4px; border-radius:2px; background:var(--border-color); transition:background 0.2s;"></div>
+                            <div class="flex-fill" id="sb3" style="height:4px; border-radius:2px; background:var(--border-color); transition:background 0.2s;"></div>
+                            <div class="flex-fill" id="sb4" style="height:4px; border-radius:2px; background:var(--border-color); transition:background 0.2s;"></div>
+                        </div>
+                        <div class="form-text" id="strengthLabel" style="color:var(--text-muted);">
+                            Needs: uppercase, lowercase, digit, special char (!@#$...)
+                        </div>
                     </div>
 
                     <!-- Confirm Password -->
@@ -119,12 +159,13 @@
                     </div>
 
                 </div>
+                <!-- End row -->
 
                 <!-- Submit Button -->
                 <button class="btn btn-primary btn-full mt-4"
                         id="registerBtn"
                         onclick="handleRegister()">
-                    <i class="bi bi-send me-2"></i>Register & Get OTP
+                    <i class="bi bi-send me-2"></i>Register
                 </button>
 
                 <div class="text-center mt-3">
@@ -133,94 +174,133 @@
                         <a href="/login?role=user">Sign in</a>
                     </p>
                 </div>
-            </div>
-            <!-- End Step 1 -->
-
-
-            <!-- ══════════════════════════════════════
-                 STEP 2: OTP Verification
-                 (hidden until Step 1 completes)
-                 ══════════════════════════════════════ -->
-            <div id="step2" class="d-none">
-
-                <!-- OTP info banner -->
-                <div class="alert alert-info mb-4" role="alert">
-                    <strong><i class="bi bi-phone me-1"></i>OTP Sent!</strong><br>
-                    <!--
-                        In a real app, the OTP would be sent via SMS.
-                        For this DEMO, we display it directly on screen.
-                    -->
-                    <span class="text-muted" style="font-size:0.85rem;">
-                        (Demo Mode) Your OTP is:
-                    </span>
-                    <strong id="displayedOtp"
-                            style="font-family:var(--font-mono);
-                                   font-size:1.4rem;
-                                   color:var(--success);
-                                   display:block;
-                                   margin-top:0.3rem;
-                                   letter-spacing:0.3em;">
-                        0000
-                    </strong>
-                    <span class="text-muted" style="font-size:0.75rem;">
-                        Enter this code below to verify your account.
-                    </span>
-                </div>
-
-                <!-- OTP Input -->
-                <div class="mb-4">
-                    <label for="otpInput" class="form-label">
-                        <i class="bi bi-key me-1"></i>Enter OTP Code
-                    </label>
-                    <input type="text"
-                           class="form-control otp-field"
-                           id="otpInput"
-                           placeholder="0000"
-                           maxlength="4"
-                           autofocus>
-                    <div class="form-text text-muted mt-1">Enter the 4-digit code shown above.</div>
-                </div>
-
-                <!-- Verify Button -->
-                <button class="btn btn-primary btn-full mb-3"
-                        id="verifyBtn"
-                        onclick="handleOtpVerify()">
-                    <i class="bi bi-check-circle me-2"></i>Verify & Complete Registration
-                </button>
-
-                <!-- Back button -->
-                <div class="text-center">
-                    <button class="btn btn-secondary btn-sm"
-                            onclick="goBackToStep1()">
-                        <i class="bi bi-arrow-left me-1"></i>Back
-                    </button>
-                </div>
 
             </div>
-            <!-- End Step 2 -->
+            <!-- End registration form -->
 
         </div>
     </div>
 </div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     OTP VERIFICATION MODAL (Bootstrap 5 Modal)
+     Appears AFTER successful /api/register call.
+
+     WHY A MODAL instead of a separate step div?
+       - Cleaner UX: user sees the form underneath, feels in context
+       - Prevents accidental navigation away
+       - Bootstrap's built-in focus-trap keeps keyboard users inside
+
+     data-bs-backdrop="static" -> clicking outside won't close it
+     data-bs-keyboard="false"  -> pressing Escape won't close it
+     These prevent accidentally skipping OTP verification.
+     ══════════════════════════════════════════════════════ -->
+<div class="modal fade"
+     id="otpModal"
+     data-bs-backdrop="static"
+     data-bs-keyboard="false"
+     tabindex="-1"
+     aria-labelledby="otpModalLabel"
+     aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content"
+             style="background:var(--bg-surface);
+                    border: 1px solid var(--border-color);
+                    border-radius: var(--radius-lg);">
+
+            <!-- Modal Header -->
+            <div class="modal-header"
+                 style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title" id="otpModalLabel">
+                    <i class="bi bi-phone me-2" style="color:var(--accent);"></i>
+                    OTP Verification
+                </h5>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body">
+
+                <!-- OTP Display Banner -->
+                <div class="alert alert-info mb-4">
+                    <strong><i class="bi bi-info-circle me-1"></i>Demo Mode — OTP Generated</strong><br>
+                    <span class="text-muted" style="font-size:0.85rem;">
+                        In production, this would be sent to your email/phone.
+                    </span>
+                    <div style="margin-top:0.5rem;">
+                        Your verification code:
+                        <strong id="otpDisplay"
+                                style="font-family:var(--font-mono);
+                                       font-size:1.8rem;
+                                       color:var(--success);
+                                       letter-spacing:0.4em;
+                                       display:block;
+                                       margin-top:0.25rem;">
+                            0000
+                        </strong>
+                    </div>
+                </div>
+
+                <!-- OTP Alert (for wrong OTP) -->
+                <div id="otpAlertBox" class="alert d-none mb-3" role="alert"></div>
+
+                <!-- OTP Input -->
+                <label for="otpInput" class="form-label">
+                    <i class="bi bi-key me-1"></i>Enter the 4-digit OTP
+                </label>
+                <input type="text"
+                       class="form-control otp-field"
+                       id="otpInput"
+                       placeholder="0000"
+                       maxlength="4">
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer"
+                 style="border-top: 1px solid var(--border-color);">
+                <button type="button"
+                        class="btn btn-primary"
+                        id="verifyOtpBtn"
+                        onclick="handleOtpVerify()">
+                    <i class="bi bi-check-circle me-1"></i>Verify & Complete
+                </button>
+            </div>
+
+        </div>
+    </div>
+</div>
+<!-- End OTP Modal -->
+
 {% endblock %}
 
 
 {% block extra_scripts %}
 <script>
     /*
-     * REGISTRATION PAGE JAVASCRIPT
-     * ==============================
-     * Handles two-step registration:
-     *   Step 1: Collect user info and send to /api/register
-     *   Step 2: Verify the mock OTP "0000"
+     * REGISTER PAGE JAVASCRIPT (v2)
+     * ===============================
+     * Handles:
+     *   - Real-time password strength indicator
+     *   - Registration form validation and API call
+     *   - OTP Modal display and verification
      */
 
-    /* The simulated OTP for demo purposes */
+    /* The mock OTP for demo purposes */
     const MOCK_OTP = "0000";
+
+    /* Bootstrap Modal instance — initialized after DOM loads */
+    let otpModal;
+
+    /* Initialize Bootstrap modal object when the page is ready */
+    document.addEventListener("DOMContentLoaded", function () {
+        otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
+    });
 
     /*
      * FUNCTION: showAlert
-     * PURPOSE:  Display a colored notification box
+     * PURPOSE:  Show a colored notification in the main form area
      */
     function showAlert(message, type) {
         const box = document.getElementById("alertBox");
@@ -230,158 +310,200 @@
     }
 
     /*
-     * FUNCTION: setLoading
-     * PURPOSE:  Toggle button loading state to prevent double-clicks
+     * FUNCTION: updateStrengthBar
+     * PURPOSE:  Give the user real-time visual feedback on password strength.
+     *           Each of the 4 bar segments turns green when its condition is met.
+     *
+     * HOW IT WORKS:
+     *   We test the password string using regex (regular expressions):
+     *     /[A-Z]/ -> matches if there's any uppercase letter
+     *     /[a-z]/ -> matches if there's any lowercase letter
+     *     /[0-9]/ -> matches if there's any digit
+     *     /[^a-zA-Z0-9]/ -> matches if there's any non-alphanumeric (special char)
+     *
+     *   For each passing condition, we turn the corresponding bar green.
+     *   The label text also updates to tell the user what's still missing.
      */
-    function setLoading(btnId, isLoading, defaultHtml) {
-        const btn = document.getElementById(btnId);
-        btn.disabled = isLoading;
-        btn.innerHTML = isLoading
-            ? '<span class="spinner-sm"></span> Processing...'
-            : defaultHtml;
+    function updateStrengthBar(val) {
+        /* Test each condition */
+        const hasUpper   = /[A-Z]/.test(val);
+        const hasLower   = /[a-z]/.test(val);
+        const hasDigit   = /[0-9]/.test(val);
+        const hasSpecial = /[^a-zA-Z0-9]/.test(val);
+        const hasLength  = val.length >= 8;
+
+        /* Color each bar segment: green = pass, gray = fail */
+        const green = "var(--success)";
+        const gray  = "var(--border-color)";
+
+        document.getElementById("sb1").style.background = hasUpper   ? green : gray;
+        document.getElementById("sb2").style.background = hasLower   ? green : gray;
+        document.getElementById("sb3").style.background = hasDigit   ? green : gray;
+        document.getElementById("sb4").style.background = hasSpecial ? green : gray;
+
+        /* Build a label showing what's missing */
+        const missing = [];
+        if (!hasLength)  missing.push("8+ chars");
+        if (!hasUpper)   missing.push("uppercase");
+        if (!hasLower)   missing.push("lowercase");
+        if (!hasDigit)   missing.push("digit");
+        if (!hasSpecial) missing.push("special char");
+
+        const label = document.getElementById("strengthLabel");
+        if (missing.length === 0) {
+            label.style.color   = "var(--success)";
+            label.textContent   = "✓ Password meets all requirements";
+        } else {
+            label.style.color   = "var(--text-muted)";
+            label.textContent   = "Still needs: " + missing.join(", ");
+        }
     }
 
     /*
+     * FUNCTION: sanitizeAddress
+     * PURPOSE:  Removes commas from address sub-fields in real-time to
+     *           prevent DB corruption.
+     *
+     * HOW IT WORKS:
+     *   addEventListener('input', ...) fires on every keystroke AND paste.
+     *   this.value.replace(/,/g, "") replaces ALL commas globally (the /g flag)
+     *   with an empty string — effectively deleting them as the user types.
+     */
+
+    function sanitizeAddress(id) {
+        const field = document.getElementById(id);
+        field.addEventListener('input', function() {
+            /* Replace every comma (globally) with nothing — deletes it silently */
+            this.value = this.value.replace(/,/g, "");
+        });
+    }
+
+    /*
+     * Apply to all 4 address sub-fields.
+     * forEach calls sanitizeAddress("door"), sanitizeAddress("street"), etc.
+     * This runs once on page load and attaches a live listener to each field.
+     */
+    ['door', 'street', 'area', 'pincode'].forEach(sanitizeAddress);
+
+    /*
      * FUNCTION: handleRegister
-     * PURPOSE:  Collect form data, validate it, send to /api/register,
-     *           and on success, advance to the OTP verification step.
+     * PURPOSE:  Validate form, send to /api/register, then open OTP modal.
      *
      * STEPS:
-     *   1. Read all form field values
-     *   2. Validate none are empty
-     *   3. Validate passwords match
-     *   4. POST to /api/register via fetch()
-     *   5. On SUCCESS: show Step 2 (OTP screen)
-     *   6. On ERROR: show error alert
+     *   1. Read all form values
+     *   2. Validate locally (empty fields, password match)
+     *   3. POST to /api/register
+     *   4. On SUCCESS from server: open the OTP modal
+     *   5. On ERROR from server: show the error message
      */
     async function handleRegister() {
-        /* Step 1: Read all form values */
+        /* Step 1: Collect form values */
         const full_name = document.getElementById("full_name").value.trim();
+        const email     = document.getElementById("email").value.trim();
         const phone     = document.getElementById("phone").value.trim();
         const username  = document.getElementById("username").value.trim();
-        const address   = document.getElementById("address").value.trim();
         const password  = document.getElementById("password").value.trim();
         const confirm   = document.getElementById("confirm_password").value.trim();
 
-        /* Step 2: Validate all fields are filled */
-        if (!full_name || !phone || !username || !address || !password || !confirm) {
+        /* Read the 4 address sub-fields */
+        const door    = document.getElementById("door").value.trim();
+        const street  = document.getElementById("street").value.trim();
+        const area    = document.getElementById("area").value.trim();
+        const pincode = document.getElementById("pincode").value.trim();
+
+        /* Step 2a: Check no field is empty */
+        if (!full_name || !email || !phone || !username || !door || !street || !area || !pincode || !password || !confirm) {
             showAlert('<i class="bi bi-exclamation-triangle me-1"></i>Please fill in all fields.', "danger");
             return;
         }
 
-        /* Step 3: Check passwords match */
+        /* Step 2b: Validate email format using browser's built-in check */
+        if (!email.includes("@") || !email.includes(".")) {
+            showAlert("Please enter a valid email address.", "danger");
+            return;
+        }
+
+        /* Step 2c: Check passwords match */
         if (password !== confirm) {
             showAlert('<i class="bi bi-exclamation-triangle me-1"></i>Passwords do not match.', "danger");
             return;
         }
 
-        /* Minimum password length check */
-        if (password.length < 4) {
-            showAlert("Password must be at least 4 characters.", "danger");
-            return;
-        }
-
-        setLoading("registerBtn", true, '<i class="bi bi-send me-2"></i>Register & Get OTP');
+        /* Disable submit button while request is in flight */
+        const btn = document.getElementById("registerBtn");
+        btn.disabled  = true;
+        btn.innerHTML = '<span class="spinner-sm"></span> Processing...';
 
         try {
-            /* Step 4: Send registration data to Flask */
+            /* Step 3: POST to Flask — C binary does complexity check server-side */
             const response = await fetch("/api/register", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({ username, password, full_name, phone, address })
+                body:    JSON.stringify({
+                    username, password, full_name, email, phone,
+                    door, street, area, pincode  /* 4 address sub-fields */
+                })
             });
 
             const result = await response.json();
 
-            /* Step 5: Handle result */
+            /* Step 4: Handle response */
             if (result.status === "SUCCESS") {
-                /* Registration saved! Now show OTP screen */
+                /* Registration saved! Open the OTP modal */
                 document.getElementById("alertBox").classList.add("d-none");
-                goToStep2();
+                otpModal.show();
+                /* Focus the OTP input inside the modal */
+                setTimeout(() => document.getElementById("otpInput").focus(), 400);
             } else {
+                /* Show server-side error (e.g., complexity failure, duplicate username) */
                 showAlert(
                     `<i class="bi bi-x-circle me-1"></i>${result.message || "Registration failed."}`,
                     "danger"
                 );
-                setLoading("registerBtn", false, '<i class="bi bi-send me-2"></i>Register & Get OTP');
+                btn.disabled  = false;
+                btn.innerHTML = '<i class="bi bi-send me-2"></i>Register';
             }
 
         } catch (err) {
             showAlert("Server error. Is Flask running?", "danger");
-            setLoading("registerBtn", false, '<i class="bi bi-send me-2"></i>Register & Get OTP');
+            btn.disabled  = false;
+            btn.innerHTML = '<i class="bi bi-send me-2"></i>Register';
         }
-    }
-
-    /*
-     * FUNCTION: goToStep2
-     * PURPOSE:  Hide step 1 form, show step 2 OTP screen,
-     *           and visually update the step indicator circles.
-     */
-    function goToStep2() {
-        /* Hide step 1, show step 2 */
-        document.getElementById("step1").classList.add("d-none");
-        document.getElementById("step2").classList.remove("d-none");
-
-        /* Update step indicator: turn circle 2 blue */
-        const circle = document.getElementById("step2Circle");
-        circle.style.background = "var(--accent)";
-        circle.style.color = "#fff";
-        circle.style.border = "none";
-
-        /* Focus the OTP input automatically */
-        setTimeout(() => document.getElementById("otpInput").focus(), 100);
-    }
-
-    /*
-     * FUNCTION: goBackToStep1
-     * PURPOSE:  Go back to the registration form if user wants to change info
-     */
-    function goBackToStep1() {
-        document.getElementById("step2").classList.add("d-none");
-        document.getElementById("step1").classList.remove("d-none");
-
-        /* Reset step indicator */
-        const circle = document.getElementById("step2Circle");
-        circle.style.background = "var(--bg-elevated)";
-        circle.style.color = "var(--text-muted)";
-        circle.style.border = "1px solid var(--border-color)";
-
-        document.getElementById("alertBox").classList.add("d-none");
     }
 
     /*
      * FUNCTION: handleOtpVerify
-     * PURPOSE:  Compare user's OTP input with the mock OTP "0000".
-     *           On success, show a success message and redirect to login.
+     * PURPOSE:  Check the typed OTP against the mock "0000".
+     *           On success: close modal and redirect to login.
+     *           On failure: show error inside the modal.
      */
     function handleOtpVerify() {
-        const enteredOtp = document.getElementById("otpInput").value.trim();
+        const entered = document.getElementById("otpInput").value.trim();
 
-        if (!enteredOtp) {
-            showAlert("Please enter the OTP code.", "danger");
+        /* Show error inside modal if OTP field is empty */
+        if (!entered) {
+            showOtpAlert("Please enter the OTP code.", "danger");
             return;
         }
 
-        if (enteredOtp === MOCK_OTP) {
-            /* OTP is correct! Registration complete. */
-            showAlert(
-                '<i class="bi bi-check-circle me-1"></i>' +
-                '<strong>Registration complete!</strong> Redirecting to login...',
+        if (entered === MOCK_OTP) {
+            /* Correct OTP — registration is fully complete */
+            showOtpAlert(
+                '<i class="bi bi-check-circle me-1"></i>Verified! Redirecting to login...',
                 "success"
             );
+            document.getElementById("verifyOtpBtn").disabled = true;
 
-            /* Disable the verify button */
-            document.getElementById("verifyBtn").disabled = true;
-
-            /* Redirect to user login after a short delay */
+            /* Redirect to login after a short delay so user sees the success message */
             setTimeout(() => {
+                otpModal.hide();
                 window.location.href = "/login?role=user";
-            }, 2000);
+            }, 1800);
 
         } else {
             /* Wrong OTP */
-            showAlert(
-                '<i class="bi bi-x-circle me-1"></i>Incorrect OTP. Please try again. (Hint: 0000)',
+            showOtpAlert(
+                '<i class="bi bi-x-circle me-1"></i>Incorrect OTP. Try again. (Hint: 0000)',
                 "danger"
             );
             document.getElementById("otpInput").value = "";
@@ -389,10 +511,22 @@
         }
     }
 
-    /* Allow Enter key to submit OTP */
-    document.getElementById("otpInput") &&
-    document.getElementById("otpInput").addEventListener("keypress", function(e) {
-        if (e.key === "Enter") handleOtpVerify();
+    /*
+     * FUNCTION: showOtpAlert
+     * PURPOSE:  Show a message INSIDE the OTP modal
+     */
+    function showOtpAlert(message, type) {
+        const box = document.getElementById("otpAlertBox");
+        box.className = `alert alert-${type}`;
+        box.innerHTML = message;
+        box.classList.remove("d-none");
+    }
+
+    /* Allow Enter key to submit OTP from the input field */
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById("otpInput").addEventListener("keypress", function (e) {
+            if (e.key === "Enter") handleOtpVerify();
+        });
     });
 </script>
 {% endblock %}

@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 <!--
-  user_home.html - Fresh Picks: User Home/Dashboard
-  ===================================================
+  user_home.html - Fresh Picks: User Home/Dashboard (v2)
+  =======================================================
   Displayed after a successful user login.
-  Features:
-    - Welcome banner with user's name
-    - Quick navigation cards (Browse, Orders, Profile)
-    - A clear link to the Profile page
+
+  CHANGELOG (v2):
+    - REMOVED: Old "Notice Board" card (was already commented out)
+    - UPDATED: Account Summary card now shows Full Name + Email
+    - ADDED:   "Go to Security Settings" button linking to /security
+    - ADDED:   Red (#F44747) accent on the security action card
 
   Team: CodeCrafters | SDP-1
 -->
@@ -67,7 +69,7 @@
             </div>
         </div>
 
-        <!-- My Profile Card — this one IS linked -->
+        <!-- My Profile Card — linked -->
         <div class="col-sm-6 col-lg-4">
             <div class="card portal-card h-100"
                  onclick="window.location.href='/profile'"
@@ -76,7 +78,7 @@
                     <span class="portal-icon" style="font-size:2rem;">👤</span>
                     <h5 class="card-title">My Profile</h5>
                     <p class="card-text" style="font-size:0.85rem;">
-                        View and update your personal details and password.
+                        View and update your personal details.
                     </p>
                     <a href="/profile" class="btn btn-primary btn-sm mt-2"
                        onclick="event.stopPropagation()">
@@ -88,24 +90,46 @@
 
     </div>
 
-    <!-- ── Account Quick Info ── -->
+    <!-- ── Account Info + Quick Actions ── -->
     <div class="row g-4">
+
+        <!-- Account Information Card (v2: replaces the old summary + links) -->
         <div class="col-lg-6">
-            <div class="card">
+            <div class="card h-100">
                 <div class="card-header">
-                    <i class="bi bi-person-circle me-2"></i>Account Summary
+                    <i class="bi bi-person-circle me-2"></i>Account Information
                 </div>
                 <div class="card-body">
+
                     <div class="profile-field">
                         <span class="profile-field-label">Username</span>
                         <span class="profile-field-value" id="summaryUsername">—</span>
                     </div>
+
                     <div class="profile-field">
                         <span class="profile-field-label">User ID</span>
                         <span class="profile-field-value">
                             <span class="id-badge" id="summaryUserId">—</span>
                         </span>
                     </div>
+
+                    <div class="profile-field">
+                        <span class="profile-field-label">Full Name</span>
+                        <span class="profile-field-value" id="summaryFullName">—</span>
+                    </div>
+
+                    <!-- Phone (fetched from live profile API) -->
+                    <div class="profile-field">
+                        <span class="profile-field-label">Phone</span>
+                        <span class="profile-field-value" id="summaryPhone">—</span>
+                    </div>
+
+                    <!-- Email (fetched from live profile API) -->
+                    <div class="profile-field">
+                        <span class="profile-field-label">Email</span>
+                        <span class="profile-field-value" id="summaryEmail">—</span>
+                    </div>
+
                     <div class="profile-field">
                         <span class="profile-field-label">Account Status</span>
                         <span class="profile-field-value">
@@ -115,42 +139,67 @@
 
                     <div class="mt-4 d-flex gap-2 flex-wrap">
                         <a href="/profile" class="btn btn-primary btn-sm">
-                            <i class="bi bi-person me-1"></i>View Profile
+                            <i class="bi bi-person me-1"></i>View Full Profile
                         </a>
                         <a href="/logout" class="btn btn-secondary btn-sm">
                             <i class="bi bi-box-arrow-right me-1"></i>Logout
                         </a>
                     </div>
+
                 </div>
             </div>
         </div>
 
-        <!-- Notice Card -->
-        <!-- <div class="col-lg-6">
-            <div class="card">
+        <!-- Quick Actions Card (v2 addition) -->
+        <div class="col-lg-6">
+            <div class="card h-100">
                 <div class="card-header">
-                    <i class="bi bi-bell me-2"></i>Notice Board
+                    <i class="bi bi-lightning-charge me-2"></i>Quick Actions
                 </div>
-                <div class="card-body">
-                    <div class="alert alert-info mb-3">
+                <div class="card-body d-flex flex-column gap-3">
+
+                    <!--
+                        SECURITY SETTINGS BUTTON (v2 addition)
+                        Password changes are now handled exclusively at /security.
+                        Red accent is used to signal that this is a security-critical action.
+                    -->
+                    <div class="card"
+                         style="border: 1px solid var(--danger) !important;
+                                background: rgba(244,71,71,0.06) !important;">
+                        <div class="card-body py-3">
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-1">
+                                        <!-- Red lock icon — consistent with security = red -->
+                                        <i class="bi bi-shield-lock-fill"
+                                           style="color:var(--danger); font-size:1.2rem;"></i>
+                                        <strong class="text-bright">Security Settings</strong>
+                                    </div>
+                                    <p class="text-muted mb-0" style="font-size:0.82rem;">
+                                        Change your Password.
+                                    </p>
+                                </div>
+                                <a href="/security"
+                                   class="btn btn-sm"
+                                   style="background:var(--danger); color:#fff; border:none;
+                                          min-width:130px; text-align:center;">
+                                    <i class="bi bi-arrow-right me-1"></i>Go to Security
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sprint Progress Notice -->
+                    <!-- <div class="alert alert-info mb-0">
                         <i class="bi bi-info-circle me-1"></i>
-                        <strong>Demo Version:</strong> This is the Authentication &amp; Profile
-                        module demo for SDP-1.
-                    </div>
-                    <p class="text-muted" style="font-size:0.85rem;">
-                        More features like product browsing, cart, and checkout are coming in the
-                        next sprint. Stay tuned!
-                    </p>
-                    <div class="mt-3">
-                        <span class="badge bg-primary me-1">Sprint 1 ✓</span>
-                        <span class="badge me-1"
-                              style="background:var(--bg-elevated);color:var(--text-muted);">
-                            Sprint 2 — Pending
-                        </span>
-                    </div>
+                        <strong>Sprint 1 Complete:</strong> Auth &amp; Security modules are live.
+                        Products, Cart, and Orders are coming in Sprint 2!
+                    </div> -->
+
                 </div>
             </div>
-        </div> -->
+        </div>
+
     </div>
 
 </div>
@@ -160,19 +209,48 @@
 {% block extra_scripts %}
 <script>
     /*
-     * USER HOME JAVASCRIPT
-     * =====================
-     * Reads user info from localStorage (saved at login time)
-     * and displays it on the page.
+     * USER HOME JAVASCRIPT (v2)
+     * ==========================
+     * Reads basic info from localStorage (username, user_id),
+     * then calls /api/get_profile to fetch live data (full_name, email).
      */
-    (function loadUserInfo() {
+
+    /* Step 1: Display data from localStorage immediately (fast) */
+    (function loadLocalInfo() {
         const username = localStorage.getItem("username") || "User";
         const userId   = localStorage.getItem("user_id")  || "—";
 
-        /* Update all elements that display user info */
-        document.getElementById("userDisplay").textContent    = username;
+        document.getElementById("userDisplay").textContent     = username;
         document.getElementById("summaryUsername").textContent = username;
         document.getElementById("summaryUserId").textContent   = userId;
+    })();
+
+    /*
+     * Step 2: Fetch live profile data from the API (to get full_name + email).
+     * This runs after the page loads and fills in the remaining fields.
+     */
+    (async function loadLiveProfile() {
+        try {
+            const response = await fetch("/api/get_profile", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({}) /* Server reads user_id from session */
+            });
+
+            const result = await response.json();
+
+            if (result.status === "SUCCESS") {
+                /* Populate Full Name, Phone, and Email from the live database */
+                document.getElementById("summaryFullName").textContent = result.full_name || "—";
+                document.getElementById("summaryPhone").textContent    = result.phone     || "—";
+                document.getElementById("summaryEmail").textContent    = result.email     || "—";
+            }
+            /* If it fails silently, the fields just remain "—" — no error shown */
+
+        } catch (err) {
+            /* Network error — silently fail, user still sees localStorage data */
+            console.warn("Could not load live profile:", err);
+        }
     })();
 </script>
 {% endblock %}
