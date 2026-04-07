@@ -1,0 +1,56 @@
+V1001|Allium|Onion|50000|40|Farm Fresh|7
+V1002|Fruit Vegetable|Tomato|40000|30|Fresh Stock|5
+V1003|Root|Potato|60000|25|Daily Use|10
+V1004|Allium|Small Onion|20000|50|Premium|10
+V1005|Allium|Garlic|15000|120|Organic|15
+
+V1006|Fruit Vegetable|Brinjal|22000|28|Fresh|6
+V1007|Fruit Vegetable|Capsicum|15000|60|Premium|5
+V1008|Fruit Vegetable|Cucumber|25000|20|Cooling Fresh|4
+V1009|Cooking|Pumpkin|30000|18|Farm Fresh|10
+V1010|Cooking|Plantain|15000|28|Raw Banana|7
+V1011|Fruit Vegetable|Coconut|15000|35|Natural|20
+
+V1012|Leafy|Coriander Leaves|8000|100|Aromatic|3
+V1013|Leafy|Curry Leaves|7000|120|Fresh Leaves|4
+V1014|Leafy|Mint Leaves|6000|90|Refreshing|3
+V1015|Leafy|Spinach|10000|25|Iron Rich|3
+V1016|Leafy|Spring Onion|9000|40|Fresh|5
+V1017|Leafy|Banana Stem|9000|20|Healthy|6
+
+V1018|Beans|Beans|18000|50|Green Fresh|5
+V1019|Beans|Flat Beans|14000|45|Green Fresh|5
+V1020|Beans|Field Beans|13000|50|Seasonal|6
+V1021|Legumes|Peas|12000|70|Seasonal|5
+
+V1022|Root|Carrot|30000|35|Rich in Vitamins|7
+V1023|Root|Beetroot|16000|30|Healthy|8
+V1024|Root|Radish|20000|20|Fresh|5
+V1025|Root|Turnip|12000|25|Healthy|7
+V1026|Tuber|Sweet Potato|18000|30|Healthy|10
+V1027|Tuber|Elephant Foot Yam|15000|40|Root Fresh|10
+V1028|Tuber|Colocassia|14000|35|Farm Fresh|8
+V1029|Tuber|Cassava|13000|30|Organic|10
+
+V1030|Cruciferous|Cabbage|20000|25|Farm Fresh|6
+V1031|Cruciferous|Cauliflower|18000|30|Seasonal|5
+V1032|Cruciferous|Broccoli|10000|180|Exotic|4
+V1033|Cruciferous|Red Cabbage|8000|60|Premium|6
+
+V1034|Gourds|Bittergourd|12000|45|Healthy|6
+V1035|Gourds|Ivy Gourd|14000|35|Fresh|6
+V1036|Gourds|Snake Gourd|13000|30|Farm Fresh|6
+V1037|Gourds|Bottle Gourd|20000|25|Healthy|7
+V1038|Gourds|Ridge Gourd|16000|30|Fresh|6
+V1039|Gourds|Ash Gourd|22000|20|Cooling|10
+
+V1040|Spices|Green Chilli|10000|60|Spicy Fresh|5
+V1041|Spices|Ginger|12000|80|Fresh Harvest|10
+V1042|Spices|Red Chilli|9000|80|Spicy|8
+
+V1043|Special|Ladiesfinger|20000|40|Healthy Choice|4
+V1044|Special|Corn|20000|25|Sweet Fresh|6
+V1045|Special|Mushroom|8000|150|Exotic|3
+V1046|Special|Banana Flower|8000|35|Traditional|5
+V1047|Special|Asparagus|6000|200|Exotic|3
+V1048|Fruit Vegetable|Mango|18000|60|Seasonal|5
