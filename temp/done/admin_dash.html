@@ -34,6 +34,21 @@
         box-shadow: 0 12px 32px rgba(0, 122, 204, 0.2);
     }
 
+    /* "New" badge on the card */
+    .new-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        font-size: 0.58rem;
+        padding: 0.2em 0.6em;
+        background: var(--accent);
+        color: #fff;
+        border-radius: 99px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
     /* Position context for badge */
     .stat-card-wrap {
         position: relative;
@@ -74,6 +89,7 @@
         <div class="col-sm-6 col-lg-3">
             <div class="stat-card-wrap">
                 {# "New" badge marks this as newly wired in Session 2 #}
+                <span class="new-badge">New</span>
                 <a class="stat-card-link" href="/admin_inventory">
                     <div class="card text-center" style="border-left: 3px solid var(--accent) !important;">
                         <div class="card-body py-3">
@@ -89,6 +105,7 @@
         {# ── Orders Card → /admin_orders ── #}
         <div class="col-sm-6 col-lg-3">
             <div class="stat-card-wrap">
+                <span class="new-badge">New</span>
                 <a class="stat-card-link" href="/admin_orders">
                     <div class="card text-center" style="border-left: 3px solid var(--success) !important;">
                         <div class="card-body py-3">

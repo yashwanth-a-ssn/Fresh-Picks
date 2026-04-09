@@ -23,37 +23,20 @@ echo "================================================"
 # Navigate to the backend directory
 cd "$(dirname "$0")"
 
-# ── [1/2] Compile auth.c -> auth ──────────────────────────────
-echo ""
-echo "[1/2] Compiling auth.c -> auth"
-gcc -o auth auth.c -Wall
+# ── 1. order binary ─────────────────────────────────────────────
+echo "[1/3] Compiling order..."
+gcc -Wall -Wextra -o order order.c ds_utils.c -lm
+echo "      ✓ order executed successfully"
 
-if [ $? -eq 0 ]; then
-    echo "      ✓ auth compiled successfully!"
-else
-    echo "      ✗ auth compilation failed. Check errors above."
-    exit 1
-fi
+# ── 2. auth binary ──────────────────────────────────────────────
+echo "[2/3] Compiling auth..."
+gcc -Wall -Wextra -o auth auth.c ds_utils.c -lm
+echo "      ✓ auth executed successfully"
 
-# ── [2/2] Compile order.c -> order ────────────────────────────
-#
-# order.c contains:
-#   - Doubly Linked List  (Cart management)
-#   - Standard Queue      (Order processing FIFO)
-#   - Circular Linked List(Delivery boy round-robin)
-#   - Min-Heap            (Admin priority queue)
-#
-# -Wall = show ALL warnings (important for pointer bugs in DLL!)
-echo ""
-echo "[2/2] Compiling order.c -> order"
-gcc -o order order.c -Wall
-
-if [ $? -eq 0 ]; then
-    echo "      ✓ order compiled successfully!"
-else
-    echo "      ✗ order compilation failed. Check errors above."
-    exit 1
-fi
+# ── 3. inventory binary ─────────────────────────────────────────
+echo "[3/3] Compiling inventory..."
+gcc -Wall -Wextra -o inventory inventory.c ds_utils.c -lm
+echo "      ✓ inventory executed successfully"
 
 # ── Create the carts/ directory if it doesn't exist ────────────
 #

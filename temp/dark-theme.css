@@ -1,30 +1,33 @@
 /*
- * dark-theme.css - Fresh Picks: VS Code Inspired Dark Theme
- * ===========================================================
- * A modern, clean SaaS dark theme. All colors come from CSS
- * custom properties (variables) at the top — change one place
- * to restyle the entire app.
+ * dark-theme.css — Fresh Picks Unified Dark Theme
+ * ══════════════════════════════════════════════════
+ * VS Code-inspired palette. Every color, radius, and
+ * transition is driven by a CSS custom property.
+ * Change the :root block to restyle the entire app.
  *
- * Color Palette:
- *   Background:   #1E1E1E  (VS Code editor background)
- *   Surface/Card: #252526  (VS Code sidebar)
- *   Border:       #3E3E42  (VS Code separator lines)
- *   Text Primary: #CCCCCC  (VS Code default text)
- *   Text Muted:   #858585  (VS Code comments)
- *   Accent Blue:  #007ACC  (VS Code blue - links, buttons)
- *   Accent Hover: #005F9E  (Darker blue on hover)
- *   Success:      #4EC9B0  (VS Code teal)
- *   Error/Danger: #F44747  (VS Code red)
- *   Warning:      #CE9178  (VS Code orange)
+ * Sections:
+ *   1. Theme Foundation       — :root variables
+ *   2. Global Reset & Typography
+ *   3. Layout Components      — Navbar, Footer, Main
+ *   4. Shared UI Elements     — Cards, Buttons, Badges, Alerts, Forms
+ *   5. The Image Engine       — .card-img-wrap, placeholders
+ *   6. Progress & Indicators  — Stock bars, Cart bars, JIT Banners
+ *   7. Page-Specific Modules
+ *      7a. Landing & Auth
+ *      7b. Dashboard & Profile
+ *      7c. Admin Navigation
+ *      7d. Shop / Cart
+ *      7e. Inventory
+ *      7f. Orders & Tracker
+ *   8. Utilities & Animations
+ *   9. Bootstrap Overrides
+ *  10. Responsive Tweaks
  *
  * Team: CodeCrafters | Project: Fresh Picks | SDP-1
  */
 
-/* ─────────────────────────────────────────────
-   CSS CUSTOM PROPERTIES (Variables)
-   Change values here to restyle everything.
-   ─────────────────────────────────────────── */
-* ══════════════════════════════════════════════════
+
+/* ══════════════════════════════════════════════════
    §1 · THEME FOUNDATION
    ══════════════════════════════════════════════════ */
 :root {
@@ -630,25 +633,6 @@ footer a:hover {
     display: block;
 }
 
-/* Alias — Inventory templates reference this name directly */
-.inv-card-img-wrap {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    overflow: hidden;
-    background-color: var(--bg-elevated);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.inv-card-img-wrap img,
-.inv-card-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
 /*
  * .inv-img-placeholder — emoji fallback shown when
  * product image is absent or fails to load.
@@ -747,7 +731,6 @@ footer a:hover {
 .cart-progress-fill {
     height: 100%;
     border-radius: 3px;
-    background-color: var(--accent);
     transition: width 0.4s ease, background-color 0.4s ease;
 }
 
@@ -1650,42 +1633,6 @@ footer a:hover {
     opacity: 0.5;
 }
 
-/* ── fp-toast — Admin/Inventory toast alias (maps to cart-toast system) ── */
-#toastContainer {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.fp-toast {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.7rem 1rem;
-    border-radius: var(--radius);
-    border-left: 3px solid var(--border-color);
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    font-size: 0.85rem;
-    color: var(--text-primary);
-    animation: slideInRight 0.25s ease;
-    min-width: 240px;
-}
-
-.fp-toast.success {
-    border-left: 3px solid var(--success);
-    color: var(--success);
-}
-
-.fp-toast.error {
-    border-left: 3px solid var(--danger);
-    color: var(--danger);
-}
 
 /* ══════════════════════════════════════════════════
    §7f · ORDERS & ORDER TRACKER

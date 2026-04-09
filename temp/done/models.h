@@ -66,7 +66,7 @@
 #define ADMIN_FILE        "admin_creds.txt"
 
 /* Order binary reads/writes these */
-#define PRODUCTS_FILE     "products.txt"
+#define VEGETABLES_FILE   "vegetables.txt"
 #define ORDERS_FILE       "orders.txt"
 #define DELIVERY_FILE     "delivery_boys.txt"
 #define FREE_INV_FILE     "free_inventory.txt"
@@ -115,7 +115,7 @@ typedef struct {
    DB Format: user_id|username|password|full_name|email|phone|address
    ───────────────────────────────────────────── */
 typedef struct {
-    char user_id[MAX_ID_LEN];     /* e.g. "U1001"                        */
+    char user_id[MAX_ID_LEN];     /* e.g. "U1001"                       */
     char username[MAX_STR_LEN];   /* Login username                      */
     char password[MAX_STR_LEN];   /* Plain-text password (demo only)     */
     char full_name[MAX_STR_LEN];  /* Display name                        */
@@ -126,7 +126,7 @@ typedef struct {
 
 /* ─────────────────────────────────────────────
    STRUCT: Vegetable
-   One product row from products.txt
+   One product row from vegetables.txt
    DB Format: veg_id|category|name|stock_g|price_per_1000g|tag|validity_days
    ───────────────────────────────────────────── */
 typedef struct {

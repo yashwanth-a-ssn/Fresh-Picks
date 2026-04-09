@@ -1,0 +1,752 @@
+{% extends "base.html" %}
+
+{#
+  admin_orders.html — Fresh Picks: Admin Order Management (Session 5)
+  ====================================================================
+  Architecture  : Jinja2 child template — extends base.html
+  Route         : GET /admin_orders
+  Data Source   : POST /api/get_admin_orders  (C Min-Heap, priority-sorted)
+  JIT Promotion : POST /api/promote_slot_orders  (auto-runs on load)
+  Status Update : POST /api/update_order_status
+
+  Server-side variables passed by Flask on render:
+    jit_promoted  (int)  — how many orders were auto-promoted at page load
+    jit_slot      (str)  — which slot triggered the promotion ("Morning" / etc.)
+
+  CSS            : All styles live in dark-theme.css (admin-orders section).
+                   No <style> block exists in this file.
+  PDF            : html2pdf.js (html2canvas + jsPDF) via cdnjs — no server load.
+
+  Delivery Slot Windows (mirrors order.c / models.h):
+    Morning    06:00 – 11:59
+    Afternoon  12:00 – 15:59
+    Evening    16:00 – 20:59
+
+  Status Colour Scheme:
+    "Order Placed"     → Blue  badge / dot  (.status-placed)
+    "Out for Delivery" → Yellow badge / dot (.status-out-delivery)
+    "Delivered"        → Green badge / dot  (.status-delivered)
+
+  Team: CodeCrafters | SDP-1
+#}
+
+{% block title %}Admin — Orders | Fresh Picks{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    {# ════════════════════════════════════════════════════════════════════════
+       ADMIN QUICK-NAV
+       Hardcoded paths — no url_for per project constraint.
+    ════════════════════════════════════════════════════════════════════════ #}
+    <div class="admin-quick-nav mb-4 fade-in">
+        <a href="/admin_dash"      class="admin-nav-link">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        </a>
+        <a href="/admin_inventory" class="admin-nav-link">
+            <i class="bi bi-box-seam me-1"></i>Inventory
+        </a>
+        <a href="/admin_orders"    class="admin-nav-link active">
+            <i class="bi bi-receipt me-1"></i>Orders
+        </a>
+        <a href="/logout"          class="admin-nav-link admin-nav-logout">
+            <i class="bi bi-box-arrow-right me-1"></i>Logout
+        </a>
+    </div>
+
+    {# ════════════════════════════════════════════════════════════════════════
+       JIT NOTIFICATION BANNER
+       ─────────────────────────────────────────────────────────────────────
+       Shown when Flask's GET /admin_orders route already ran
+       batch_promote_slot() before rendering this template.
+
+       The JS function runJitPromotion() can also populate and un-hide
+       this banner if a slot opens WHILE the admin is already on the page.
+    ════════════════════════════════════════════════════════════════════════ #}
+    {% if jit_promoted > 0 %}
+    <div id="jitBanner" class="jit-banner mb-3 fade-in">
+        <i class="bi bi-lightning-charge-fill jit-banner-icon"></i>
+        <strong>JIT Auto-Dispatch &nbsp;|&nbsp;</strong>
+        <span id="jitBannerMsg">
+            System: {{ jit_promoted }} {{ jit_slot }}
+            order{{ 's' if jit_promoted != 1 }} auto-promoted to
+            <strong>Out for Delivery</strong>.
+        </span>
+    </div>
+    {% else %}
+    {#
+      Hidden by default. JS makes it visible via classList.remove("d-none")
+      if a slot window opens after the page has already loaded.
+    #}
+    <div id="jitBanner" class="jit-banner mb-3 d-none">
+        <i class="bi bi-lightning-charge-fill jit-banner-icon"></i>
+        <strong>JIT Auto-Dispatch &nbsp;|&nbsp;</strong>
+        <span id="jitBannerMsg"></span>
+    </div>
+    {% endif %}
+
+    {# ════════════════════════════════════════════════════════════════════════
+       PAGE HEADER
+    ════════════════════════════════════════════════════════════════════════ #}
+    <div class="welcome-banner fade-in mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <h2>
+                    <i class="bi bi-boxes me-2" style="color:var(--accent);"></i>
+                    Active Orders
+                </h2>
+                <p class="mb-0" id="jitStatusMsg" style="color:var(--text-muted); font-size:0.85rem;">
+                    Loading orders…
+                </p>
+            </div>
+
+            {# Live clock — lets admin verify which slot is currently open #}
+            <span class="clock-badge" id="clockBadge">
+                <i class="bi bi-clock me-1"></i>
+                <span id="clockDisplay">--:--:--</span>
+            </span>
+        </div>
+    </div>
+
+    {# ════════════════════════════════════════════════════════════════════════
+       ORDER CARDS CONTAINER
+       JS injects one .order-card col per order after fetching /api/get_admin_orders.
+       The skeleton placeholder is removed once the fetch resolves.
+    ════════════════════════════════════════════════════════════════════════ #}
+    <div id="ordersContainer" class="row g-3">
+        <div class="col-12 text-center py-5" id="loadingPlaceholder">
+            <span class="spinner-sm"></span>
+            <span class="text-muted ms-2">Fetching active orders…</span>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+{#
+  html2pdf.js — Client-side PDF generation (no server needed).
+  Loaded from cdnjs so there is no npm/pip dependency.
+  Internally it wraps jsPDF + html2canvas:
+    1. html2canvas "screenshots" a DOM element to a <canvas>.
+    2. jsPDF converts that canvas into a PDF blob and triggers download.
+#}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        crossorigin="anonymous"></script>
+
+<script>
+/*
+ * ════════════════════════════════════════════════════════════════════════
+ *  ADMIN ORDERS — CLIENT-SIDE CONTROLLER  (Session 5)
+ *  ──────────────────────────────────────────────────────────────────────
+ *  Execution order (DOMContentLoaded):
+ *    1. startClock()              → Live HH:MM:SS badge (cosmetic)
+ *    2. detectCurrentSlot()       → Which delivery window is open right now?
+ *    3. runJitPromotion(slot)     → Auto-promote "Order Placed" → "Out for
+ *                                    Delivery" for the current slot (JIT).
+ *                                    AWAITED so cards load post-promotion.
+ *    4. loadOrders()              → GET /api/get_admin_orders, render cards.
+ *
+ *  Admin actions per card:
+ *    • Out for Delivery button    → updateStatus()   POST /api/update_order_status
+ *    • Delivered button           → markDelivered()  POST /api/update_order_status
+ *                                    + 5-second CSS fade-out + DOM removal
+ *    • PDF Receipt button         → generatePdf()    html2pdf.js
+ * ════════════════════════════════════════════════════════════════════════
+ */
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 1 — DELIVERY SLOT DEFINITIONS
+   ──────────────────────────────────────────────────────────────────────
+   Mirrors slot names stored in orders.txt (models.h: delivery_slot).
+   Hours are in 24-h clock; end is exclusive.
+     Morning   : 06:00 – 11:59
+     Afternoon : 12:00 – 15:59
+     Evening   : 16:00 – 20:59
+*/
+const SLOTS = [
+    { name: "Morning",   startH: 6,  endH: 12 },
+    { name: "Afternoon", startH: 12, endH: 16 },
+    { name: "Evening",   startH: 16, endH: 21 },
+];
+
+/*
+ * detectCurrentSlot()
+ * Returns the slot name whose time window contains the current local hour.
+ * Returns null if we are outside all delivery windows.
+ */
+function detectCurrentSlot() {
+    const hour = new Date().getHours();   /* 0–23 */
+    for (const slot of SLOTS) {
+        if (hour >= slot.startH && hour < slot.endH) {
+            return slot.name;             /* e.g. "Morning" */
+        }
+    }
+    return null;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 2 — LIVE CLOCK
+   ──────────────────────────────────────────────────────────────────────
+   Updates the #clockDisplay span every second.
+   Uses en-IN locale, 24-h format to match the project's IST context.
+*/
+function startClock() {
+    function tick() {
+        document.getElementById("clockDisplay").textContent =
+            new Date().toLocaleTimeString("en-IN", { hour12: false });
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 3 — JIT AUTO-PROMOTION
+   ──────────────────────────────────────────────────────────────────────
+   Calls Flask to flip "Order Placed" → "Out for Delivery" for all
+   orders belonging to the currently-open delivery slot.
+
+   API  : POST /api/promote_slot_orders
+   Body : { "slot": "Afternoon" }
+   OK   : { "status": "SUCCESS", "promoted": 3 }
+   Fail : { "status": "ERROR",   "message":  "..." }
+
+   The C binary (update_order_status) handles the actual file write.
+   We AWAIT this before loadOrders() so promoted orders already show
+   "Out for Delivery" when cards render.
+*/
+async function runJitPromotion(slotName) {
+    const statusMsg = document.getElementById("jitStatusMsg");
+    statusMsg.textContent = `⏳ Checking ${slotName} orders for auto-dispatch…`;
+
+    try {
+        const res  = await fetch("/api/promote_slot_orders", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ slot: slotName })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            const n = data.promoted || 0;
+
+            if (n > 0) {
+                /* Update the subtitle under the page heading */
+                statusMsg.innerHTML =
+                    `<span style="color:var(--success);">
+                        ✅ JIT: ${n} ${slotName} order${n !== 1 ? "s" : ""}
+                        auto-promoted → <strong>Out for Delivery</strong>
+                     </span>`;
+
+                /* Make the accent banner visible */
+                const banner    = document.getElementById("jitBanner");
+                const bannerMsg = document.getElementById("jitBannerMsg");
+                if (banner && bannerMsg) {
+                    bannerMsg.innerHTML =
+                        `System: ${n} ${slotName} order${n !== 1 ? "s" : ""}
+                        auto-promoted to <strong>Out for Delivery</strong>.`;
+                    banner.classList.remove("d-none");
+                }
+            } else {
+                statusMsg.textContent = `✔ No pending ${slotName} orders to auto-promote.`;
+            }
+        }
+
+    } catch (err) {
+        /* Non-fatal — page still loads normally */
+        console.warn("JIT promotion API error:", err);
+        statusMsg.textContent = "Could not reach JIT promotion API.";
+    }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 4 — FETCH & RENDER ORDERS
+   ──────────────────────────────────────────────────────────────────────
+   Calls the Flask route which invokes the C binary "admin_orders"
+   command. The binary uses a Min-Heap so Morning orders surface first.
+
+   Expected response shape:
+   {
+     "status": "SUCCESS",
+     "orders": [
+       {
+         "order_id":       "ORD-001",
+         "user_id":        "U001",
+         "total_amount":   "149.50",
+         "delivery_slot":  "Morning",
+         "status":         "Order Placed",
+         "timestamp":      "2024-12-01 08:30:00",
+         "items_string":   "V1001:500:40.00,VF101:50:0.00",
+         "boy_name":       "Ravi Kumar",
+         "boy_phone":      "9876543210"
+       }, …
+     ]
+   }
+*/
+async function loadOrders() {
+    try {
+        const res  = await fetch("/api/get_admin_orders", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    "{}"
+        });
+        const data = await res.json();
+
+        document.getElementById("loadingPlaceholder")?.remove();
+        const container = document.getElementById("ordersContainer");
+
+        if (!data.orders || data.orders.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-check-circle"
+                       style="font-size:3rem; color:var(--success);"></i>
+                    <p class="text-muted mt-3">All clear — no active orders right now.</p>
+                </div>`;
+            document.getElementById("jitStatusMsg").textContent =
+                "Queue is empty.";
+            return;
+        }
+
+        /* Priority label shown in the page subtitle */
+        document.getElementById("jitStatusMsg").textContent =
+            `${data.orders.length} order${data.orders.length !== 1 ? "s" : ""} loaded — Morning orders prioritised.`;
+
+        /* Render one card per order (already priority-sorted by C heap) */
+        data.orders.forEach(order => {
+            container.appendChild(buildOrderCard(order));
+        });
+
+    } catch (err) {
+        console.error("loadOrders error:", err);
+        document.getElementById("jitStatusMsg").textContent =
+            "Error loading orders. Check browser console.";
+    }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 5 — BUILD ORDER CARD (DOM construction)
+   ──────────────────────────────────────────────────────────────────────
+   Constructs and returns the Bootstrap column div for one order.
+
+   Dependency gate (button enable/disable):
+     "Out for Delivery" button → enabled only when status === "Order Placed"
+     "Delivered" button        → enabled only when status === "Out for Delivery"
+
+   Status badge colours (via CSS classes in dark-theme.css):
+     .badge-status-placed       → Blue
+     .badge-status-out-delivery → Yellow
+     .badge-status-delivered    → Green
+*/
+function buildOrderCard(order) {
+
+    /* ── Column wrapper ── */
+    const col   = document.createElement("div");
+    col.className = "col-md-6 col-xl-4 order-card fade-in";
+    col.id        = `card-${order.order_id}`;
+
+    /* ── Slot badge class ── */
+    const slotClass = {
+        "Morning":   "slot-morning",
+        "Afternoon": "slot-afternoon",
+        "Evening":   "slot-evening"
+    }[order.delivery_slot] ?? "slot-evening";
+
+    /* ── Status dot + header CSS class ── */
+    const statusCss   = {
+        "Order Placed":      "status-placed",
+        "Out for Delivery":  "status-out-delivery",
+        "Delivered":         "status-delivered"
+    }[order.status] ?? "status-placed";
+
+    /* ── Status badge class ── */
+    const statusBadge = {
+        "Order Placed":     "badge-status-placed",
+        "Out for Delivery": "badge-status-out-delivery",
+        "Delivered":        "badge-status-delivered"
+    }[order.status] ?? "badge-status-placed";
+
+    /* ── Items string → readable HTML
+       DB format: "V1001:500:40.00,VF101:50:0.00"
+       Fields    : veg_id : qty_grams : price  (models.h items_string)
+    */
+    const itemsHtml = (order.items_string || "")
+        .split(",")
+        .filter(Boolean)
+        .map(entry => {
+            const [vid, qty, price] = entry.split(":");
+            const isFree = parseFloat(price) === 0;
+            return `<span class="item-chip">
+                        ${vid} · ${qty}g
+                        ${isFree
+                            ? `<em class="item-free">Free</em>`
+                            : `<span class="item-price">₹${parseFloat(price).toFixed(2)}</span>`
+                        }
+                    </span>`;
+        })
+        .join("");
+
+    /* ── Dependency gate ── */
+    const canDispatch = order.status === "Order Placed";
+    const canDeliver  = order.status === "Out for Delivery";
+
+    col.innerHTML = `
+        <div class="card h-100">
+
+            <!-- ── Card Header ── -->
+            <div class="card-header d-flex justify-content-between align-items-center ${statusCss}">
+                <span class="d-flex align-items-center gap-2">
+                    <span class="status-dot"></span>
+                    <strong class="text-bright" style="font-family:var(--font-mono);">
+                        ${order.order_id}
+                    </strong>
+                    <span class="badge rounded-pill ${statusBadge}">
+                        ${order.status}
+                    </span>
+                </span>
+                <span class="badge rounded-pill ${slotClass}">
+                    <i class="bi bi-clock me-1"></i>${order.delivery_slot}
+                </span>
+            </div>
+
+            <!-- ── Card Body (also used as the PDF receipt source element) ── -->
+            <div class="card-body" id="receipt-body-${order.order_id}">
+
+                <!-- Customer + Delivery Boy -->
+                <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
+                    <div>
+                        <div class="profile-field-label">Customer</div>
+                        <div class="text-bright" style="font-size:0.9rem;">
+                            <i class="bi bi-person me-1" style="color:var(--accent);"></i>
+                            ${order.user_id}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="profile-field-label">Delivery Boy</div>
+                        <div class="text-bright" style="font-size:0.9rem;">
+                            <i class="bi bi-bicycle me-1" style="color:var(--accent);"></i>
+                            ${order.boy_name || "Unassigned"}
+                            ${order.boy_phone
+                                ? `<small class="text-muted ms-1">(${order.boy_phone})</small>`
+                                : ""}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items -->
+                <div class="profile-field-label mb-1">Items</div>
+                <div class="items-list mb-3">${itemsHtml || "<span class='text-muted'>—</span>"}</div>
+
+                <!-- Total + Timestamp -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <div class="profile-field-label">Total</div>
+                        <div class="order-total">
+                            ₹${parseFloat(order.total_amount).toFixed(2)}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="profile-field-label">Placed At</div>
+                        <div class="order-timestamp">${order.timestamp}</div>
+                    </div>
+                </div>
+
+                <!-- ── Action Buttons ── -->
+                <div class="action-row">
+
+                    <!--
+                      "Out for Delivery" — Manual Override
+                      Enabled only when status == "Order Placed".
+                      Calls updateStatus() → POST /api/update_order_status
+                    -->
+                    <button class="btn btn-sm btn-action btn-dispatch"
+                            id="btn-dispatch-${order.order_id}"
+                            ${canDispatch ? "" : "disabled"}
+                            onclick="updateStatus('${order.order_id}', 'Out for Delivery', this)">
+                        <i class="bi bi-truck me-1"></i>Out for Delivery
+                    </button>
+
+                    <!--
+                      "Delivered" — Dependency-gated
+                      ONLY enabled when status == "Out for Delivery".
+                      On click → markDelivered():
+                        1. POST /api/update_order_status { status: "Delivered" }
+                        2. Add .fading-out → CSS 5-second opacity + scale transition
+                        3. setTimeout(5000) removes the card from the DOM
+                    -->
+                    <button class="btn btn-sm btn-action btn-deliver"
+                            id="btn-deliver-${order.order_id}"
+                            ${canDeliver ? "" : "disabled"}
+                            onclick="markDelivered('${order.order_id}', this)">
+                        <i class="bi bi-check-circle me-1"></i>Delivered
+                    </button>
+
+                    <!--
+                      PDF Receipt — always available
+                      Calls generatePdf() → html2pdf.js clones receipt-body div,
+                      injects a branded header/footer, and triggers download.
+                    -->
+                    <button class="btn btn-sm btn-action btn-pdf"
+                            onclick="generatePdf('${order.order_id}')">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Receipt
+                    </button>
+
+                </div>
+            </div>
+        </div>
+    `;
+
+    return col;
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 6 — STATUS UPDATE (Manual Override)
+   ──────────────────────────────────────────────────────────────────────
+   Sends POST /api/update_order_status to Flask.
+   Flask calls: ./order update_order_status <order_id> <status>
+
+   On SUCCESS:
+     • Updates the card header's status CSS class.
+     • Enables the "Delivered" button (dependency gate).
+     • Updates the clicked button's label to "Dispatched".
+*/
+async function updateStatus(orderId, newStatus, clickedBtn) {
+
+    clickedBtn.disabled  = true;
+    clickedBtn.innerHTML = '<span class="spinner-sm"></span>Updating…';
+
+    try {
+        const res  = await fetch("/api/update_order_status", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId, status: newStatus })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            /* ── Update status dot class on the card header ── */
+            const cardEl = document.getElementById(`card-${orderId}`);
+            const header = cardEl?.querySelector(".card-header");
+            if (header) {
+                header.classList.remove("status-placed", "status-out-delivery", "status-delivered");
+                header.classList.add("status-out-delivery");
+            }
+
+            /* ── Update the status badge text inside the header ── */
+            const statusBadgeEl = header?.querySelector(".badge-status-placed, .badge-status-out-delivery, .badge-status-delivered");
+            if (statusBadgeEl) {
+                statusBadgeEl.className    = "badge rounded-pill badge-status-out-delivery";
+                statusBadgeEl.textContent  = "Out for Delivery";
+            }
+
+            /* ── Enable the "Delivered" button ── */
+            const deliverBtn = document.getElementById(`btn-deliver-${orderId}`);
+            if (deliverBtn) deliverBtn.disabled = false;
+
+            clickedBtn.innerHTML = '<i class="bi bi-check me-1"></i>Dispatched';
+
+        } else {
+            alert(`Error: ${data.message || "Status update failed."}`);
+            clickedBtn.disabled  = false;
+            clickedBtn.innerHTML = '<i class="bi bi-truck me-1"></i>Out for Delivery';
+        }
+
+    } catch (err) {
+        console.error("updateStatus error:", err);
+        clickedBtn.disabled  = false;
+        clickedBtn.innerHTML = '<i class="bi bi-truck me-1"></i>Out for Delivery';
+        alert("Network error. Please try again.");
+    }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 7 — MARK DELIVERED (with 5-second fade-out)
+   ──────────────────────────────────────────────────────────────────────
+   1. POST /api/update_order_status { status: "Delivered" }
+   2. Add .fading-out to the card column → CSS transition:
+        opacity 5s ease, transform 5s ease  (defined in dark-theme.css)
+   3. setTimeout(5000) removes the DOM node after the fade ends.
+*/
+async function markDelivered(orderId, clickedBtn) {
+
+    clickedBtn.disabled  = true;
+    clickedBtn.innerHTML = '<span class="spinner-sm"></span>Confirming…';
+
+    try {
+        const res  = await fetch("/api/update_order_status", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId, status: "Delivered" })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered ✓';
+
+            /* Update header badge to "Delivered" (green) */
+            const cardEl = document.getElementById(`card-${orderId}`);
+            const header = cardEl?.querySelector(".card-header");
+            if (header) {
+                header.classList.remove("status-placed", "status-out-delivery");
+                header.classList.add("status-delivered");
+                const badge = header.querySelector("[class*='badge-status']");
+                if (badge) {
+                    badge.className   = "badge rounded-pill badge-status-delivered";
+                    badge.textContent = "Delivered";
+                }
+            }
+
+            /* 5-second CSS fade, then remove from DOM */
+            if (cardEl) {
+                cardEl.classList.add("fading-out");
+                setTimeout(() => cardEl.remove(), 5000);
+            }
+
+        } else {
+            alert(`Error: ${data.message || "Could not mark as delivered."}`);
+            clickedBtn.disabled  = false;
+            clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered';
+        }
+
+    } catch (err) {
+        console.error("markDelivered error:", err);
+        clickedBtn.disabled  = false;
+        clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered';
+        alert("Network error. Please try again.");
+    }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 8 — PDF RECEIPT GENERATOR
+   ──────────────────────────────────────────────────────────────────────
+   Uses html2pdf.js (html2canvas + jsPDF) to convert the visible
+   receipt-body div into a downloadable PDF receipt.
+
+   WHY JS AND NOT C?
+     Project constraint: "DON'T write PDF logic in C."
+     html2pdf.js renders the HTML/CSS as-is — zero server load.
+
+   PROCESS:
+     1. Clone #receipt-body-<orderId> (prevents flash on live card).
+     2. Apply white/print-friendly styles to the clone.
+     3. Inject branded header + footer into the clone.
+     4. Position the clone off-screen and append to <body> so
+        html2canvas can render it.
+     5. html2pdf generates + downloads the PDF.
+     6. Remove the clone from DOM.
+*/
+async function generatePdf(orderId) {
+
+    const sourceEl = document.getElementById(`receipt-body-${orderId}`);
+    if (!sourceEl) {
+        alert("Could not find order data for PDF.");
+        return;
+    }
+
+    const clone = sourceEl.cloneNode(true);
+
+    /* Print-friendly base styles */
+    clone.style.cssText = `
+        background: #ffffff;
+        color: #1a1a1a;
+        padding: 20px;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 13px;
+        width: 780px;
+        max-width: 780px;
+        min-width: 780px;
+    `;
+
+    /* Override child element colors for white background */
+    clone.querySelectorAll("*").forEach(el => {
+        el.style.color      = el.style.color || "#1a1a1a";
+        el.style.border     = el.style.border || "none";
+        el.style.background = "";
+    });
+
+    /* Branded receipt header */
+    const header = document.createElement("div");
+    header.innerHTML = `
+        <div style="text-align:center; margin-bottom:16px;
+                    border-bottom:2px solid #007ACC; padding-bottom:12px;">
+            <h2 style="color:#007ACC; font-size:1.4rem; margin:0;">🥦 Fresh Picks</h2>
+            <p style="color:#555; font-size:0.8rem; margin:4px 0 0;">
+                Your neighbourhood grocery store, now online.<br>
+                <strong style="font-family:monospace;">${orderId}</strong> — Official Receipt
+            </p>
+        </div>`;
+    clone.insertBefore(header, clone.firstChild);
+
+    /* Receipt footer */
+    const footer = document.createElement("div");
+    footer.innerHTML = `
+        <div style="text-align:center; margin-top:16px;
+                    border-top:1px solid #ccc; padding-top:10px;
+                    font-size:0.75rem; color:#888;">
+            Generated by Fresh Picks Admin Panel · CodeCrafters SDP-1
+        </div>`;
+    clone.appendChild(footer);
+
+    /* html2pdf options — A4 portrait, 2× scale for sharpness */
+    const opt = {
+        margin:      [10, 15, 10, 15],
+        filename:    `FreshPicks_${orderId}.pdf`,
+        image:       { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" }
+    };
+
+    /* Render off-screen */
+    clone.style.position = "fixed";
+    clone.style.left     = "-9999px";
+    document.body.appendChild(clone);
+
+    try {
+        await html2pdf().set(opt).from(clone).save();
+    } catch (err) {
+        console.error("PDF generation error:", err);
+        alert("PDF generation failed. Check browser console.");
+    } finally {
+        document.body.removeChild(clone);
+    }
+}
+
+
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 9 — PAGE INIT (DOMContentLoaded)
+   ──────────────────────────────────────────────────────────────────────
+   Execution order:
+     1. startClock()          — Live HH:MM:SS badge.
+     2. detectCurrentSlot()   — Which delivery window is active?
+     3. runJitPromotion(slot) — Auto-promote (AWAITED).
+     4. loadOrders()          — Fetch + render cards.
+*/
+document.addEventListener("DOMContentLoaded", async () => {
+
+    /* 1 — Clock */
+    startClock();
+
+    /* 2 — Detect slot */
+    const currentSlot = detectCurrentSlot();
+
+    /* 3 — JIT Promotion (awaited so cards load after promotion) */
+    if (currentSlot) {
+        await runJitPromotion(currentSlot);
+    } else {
+        document.getElementById("jitStatusMsg").textContent =
+            "Outside delivery windows — no auto-promotion active.";
+    }
+
+    /* 4 — Load and render order cards */
+    await loadOrders();
+});
+</script>
+{% endblock %}

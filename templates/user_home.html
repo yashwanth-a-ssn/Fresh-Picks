@@ -37,34 +37,62 @@
     <!-- ── Navigation Cards ── -->
     <div class="row g-3 mb-4">
 
-        <!-- Browse Products Card -->
-        <div class="col-sm-6 col-lg-4">
+        <!-- Shop Card -->
+        <!-- <div class="col-sm-6 col-lg-4">
             <div class="card portal-card h-100">
                 <div class="card-body">
-                    <span class="portal-icon" style="font-size:2rem;">🥦</span>
-                    <h5 class="card-title">Browse Products</h5>
-                    <p class="card-text" style="font-size:0.85rem;">
-                        Explore fresh vegetables, fruits, and more. Coming soon!
+                <h5 class="card-title">Start Shopping</h5>
+                <p class="card-text">Browse our latest collection of fresh, farm-picked vegetables.</p>
+                <a href="/shop" class="btn btn-primary">  <i class="bi bi-basket me-2"></i>Go to Shop
+                </a>
+            </div>
+        </div> -->
+
+        <div class="col-sm-6 col-lg-4">
+            <div class="card portal-card h-100">
+                <div class="card-body text-center d-flex flex-column align-items-center justify-content-center">
+                    <span class="portal-icon" style="font-size: 2.5rem; margin-bottom: 1rem;">🛒</span>
+                    <h5 class="card-title text-bright">Start Shopping</h5>
+                    <p class="card-text text-muted" style="font-size: 0.85rem;">
+                        Browse our latest collection of fresh, farm-picked vegetables.
                     </p>
-                    <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);">
-                        Coming Soon
-                    </span>
+                    <a href="/shop" class="btn btn-primary w-100 mt-2">
+                        <i class="bi bi-basket me-2"></i>Go to Shop
+                    </a>
                 </div>
             </div>
         </div>
 
         <!-- My Orders Card -->
         <div class="col-sm-6 col-lg-4">
-            <div class="card portal-card h-100">
+            {#
+            The entire card is now clickable (onclick + role="button").
+            This mirrors the existing "My Profile" card pattern in user_home.html.
+            #}
+            <div class="card portal-card h-100"
+                onclick="window.location.href='/user_orders'"
+                role="button"
+                tabindex="0">
                 <div class="card-body">
-                    <span class="portal-icon" style="font-size:2rem;">📋</span>
+                    {# Order box icon — replaced emoji with a delivery-themed one #}
+                    <span class="portal-icon" style="font-size:2rem;">📦</span>
+
                     <h5 class="card-title">My Orders</h5>
+
                     <p class="card-text" style="font-size:0.85rem;">
-                        Track your current and past orders. Coming soon!
+                        View and track all your past and current orders.
+                        Download receipts anytime.
                     </p>
-                    <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);">
-                        Coming Soon
-                    </span>
+
+                    {#
+                    Active button — stop propagation so clicking the button
+                    doesn't double-fire the card's onclick.
+                    #}
+                    <a href="/user_orders"
+                    class="btn btn-primary btn-sm mt-2"
+                    onclick="event.stopPropagation()">
+                        <i class="bi bi-arrow-right me-1"></i>View My Orders
+                    </a>
                 </div>
             </div>
         </div>
