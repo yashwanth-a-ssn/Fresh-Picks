@@ -24,7 +24,7 @@
    CSS CUSTOM PROPERTIES (Variables)
    Change values here to restyle everything.
    ─────────────────────────────────────────── */
-* ══════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════
    §1 · THEME FOUNDATION
    ══════════════════════════════════════════════════ */
 :root {
@@ -168,7 +168,7 @@ hr {
 }
 
 .navbar-collapse {
-    background-color: var(--bg-surface);
+    background-color: var(--bg-surface) !important;
 }
 
 /* ── Main content ── */
@@ -336,6 +336,12 @@ footer a:hover {
 
 .btn-primary:active {
     transform: translateY(0);
+}
+
+/* Neutralise Bootstrap 5's default focus-visible ring for all button variants */
+.btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.45) !important;
+    outline: none !important;
 }
 
 .btn-outline-primary {
@@ -547,6 +553,17 @@ footer a:hover {
 
 .form-control.is-valid   { border-color: var(--success) !important; }
 .form-control.is-invalid { border-color: var(--danger) !important; }
+
+/* Prevent Bootstrap's light disabled background from bleeding through */
+.form-control:disabled,
+.form-control[readonly],
+.form-select:disabled {
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-muted) !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 
 /* Compact card-level input */
 .field-input {
@@ -1576,6 +1593,31 @@ footer a:hover {
     line-height: 1.6;
 }
 
+.cart-receipt-print,
+.cart-receipt-print p,
+.cart-receipt-print h1,
+.cart-receipt-print h2,
+.cart-receipt-print h3,
+.cart-receipt-print h4,
+.cart-receipt-print h5,
+.cart-receipt-print h6 {
+    color: #1a1a1a;
+}
+
+/* ── Receipt: fence Bootstrap .table overrides from polluting the PDF ── */
+.cart-receipt-print .table,
+.cart-receipt-print .table th,
+.cart-receipt-print .table td {
+    color: #1a1a1a !important;
+    background-color: #ffffff !important;
+    border-color: #dee2e6 !important;
+}
+
+.cart-receipt-print .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: #f8f9fa !important;
+    color: #1a1a1a !important;
+}
+
 /* ── Empty cart state ── */
 .cart-empty-state {
     text-align: center;
@@ -1667,9 +1709,9 @@ footer a:hover {
     gap: 0.5rem;
     padding: 0.7rem 1rem;
     border-radius: var(--radius);
-    border-left: 3px solid var(--border-color);
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
+    border-left: 3px solid var(--border-color); /* must come AFTER the shorthand */
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     font-size: 0.85rem;
     color: var(--text-primary);
