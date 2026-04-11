@@ -2618,6 +2618,7 @@ footer a:hover {
 
 /* When the group is expanded, auto-height via JS sets max-height */
 .category-group.expanded .category-body {
+    max-height: none;
     /* JS sets inline max-height to scrollHeight for smooth animation */
 }
 
@@ -2714,3 +2715,829 @@ footer a:hover {
     background: var(--danger);
     box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
 }
+
+
+/*
+ * shop-cart-additions.css — Fresh Picks: Missing Shop & Cart Classes
+ * ====================================================================
+ * APPEND to dark-theme.css (after dark-theme-additions.css patch).
+ *
+ * Root cause: cart.html and any shop.html render dozens of CSS classes
+ * (.veg-card, .cat-section-header, .cat-grid-wrap, .qty-btn, etc.)
+ * that exist ONLY in cart.html's JS templates. None of them were ever
+ * added to dark-theme.css, causing unstyled elements on first paint.
+ *
+ * This file is the single source of truth for all shop + cart UI classes.
+ *
+ * Sections:
+ *   §1  Product grid card  (.veg-card, .veg-card-body, .card-tag-badge, ...)
+ *   §2  Quantity controls  (.qty-btn, .custom-gram-input, .validity-chip)
+ *   §3  Category grouping  (.cat-section-header, .cat-grid-wrap, .cat-chevron)
+ *   §4  Out-of-stock overlay (.oos-overlay)
+ *   §5  Cart-specific UI  (.cart-page-header, .cart-summary-sticky, etc.)
+ *   §6  Slot cards  (.slot-card, .slot-card--selected, .slot-emoji, .slot-time)
+ *   §7  Receipt print area  (.cart-receipt-print, .rcpt-* classes)
+ *   §8  Toast notification  (.cart-toast, .cart-toast--*)
+ *   §9  Glassmorphism min-order bar  (upgrade for cart.html sidebar)
+ *
+ * Team: CodeCrafters | SDP-1
+ */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §1  PRODUCT GRID CARD
+   ════════════════════════════════════════════════════════════════════════ */
+
+.veg-card {
+    background:    var(--bg-surface);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow:      hidden;
+    display:       flex;
+    flex-direction: column;
+    height:        100%;
+    transition:    box-shadow var(--transition), transform var(--transition),
+                   border-color var(--transition);
+}
+
+.veg-card:hover {
+    box-shadow:    0 6px 20px rgba(0,0,0,0.45);
+    transform:     translateY(-2px);
+    border-color:  var(--accent);
+}
+
+/* Image wrapper — 1:1 aspect ratio */
+.veg-card .card-img-wrap {
+    position:       relative;
+    width:          100%;
+    aspect-ratio:   1 / 1;
+    overflow:       hidden;
+    background:     var(--bg-elevated);
+    flex-shrink:    0;
+}
+
+.veg-card .card-img-wrap img {
+    width:       100%;
+    height:      100%;
+    object-fit:  cover;
+    display:     block;
+    transition:  transform 0.35s ease;
+}
+
+.veg-card:hover .card-img-wrap img {
+    transform: scale(1.05);
+}
+
+/* Tag badge overlaid on image top-right */
+.card-tag-badge {
+    position:      absolute;
+    top:           0.5rem;
+    right:         0.5rem;
+    font-size:     0.65rem;
+    font-weight:   700;
+    padding:       0.2em 0.5em;
+    border-radius: 3px;
+    color:         #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow:    0 1px 4px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
+
+/* Card body — flex column so button stays at bottom */
+.veg-card-body {
+    padding:        0.9rem;
+    display:        flex;
+    flex-direction: column;
+    flex:           1;
+}
+
+/* Placeholder when image 404s */
+.inv-img-placeholder {
+    width:          100%;
+    height:         100%;
+    display:        flex;
+    align-items:    center;
+    justify-content: center;
+    font-size:      2.5rem;
+    color:          var(--text-muted);
+    background:     var(--bg-elevated);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §2  QUANTITY CONTROLS
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Quick-select gram buttons: 250g / 500g / 1kg */
+.qty-btn {
+    flex:            1;
+    padding:         0.25rem 0;
+    font-size:       0.75rem;
+    font-weight:     600;
+    background:      var(--bg-elevated);
+    color:           var(--text-muted);
+    border:          1px solid var(--border-color);
+    border-radius:   var(--radius);
+    cursor:          pointer;
+    transition:      all var(--transition);
+    text-align:      center;
+    white-space:     nowrap;
+}
+
+.qty-btn:hover {
+    background:  rgba(0,122,204,0.12);
+    color:       var(--accent);
+    border-color: var(--accent);
+}
+
+/* Active state — set by selectQty() JS */
+.qty-btn.active,
+.qty-btn[aria-pressed="true"] {
+    background:   rgba(0,122,204,0.2);
+    color:        var(--accent-hover);
+    border-color: var(--accent);
+    box-shadow:   0 0 0 2px rgba(0,122,204,0.15);
+}
+
+/* Custom gram input */
+.custom-gram-input {
+    flex:         1;
+    padding:      0.3rem 0.5rem;
+    background:   var(--bg-elevated);
+    border:       1px solid var(--border-color);
+    border-radius: var(--radius);
+    color:        var(--text-primary);
+    font-size:    0.8rem;
+    outline:      none;
+    transition:   border-color var(--transition);
+    width:        100%;
+    min-width:    0;
+}
+
+.custom-gram-input:focus {
+    border-color: var(--accent);
+    box-shadow:   0 0 0 2px rgba(0,122,204,0.15);
+}
+
+/* Freshness validity chip */
+.validity-chip {
+    display:        inline-flex;
+    align-items:    center;
+    gap:            0.25rem;
+    font-size:      0.7rem;
+    color:          var(--text-muted);
+    background:     var(--bg-elevated);
+    border:         1px solid var(--border-color);
+    border-radius:  99px;
+    padding:        0.15em 0.6em;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §3  CATEGORY GROUPING  (cart.html's own pattern — not ui-helpers.js)
+   ──────────────────────────────────────────────────────────────────────
+   cart.html renders:
+     .cat-section-header  — clickable row with icon + title + count + chevron
+     .cat-grid-wrap       — collapsible container (max-height animated by CSS)
+     .cat-chevron.open    — chevron rotated 180°
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cat-section-header {
+    display:         flex;
+    align-items:     center;
+    gap:             0.6rem;
+    padding:         0.6rem 0.85rem;
+    margin:          0.75rem 0 0.4rem;
+    background:      var(--bg-elevated);
+    border-radius:   var(--radius-md, 8px);
+    border-left:     3px solid var(--accent);
+    cursor:          pointer;
+    user-select:     none;
+    transition:      background var(--transition), box-shadow var(--transition);
+}
+
+.cat-section-header:hover {
+    background:  var(--bg-surface);
+    box-shadow:  0 2px 8px rgba(0,0,0,0.3);
+}
+
+.cat-section-title {
+    font-size:      0.88rem;
+    font-weight:    600;
+    color:          var(--text-bright, #ffffff);
+    letter-spacing: 0.03em;
+    flex:           1;
+}
+
+.cat-section-count {
+    font-size:   0.72rem;
+    color:       var(--text-muted);
+    background:  var(--bg-surface);
+    border:      1px solid var(--border-color);
+    border-radius: 99px;
+    padding:     0.1em 0.55em;
+}
+
+/* Chevron — default pointing down, rotated up when .open */
+.cat-chevron {
+    color:      var(--accent);
+    font-size:  0.85rem;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.cat-chevron.open {
+    transform: rotate(180deg);
+}
+
+/* Grid wrapper — collapsed by default via max-height:0.
+   CSS handles open state: .cat-grid-wrap.expanded → auto
+   (cart.html toggles .expanded via classList.toggle) */
+.cat-grid-wrap {
+    overflow:   hidden;
+    max-height: 0;
+    transition: max-height 0.38s ease;
+}
+
+/* Open state — set a large ceiling; actual content clips naturally */
+.cat-grid-wrap.expanded {
+    max-height: 9999px;
+    /* NOTE: 9999px gives a slow closing animation due to CSS limitation.
+       The cart.html code uses JS to set inline max-height = scrollHeight
+       for expand, then 0 for collapse, so the transition is instant and
+       accurate. This rule is a fallback only. */
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §4  OUT-OF-STOCK OVERLAY
+   ════════════════════════════════════════════════════════════════════════ */
+
+.oos-overlay {
+    position:    absolute;
+    inset:       0;
+    background:  rgba(30,30,30,0.72);
+    display:     flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.oos-overlay span {
+    background:    var(--danger);
+    color:         #fff;
+    font-size:     0.72rem;
+    font-weight:   700;
+    padding:       0.3em 0.8em;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §5  CART-SPECIFIC UI COMPONENTS
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Page header (title + back link) */
+.cart-page-header {
+    margin-bottom: 1.25rem;
+}
+
+.cart-header-sub {
+    font-size:  0.8rem;
+    margin-top: 0.25rem;
+}
+
+/* Sticky sidebar (order summary card) */
+.cart-summary-sticky {
+    position:  sticky;
+    top:       1rem;
+}
+
+/* Grand total value in sidebar */
+.cart-grand-total {
+    font-size:   1.2rem;
+    font-weight: 700;
+    color:       var(--accent);
+}
+
+/* Min-order warning text */
+.cart-min-warn {
+    font-size:   0.78rem;
+    color:       var(--danger);
+    margin-top:  0.35rem;
+    text-align:  center;
+}
+
+/* Freebie banner (below item list) */
+.cart-freebie-banner {
+    background:    rgba(78,201,176,0.1);
+    border:        1px solid rgba(78,201,176,0.3);
+    border-radius: var(--radius-lg);
+    padding:       0.7rem 1rem;
+    font-size:     0.85rem;
+    color:         var(--success);
+}
+
+/* Freebie progress box in sidebar */
+.cart-freebie-progress-box {
+    font-size:   0.8rem;
+    margin-top:  0.5rem;
+    padding:     0.5rem 0.75rem;
+    background:  var(--bg-elevated);
+    border-radius: var(--radius);
+    border:      1px solid var(--border-color);
+}
+
+/* Unconfirmed badge in invoice header */
+.cart-unconfirmed-badge {
+    background: rgba(204,167,0,0.18);
+    color:      var(--warning);
+    border:     1px solid rgba(204,167,0,0.35);
+    font-size:  0.72rem;
+    border-radius: 4px;
+    padding:    0.25em 0.6em;
+}
+
+/* Section label above invoice table */
+.cart-section-label {
+    font-size:      0.72rem;
+    font-weight:    600;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom:  0.4rem;
+}
+
+/* Table header row */
+.cart-table-header {
+    display:         flex;
+    font-size:       0.72rem;
+    font-weight:     600;
+    color:           var(--text-muted);
+    text-transform:  uppercase;
+    letter-spacing:  0.05em;
+    padding:         0.4rem 0.5rem;
+    border-bottom:   1px solid var(--border-color);
+}
+
+/* Total rows */
+.cart-total-row {
+    font-size:    0.88rem;
+    margin-bottom: 0.35rem;
+}
+
+.cart-grand-row {
+    font-size:    1rem;
+    font-weight:  700;
+    padding-top:  0.6rem;
+    border-top:   2px solid var(--border-color);
+    margin-top:   0.35rem;
+}
+
+/* Confirm payment button */
+.cart-confirm-btn {
+    background:   var(--accent);
+    color:        #fff;
+    border:       none;
+    font-weight:  600;
+    transition:   background var(--transition), box-shadow var(--transition);
+}
+.cart-confirm-btn:hover {
+    background:  var(--accent-hover);
+    box-shadow:  0 0 12px rgba(0,122,204,0.45);
+}
+
+/* FREE item badge in cart row */
+.cart-free-badge {
+    background:    rgba(40,167,69,0.12);
+    color:         var(--success);
+    border:        1px solid rgba(40,167,69,0.3);
+    border-radius: 3px;
+    font-size:     0.65rem;
+    font-weight:   700;
+    padding:       0.1em 0.4em;
+    vertical-align: middle;
+}
+
+/* Remove item button */
+.cart-remove-btn {
+    background:    transparent;
+    border:        none;
+    color:         var(--text-muted);
+    cursor:        pointer;
+    padding:       0.3rem 0.5rem;
+    border-radius: var(--radius);
+    font-size:     0.95rem;
+    transition:    color var(--transition), background var(--transition);
+    flex-shrink:   0;
+}
+.cart-remove-btn:hover {
+    color:       var(--danger);
+    background:  rgba(244,71,71,0.1);
+}
+
+/* Empty cart state */
+.cart-empty-state {
+    text-align:  center;
+    padding:     4rem 1rem;
+}
+.cart-empty-icon {
+    font-size: 3.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Loading state */
+.cart-loading-state {
+    text-align:  center;
+    padding:     5rem 1rem;
+}
+.cart-spinner-ring {
+    width:        48px;
+    height:       48px;
+    border:       4px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation:    spin 0.75s linear infinite;
+    margin:       0 auto 1rem;
+}
+
+/* Success checkmark */
+.cart-success-header {
+    padding: 1rem 0;
+}
+.cart-success-icon {
+    width:           64px;
+    height:          64px;
+    background:      var(--success);
+    border-radius:   50%;
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    font-size:       1.8rem;
+    color:           #fff;
+    box-shadow:      0 0 20px rgba(40,167,69,0.45);
+}
+
+/* Email notice alert */
+.cart-email-notice {
+    background:    rgba(0,122,204,0.1);
+    border:        1px solid rgba(0,122,204,0.3);
+    color:         var(--accent-light, #9cdcfe);
+    font-size:     0.82rem;
+    border-radius: var(--radius);
+    padding:       0.6rem 1rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §6  DELIVERY SLOT CARDS
+   ════════════════════════════════════════════════════════════════════════ */
+
+.slot-card {
+    background:    var(--bg-elevated);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       0.9rem 1.1rem;
+    cursor:        pointer;
+    transition:    all var(--transition);
+}
+
+.slot-card:hover {
+    border-color: var(--accent);
+    background:   rgba(0,122,204,0.07);
+}
+
+.slot-card--selected {
+    border-color:  var(--accent)         !important;
+    background:    rgba(0,122,204,0.12)  !important;
+    box-shadow:    0 0 0 3px rgba(0,122,204,0.18);
+}
+
+.slot-emoji {
+    font-size:   1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.slot-time {
+    font-size:   0.78rem;
+    margin-top:  0.15rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §7  RECEIPT PRINT AREA
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container — rendered on screen AND captured by html2pdf */
+.cart-receipt-print {
+    background:    var(--bg-surface);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       1.5rem;
+    font-size:     0.88rem;
+}
+
+/* Header: brand left, order info right */
+.rcpt-header-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     flex-start;
+    gap:             1rem;
+    margin-bottom:   0.75rem;
+}
+
+.rcpt-brand {
+    font-size:   1rem;
+    font-weight: 700;
+    color:       var(--accent);
+    margin-bottom: 0.25rem;
+}
+
+.rcpt-sub {
+    font-size:   0.76rem;
+    color:       var(--text-muted);
+    line-height: 1.55;
+}
+
+.rcpt-label {
+    font-size:      0.66rem;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display:        block;
+    margin-bottom:  2px;
+}
+
+.rcpt-value {
+    font-size:   0.88rem;
+    font-weight: 500;
+    color:       var(--text-primary);
+}
+
+.rcpt-order-chip {
+    display:         inline-block;
+    font-family:     var(--font-mono);
+    font-size:       0.85rem;
+    color:           var(--accent-light, #9cdcfe);
+    background:      rgba(0,122,204,0.15);
+    border:          1px solid rgba(0,122,204,0.35);
+    border-radius:   4px;
+    padding:         0.15em 0.5em;
+    white-space:     nowrap;
+    margin-bottom:   4px;
+}
+
+.rcpt-datetime {
+    font-size:   0.76rem;
+    color:       var(--text-muted);
+    white-space: nowrap;
+}
+
+.rcpt-divider-dashed {
+    border-top: 2px dashed var(--border-color);
+    margin:     12px 0;
+    height:     0;
+    display:    block;
+}
+
+/* 3-column meta grid: Bill To | Slot | Status */
+.rcpt-meta-grid {
+    display:             grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:                 0.75rem;
+    margin:              12px 0;
+    padding:             10px 0;
+    border-bottom:       1px solid var(--border-color);
+}
+
+/* Paid badge */
+.rcpt-paid-badge {
+    display:         inline-block;
+    font-size:       0.82rem;
+    font-weight:     700;
+    color:           var(--success);
+    background:      rgba(40,167,69,0.15);
+    border:          1px solid rgba(40,167,69,0.35);
+    border-radius:   4px;
+    padding:         0.15em 0.55em;
+}
+
+/* Delivery partner row */
+.rcpt-delivery-row {
+    display:         flex;
+    align-items:     center;
+    gap:             0.75rem;
+    background:      var(--bg-elevated);
+    border:          1px solid var(--border-color);
+    border-radius:   var(--radius);
+    padding:         0.7rem 1rem;
+    margin:          12px 0;
+}
+
+.rcpt-moto {
+    font-size:   1.3rem;
+    flex-shrink: 0;
+}
+
+/* Invoice table */
+.rcpt-table {
+    width:          100%;
+    border-collapse: collapse;
+    table-layout:   fixed;
+    margin-top:     12px;
+    color:          var(--text-primary);
+}
+
+.rcpt-thead-row {
+    border-bottom: 2px solid var(--border-color);
+}
+
+.rcpt-thead-row th {
+    font-size:      0.68rem;
+    font-weight:    600;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding:        6px 8px;
+}
+
+.rcpt-item-row {
+    border-bottom: 1px solid var(--bg-elevated);
+}
+
+.rcpt-td-num,
+.rcpt-td-name,
+.rcpt-td-rate,
+.rcpt-td-qty,
+.rcpt-td-amt {
+    padding: 7px 8px;
+}
+
+.rcpt-td-name   { font-weight: 500; word-break: break-word; }
+.rcpt-td-rate,
+.rcpt-td-qty,
+.rcpt-td-amt    { text-align: right; white-space: nowrap; }
+.rcpt-td-amt    { font-weight: 600; }
+
+/* Totals section */
+.rcpt-totals {
+    border-top:  1px solid var(--border-color);
+    padding-top: 0.6rem;
+    margin-top:  0.35rem;
+}
+
+.rcpt-total-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    font-size:       0.85rem;
+    padding:         3px 0;
+    color:           var(--text-primary);
+}
+
+.rcpt-free {
+    color:       var(--success);
+    font-weight: 600;
+}
+
+.rcpt-grand-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    font-size:       1rem;
+    font-weight:     700;
+    border-top:      2px solid var(--border-color);
+    padding-top:     0.5rem;
+    margin-top:      0.35rem;
+}
+
+/* Footer */
+.rcpt-footer {
+    font-size:   0.72rem;
+    color:       var(--text-muted);
+    text-align:  center;
+    border-top:  1px dashed var(--border-color);
+    padding-top: 0.75rem;
+    margin-top:  1rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §8  VS CODE–STYLE TOAST NOTIFICATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cart-toast-container {
+    position:   fixed;
+    bottom:     1.25rem;
+    right:      1.25rem;
+    z-index:    9000;
+    display:    flex;
+    flex-direction: column-reverse;
+    gap:        0.5rem;
+    pointer-events: none;
+}
+
+.cart-toast {
+    display:       flex;
+    align-items:   center;
+    gap:           0.6rem;
+    background:    var(--bg-elevated);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       0.7rem 1rem;
+    font-size:     0.85rem;
+    color:         var(--text-primary);
+    box-shadow:    0 4px 16px rgba(0,0,0,0.5);
+    pointer-events: all;
+    min-width:     260px;
+    max-width:     380px;
+
+    /* Enter: slide up from below */
+    opacity:   0;
+    transform: translateY(12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.cart-toast--visible {
+    opacity:   1;
+    transform: translateY(0);
+}
+
+/* Left accent border by type */
+.cart-toast--success { border-left: 3px solid var(--success); }
+.cart-toast--danger  { border-left: 3px solid var(--danger);  }
+.cart-toast--warning { border-left: 3px solid var(--warning); }
+.cart-toast--info    { border-left: 3px solid var(--accent);  }
+
+.cart-toast-icon {
+    flex-shrink: 0;
+    font-size:   1rem;
+}
+
+.cart-toast--success .cart-toast-icon { color: var(--success); }
+.cart-toast--danger  .cart-toast-icon { color: var(--danger);  }
+.cart-toast--warning .cart-toast-icon { color: var(--warning); }
+.cart-toast--info    .cart-toast-icon { color: var(--accent);  }
+
+.cart-toast-msg {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.cart-toast-close {
+    background:   none;
+    border:       none;
+    color:        var(--text-muted);
+    font-size:    1.1rem;
+    cursor:       pointer;
+    padding:      0 0.15rem;
+    line-height:  1;
+    flex-shrink:  0;
+    transition:   color var(--transition);
+}
+.cart-toast-close:hover { color: var(--text-primary); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §9  CART SIDEBAR MIN-ORDER BAR — GLASSMORPHISM UPGRADE
+   ──────────────────────────────────────────────────────────────────────
+   cart.html's existing progress bar lives inside:
+     .cart-summary-sticky  →  .card-body  →  .mt-3.mb-3 div
+   The <style> block in cart.html already defines .cart-progress-fill
+   and .cart-progress-track. These rules UPGRADE the glassmorphism
+   wrapper (.mt-3.mb-3 inside .cart-summary-sticky) to match the spec:
+     rgba(37,37,38,0.8), blur(10px), border:#3e3e42
+   WITHOUT changing the HTML — purely CSS-based upgrade.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Target the existing div that wraps the progress bar in the sidebar */
+.cart-summary-sticky .card-body .mt-3.mb-3 {
+    background:              rgba(37, 37, 38, 0.80) !important;
+    backdrop-filter:         blur(10px)             !important;
+    -webkit-backdrop-filter: blur(10px)             !important;
+    border:                  1px solid #3e3e42      !important;
+    border-radius:           var(--radius-lg)       !important;
+    padding:                 0.75rem 1rem           !important;
+}
+
+/* ── Accent→success fill transition on the existing bar ──────── */
+/* The existing .cart-progress-fill--success already sets green.
+   We add a smooth background transition so the colour animates. */
+.cart-progress-fill {
+    transition: width 0.4s ease, background-color 0.5s ease !important;
+}
+
+/* Override the three existing fill state classes to use the same
+   green as var(--success) at the ₹100 threshold — currently the
+   cart uses var(--danger)→var(--accent)→var(--success), which is
+   correct, but we lock the transition in. No structural changes. */
+.cart-progress-fill--success {
+    background-color: var(--success) !important;  /* #28a745 green at ≥₹100 */
+}
+
+/* ── NOT sticky — cart summary sidebar is already position:sticky.
+      The progress bar inside it inherits the sticky context and flows
+      naturally within the card. No additional position rules needed. ── */
