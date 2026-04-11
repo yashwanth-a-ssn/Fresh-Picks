@@ -59,8 +59,11 @@
             <div class="modal-footer"
                  style="border-top:1px solid var(--border-color);">
                 <button class="btn btn-sm btn-action"
-                        style="background:var(--bg-elevated);"
-                        data-bs-dismiss="modal">Close</button>
+                    style="background:var(--bg-elevated); color:var(--text-bright) !important;
+                        border:1px solid var(--border-color);"
+                    data-bs-dismiss="modal">
+                <i class="bi bi-x me-1"></i>Close
+            </button>
             </div>
         </div>
     </div>
@@ -663,28 +666,14 @@ function buildOrderCard(order) {
             <button class="btn btn-sm btn-action"
                     style="background:var(--bg-elevated); color:var(--text-bright);
                            border:1px solid var(--border-color);"
-                    onclick="openUserItemsModal(
-                        '${order.order_id}',
-                        '${(order.items_string || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'")}',
-                        '${order.total_amount}')">
+                    onclick="openUserItemsModal('${order.order_id}')">
                 <i class="bi bi-list-ul me-1"></i>View Items
             </button>
 
             <!-- Download Receipt -->
             <button class="btn btn-sm btn-action"
                     style="background:var(--accent); color:#fff; border:none;"
-                    onclick="generateStandardReceiptPDF({
-                        orderId:      '${order.order_id}',
-                        userId:       '${order.user_id}',
-                        date:         '${(order.timestamp || '').slice(0,10)}',
-                        timestamp:    '${order.timestamp || ''}',
-                        status:       '${order.status}',
-                        deliverySlot: '${order.delivery_slot}',
-                        total:        ${parseFloat(order.total_amount)},
-                        itemsString:  '${(order.items_string || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'")}',
-                        boyName:      '${(order.boy_name  || "").replace(/'/g, "\\'")}',
-                        boyPhone:     '${(order.boy_phone || "").replace(/'/g, "\\'")}'
-                    })">
+                    onclick="downloadOrderReceipt('${order.order_id}')">
                 <i class="bi bi-download me-1"></i>Receipt
             </button>
 
@@ -706,35 +695,47 @@ function buildOrderCard(order) {
 /* ────────────────────────────────────────────────────────────────────
    loadUserOrders — fetches from /api/get_user_orders and renders cards
    ────────────────────────────────────────────────────────────────────  */
+{% raw %}
+/* ── Safe order data store — avoids inline JS object literals ── */
+const _orderDataMap = new Map();
+
 async function loadUserOrders() {
+    /* Fetch profile early so receipt PDF has full name/contact */
+    try {
+        const pr = await fetch("/api/get_profile", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+        });
+        const pd = await pr.json();
+        if (pd.status === "SUCCESS") {
+            if (pd.full_name) localStorage.setItem("fp_full_name", pd.full_name);
+            if (pd.phone)     localStorage.setItem("fp_phone",     pd.phone);
+            if (pd.email)     localStorage.setItem("fp_email",     pd.email);
+            if (pd.address)   localStorage.setItem("fp_address",   pd.address);
+        }
+    } catch (_) {}
+
     try {
         const res  = await fetch("/api/get_user_orders", {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    "{}"
+            method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
         });
         const data = await res.json();
-
         document.getElementById("loadingPlaceholder")?.remove();
         const container = document.getElementById("ordersContainer");
-
         if (!data.orders || data.orders.length === 0) {
             container.innerHTML = `
                 <div class="text-center py-5">
                     <span style="font-size:3rem;">📦</span>
-                    <p class="text-muted mt-3">
-                        You haven't placed any orders yet.
-                        <a href="/shop">Browse products →</a>
-                    </p>
+                    <p class="text-muted mt-3">You haven't placed any orders yet.
+                        <a href="/shop">Browse products →</a></p>
                 </div>`;
             return;
         }
-
+        /* Store all orders in the Map for safe retrieval */
+        data.orders.forEach(order => _orderDataMap.set(order.order_id, order));
         /* Newest first */
         [...data.orders].reverse().forEach(order =>
             container.appendChild(buildOrderCard(order))
         );
-
     } catch (err) {
         console.error("loadUserOrders error:", err);
         document.getElementById("ordersContainer").innerHTML = `
@@ -744,6 +745,72 @@ async function loadUserOrders() {
             </div>`;
     }
 }
+
+/* Safe receipt download — reads from Map, no inline object literals */
+function downloadOrderReceipt(orderId) {
+    const order = _orderDataMap.get(orderId);
+    if (!order) {
+        alert("Order data not found. Please refresh the page.");
+        return;
+    }
+    generateStandardReceiptPDF({
+        orderId:      order.order_id,
+        userId:       order.user_id,
+        fullName:     localStorage.getItem("fp_full_name") || order.user_id,
+        userPhone:    localStorage.getItem("fp_phone")     || "",
+        userEmail:    localStorage.getItem("fp_email")     || "",
+        userAddress:  localStorage.getItem("fp_address")   || "",
+        date:         (order.timestamp || "").slice(0, 10),
+        timestamp:    order.timestamp  || "",
+        status:       order.status     || "Order Placed",
+        deliverySlot: order.delivery_slot || "",
+        total:        parseFloat(order.total_amount) || 0,
+        itemsString:  order.items_string || "",
+        boyName:      order.boy_name  || "",
+        boyPhone:     order.boy_phone || ""
+    });
+}
+
+/* View Items — also reads safely from Map */
+function openUserItemsModal(orderId) {
+    const order = _orderDataMap.get(orderId);
+    if (!order) return;
+    const items = parseItemsInvoice(order.items_string || "");
+    const rows = items.length > 0
+        ? items.map(it => `
+            <tr>
+                <td>${it.name}${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : ""}</td>
+                <td class="text-end" style="color:var(--text-muted); font-family:var(--font-mono);">
+                    ${it.isFree ? "&mdash;" : `₹${it.priceNum.toFixed(2)}/kg`}</td>
+                <td class="text-end" style="font-family:var(--font-mono);">${it.qty}</td>
+                <td class="text-end" style="font-family:var(--font-mono);
+                    color:${it.isFree ? "var(--success)" : "var(--text-bright)"};">
+                    ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}</td>
+            </tr>`).join("")
+        : `<tr><td colspan="4" class="text-center text-muted py-3">No items found.</td></tr>`;
+
+    document.getElementById("userItemsModalLabel").innerHTML =
+        `<i class="bi bi-receipt me-2" style="color:var(--accent);"></i>Items — ${orderId}`;
+    document.getElementById("userItemsModalBody").innerHTML = `
+        <div class="table-responsive">
+            <table class="fp-invoice-table">
+                <thead><tr>
+                    <th style="width:40%; text-align:left;">Product</th>
+                    <th style="width:20%;">Rate</th>
+                    <th style="width:15%;">Qty</th>
+                    <th style="width:25%;">Amount</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+                <tfoot><tr>
+                    <td colspan="3" style="text-align:right; color:var(--text-muted); font-size:0.82rem;">Grand Total</td>
+                    <td style="text-align:right; color:var(--accent); font-weight:700; font-family:var(--font-mono);">
+                        ₹${parseFloat(order.total_amount).toFixed(2)}</td>
+                </tr></tfoot>
+            </table>
+        </div>`;
+    new bootstrap.Modal(document.getElementById("userItemsModal")).show();
+}
+{% endraw %}
 {% endraw %}
 
 document.addEventListener("DOMContentLoaded", loadUserOrders);

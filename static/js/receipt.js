@@ -159,6 +159,25 @@ function _buildReceiptHTML(orderData) {
 
     const dateStr = (orderData.date || new Date().toISOString().slice(0, 10));
 
+    /* ── Customer display — prefer fullName over userId ── */
+    const customerName = orderData.fullName || orderData.userId || "Customer";
+
+    /* ── User contact block ── */
+    const hasContact = orderData.userPhone || orderData.userEmail || orderData.userAddress;
+    const contactBlock = hasContact ? `
+        <tr>
+            <td style="padding:7px 14px; font-size:10px; color:${C.textMuted};
+                       text-transform:uppercase; letter-spacing:0.06em;
+                       border-bottom:1px solid ${C.border};
+                       background:${C.bgElevated}; width:30%; white-space:nowrap;">CONTACT</td>
+            <td style="padding:7px 14px; border-bottom:1px solid ${C.border};
+                       background:${C.bgElevated}; font-size:11px; color:${C.text};">
+                ${orderData.userPhone  ? `&#128222; ${orderData.userPhone}<br>` : ""}
+                ${orderData.userEmail  ? `&#9993; ${orderData.userEmail}<br>` : ""}
+                ${orderData.userAddress ? `<span style="color:${C.textMuted};">${orderData.userAddress.replace(/,/g, ", ")}</span>` : ""}
+            </td>
+        </tr>` : "";
+
     /* ── Invoice table rows ── */
     const tableRows = items.length > 0
         ? items.map((it, idx) => `
@@ -196,9 +215,9 @@ function _buildReceiptHTML(orderData) {
                                         color:${C.accentLight}; font-weight:700;">
                               ${orderData.orderId || "&mdash;"}
                            </span>`],
-        ["CUSTOMER",      `<span style="font-size:13px; color:${C.textBright};
-                                        font-weight:500;">
-                              ${orderData.userId || "&mdash;"}
+        ["BILL TO",       `<span style="font-size:13px; color:${C.textBright};
+                                        font-weight:600;">
+                              ${customerName}
                            </span>`],
         ["DELIVERY SLOT", `<span style="background:${sl.bg}; color:${sl.color};
                                         border-radius:10px; padding:2px 10px;
@@ -222,7 +241,7 @@ function _buildReceiptHTML(orderData) {
                        background:${C.bgElevated}; width:30%;">${label}</td>
             <td style="padding:7px 14px; border-bottom:1px solid ${C.border};
                        background:${C.bgElevated};">${value}</td>
-        </tr>`).join("");
+        </tr>`).join("") + contactBlock;
 
     /* ── Delivery agent block (optional) ── */
     const agentBlock = orderData.boyName ? `
@@ -383,21 +402,29 @@ function _buildReceiptHTML(orderData) {
    orderData shape:
    {
      orderId:      "ORD107",
-     userId:       "U1003",
-     date:         "2025-04-08",           // YYYY-MM-DD slice of timestamp
+     userId:       "U1003",              // shown as Customer if no fullName
+     fullName:     "Yashwanth Kumar",    // optional — from /api/get_profile
+     userPhone:    "9876543210",         // optional
+     userEmail:    "y@example.com",      // optional
+     userAddress:  "12,Main St,Area,600001", // optional
+     date:         "2025-04-08",
      timestamp:    "2025-04-08 14:30:00",
      status:       "Delivered",
      deliverySlot: "Afternoon",
      total:        100.00,
      itemsString:  "V1001:Coriander Leaves:1000:100.00,VF101:Curry Leaves:50:0.00",
-     boyName:      "Ramesh",               // optional
-     boyPhone:     "9876543210"            // optional
+     boyName:      "Ramesh",
+     boyPhone:     "9876543210"
    }
 
-   Usage:
+   Usage (user_orders.html — use downloadOrderReceipt(orderId) which calls this):
      generateStandardReceiptPDF({
          orderId:      order.order_id,
          userId:       order.user_id,
+         fullName:     localStorage.getItem("fp_full_name") || order.user_id,
+         userPhone:    localStorage.getItem("fp_phone")     || "",
+         userEmail:    localStorage.getItem("fp_email")     || "",
+         userAddress:  localStorage.getItem("fp_address")   || "",
          date:         order.timestamp?.slice(0, 10),
          timestamp:    order.timestamp,
          status:       order.status,

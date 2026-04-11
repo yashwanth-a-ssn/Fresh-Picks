@@ -3541,3 +3541,12 @@ footer a:hover {
 /* ── NOT sticky — cart summary sidebar is already position:sticky.
       The progress bar inside it inherits the sticky context and flows
       naturally within the card. No additional position rules needed. ── */
+
+/* Nuclear fix: make all Bootstrap modal close buttons white */
+.modal-content .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+/* Explicit white on all modal footer close buttons */
+.modal-footer .btn {
+    color: var(--text-bright, #ffffff) !important;
+}
