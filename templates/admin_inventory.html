@@ -28,6 +28,63 @@
 {# ── Page title (inserted into base.html's <title> block) ── #}
 {% block title %}Inventory Manager{% endblock %}
 
+{% block extra_head %}
+<style>
+/* ── Admin Inventory: Category Section Headers ──────────── */
+.inv-cat-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.6rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color var(--transition), background var(--transition);
+}
+.inv-cat-section-header:first-of-type { margin-top: 0; }
+.inv-cat-section-header:hover {
+    border-color: rgba(0,122,204,0.45);
+    background: rgba(0,122,204,0.06);
+}
+.inv-cat-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+    text-transform: capitalize;
+}
+.inv-cat-count {
+    background: rgba(0,122,204,0.18);
+    color: var(--accent-light);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15em 0.6em;
+    border-radius: 10px;
+    border: 1px solid rgba(0,122,204,0.3);
+}
+.inv-cat-chevron {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: transform 0.25s ease;
+}
+.inv-cat-chevron.open { transform: rotate(180deg); }
+.inv-cat-grid-wrap {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+    max-height: 0;
+    opacity: 0;
+}
+.inv-cat-grid-wrap.expanded {
+    max-height: 8000px;
+    opacity: 1;
+}
+</style>
+{% endblock %}
 
 {# ══════════════════════════════════════════════════════════════
    MAIN CONTENT BLOCK
@@ -600,5 +657,21 @@ function showToast(message, type) {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+/**
+ * toggleInvCat — toggles a category grid section open/closed.
+ * @param {HTMLElement} headerEl — the clicked .inv-cat-section-header
+ */
+function toggleInvCat(headerEl) {
+    const targetId = headerEl.dataset.target;
+    const grid     = document.getElementById(targetId);
+    const chevron  = headerEl.querySelector(".inv-cat-chevron");
+    if (!grid) return;
+
+    const isOpen = grid.classList.contains("expanded");
+    grid.classList.toggle("expanded", !isOpen);
+    chevron.classList.toggle("open", !isOpen);
+}
+
 </script>
 {% endblock %}

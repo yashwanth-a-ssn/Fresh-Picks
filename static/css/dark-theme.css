@@ -2513,3 +2513,10 @@ footer a:hover {
     animation: fp-pulse-green 2s ease-in-out infinite;
 }
 
+/* Fix for Quick Action card titles and Dashboard text visibility */
+.quick-actions-card h4, 
+.quick-actions-card .action-title,
+.card-body h4,
+.card-body .text-bright {
+    color: var(--text-primary) !important;
+}

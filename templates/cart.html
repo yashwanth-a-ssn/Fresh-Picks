@@ -1061,12 +1061,17 @@ function selectSlot(slot, clickedCard) {
 
 {% raw %}
 /**
- * renderInvoicePreview — populate State 3 before revealing it.
+ * renderInvoicePreview — State 3 invoice preview.
  *
- * items_string format (4-part): "veg_id:name:qty_g:price_per_1000g"
- * Source: cartItems[] from /api/view_cart — already in memory.
+ * Column layout (fixed flex-basis, no jumping):
+ *   PRODUCT  flex-basis:42%  | RATE  flex-basis:18%
+ *   QTY      flex-basis:18%  | AMOUNT flex-basis:22%
  *
- * Column order: PRODUCT | RATE | QTY | AMOUNT
+ * Color rules:
+ *   Shop Name → var(--accent)   (blue)
+ *   Table Headers → var(--text-muted)
+ *   Names / Rates / Qty → #ffffff (strict white)
+ *   Status / Freebies → var(--success) (green)
  */
 function renderInvoicePreview() {
     const slotLabels = {
@@ -1079,56 +1084,74 @@ function renderInvoicePreview() {
     document.getElementById("prev-customer").textContent =
         localStorage.getItem("username") || "Customer";
 
+    /* Apply accent color to shop name in the invoice block */
+    const shopNameEl = document.querySelector(".cart-shop-block .text-bright");
+    if (shopNameEl) shopNameEl.style.color = "var(--accent)";
+
+    /* ── Column header row (fixed widths, no jumping) ─────── */
+    const headerRow = document.querySelector(".cart-table-header");
+    if (headerRow) {
+        headerRow.style.cssText =
+            "display:flex; padding:0.4rem 0.5rem; border-bottom:1px solid var(--border-color);";
+        headerRow.innerHTML = `
+            <span style="flex-basis:42%; flex-shrink:0; color:var(--text-muted); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Product</span>
+            <span style="flex-basis:18%; flex-shrink:0; text-align:right; color:var(--text-muted); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Rate</span>
+            <span style="flex-basis:18%; flex-shrink:0; text-align:right; color:var(--text-muted); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Qty</span>
+            <span style="flex-basis:22%; flex-shrink:0; text-align:right; color:var(--text-muted); font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Amount</span>`;
+    }
+
     /* ── Build item rows ─────────────────────────────────────── */
     const container = document.getElementById("prev-items-list");
     container.innerHTML = "";
 
     cartItems.forEach(item => {
-        /* QTY: always display in kg (per spec) */
         const qtyKg      = (item.qty_g / 1000).toFixed(2);
         const qtyDisplay = `${qtyKg} kg`;
 
-        /* RATE */
         const pricePerKg  = parseFloat(item.price_per_1000g) || 0;
-        const rateDisplay = item.is_free ? "—" : `₹${pricePerKg.toFixed(2)} / kg`;
+        const rateDisplay = item.is_free ? "—" : `₹${pricePerKg.toFixed(2)}/kg`;
 
-        /* AMOUNT: (price_per_1000g * qty_g) / 1000 */
-        const lineTotal   = (pricePerKg * item.qty_g) / 1000;
-        const amtDisplay  = item.is_free ? "FREE" : `₹${lineTotal.toFixed(2)}`;
+        const lineTotal  = (pricePerKg * item.qty_g) / 1000;
+        const amtDisplay = item.is_free ? "FREE" : `₹${lineTotal.toFixed(2)}`;
 
         container.insertAdjacentHTML("beforeend", `
-        <div class="cart-prev-item-row">
+        <div style="display:flex; align-items:center; padding:0.5rem 0.5rem;
+                    border-bottom:1px solid var(--border-color);">
 
-            <!-- PRODUCT -->
-            <span style="flex:3; color:var(--text-primary); font-weight:500;">
+            <!-- PRODUCT — strict white, 42% -->
+            <span style="flex-basis:42%; flex-shrink:0;
+                         color:#ffffff; font-weight:500; font-size:0.88rem;
+                         padding-right:0.5rem; word-break:break-word;">
                 ${item.name}
                 ${item.is_free
                     ? `<span style="color:var(--success); font-size:0.7rem;
-                                   font-weight:700; margin-left:0.4rem;">🎁 FREE</span>`
+                                   font-weight:700; margin-left:0.35rem;">🎁 FREE</span>`
                     : ""}
             </span>
 
-            <!-- RATE -->
-            <span style="flex:1.5; text-align:right;
-                         color:var(--text-muted); font-size:0.8rem;">
+            <!-- RATE — strict white, 18% -->
+            <span style="flex-basis:18%; flex-shrink:0; text-align:right;
+                         color:#ffffff; font-size:0.8rem; white-space:nowrap;">
                 ${rateDisplay}
             </span>
 
-            <!-- QTY -->
-            <span style="flex:1.5; text-align:right; color:var(--text-primary);">
+            <!-- QTY — strict white, 18% -->
+            <span style="flex-basis:18%; flex-shrink:0; text-align:right;
+                         color:#ffffff; font-size:0.88rem; white-space:nowrap;">
                 ${qtyDisplay}
             </span>
 
-            <!-- AMOUNT -->
-            <span style="flex:1.5; text-align:right; font-weight:600;
-                         color:${item.is_free ? "var(--success)" : "var(--accent-hover)"};">
+            <!-- AMOUNT — accent/success, 22% -->
+            <span style="flex-basis:22%; flex-shrink:0; text-align:right;
+                         font-weight:600; font-size:0.88rem; white-space:nowrap;
+                         color:${item.is_free ? 'var(--success)' : 'var(--accent-light)'};">
                 ${amtDisplay}
             </span>
 
         </div>`);
     });
 
-    /* ── Freebie 500-multiplier estimate ─────────────────────── */
+    /* ── Freebie estimate ─────────────────────────────────────── */
     const freebieBox  = document.getElementById("prev-freebie-box");
     const freebieText = document.getElementById("prev-freebie-text");
     if (cartTotal >= FREEBIE_THRESHOLD) {
@@ -1138,9 +1161,11 @@ function renderInvoicePreview() {
             ? `${(freeQty_g / 1000).toFixed(1)} kg`
             : `${freeQty_g} g`;
         freebieText.innerHTML =
-            `You've unlocked <strong>${freeQtyDisp}</strong> each of
-             <strong>Curry Leaves</strong> and <strong>Coriander</strong> — FREE!
-             (₹${cartTotal.toFixed(0)} ÷ ₹500 = ×${multiplier})`;
+            `<span style="color:var(--success);">
+                You've unlocked <strong>${freeQtyDisp}</strong> each of
+                <strong>Curry Leaves</strong> &amp; <strong>Coriander</strong> — FREE!
+                (₹${cartTotal.toFixed(0)} ÷ ₹500 = ×${multiplier})
+             </span>`;
         freebieBox.classList.remove("d-none");
     } else {
         freebieBox.classList.add("d-none");
@@ -1213,6 +1238,140 @@ async function confirmPayment() {
 /* ═══════════════════════════════════════════════════════════════
    SECTION 6: RECEIPT RENDERING — STATE 5
 ═══════════════════════════════════════════════════════════════ */
+
+{% raw %}
+/**
+ * renderReceipt — populates #receiptPrintArea from /api/checkout JSON.
+ *
+ * items_string format: "veg_id:name:qty_g:price_per_1000g" (comma-separated)
+ *
+ * Table column widths (colgroup):
+ *   # = 2rem | PRODUCT = auto | RATE = 22% | QTY = 16% | AMOUNT = 16%
+ *
+ * Colors:
+ *   Shop name    → #007acc  (var(--accent) hex)
+ *   TH labels    → #858585  (var(--text-muted))
+ *   TD name/rate/qty → #ffffff
+ *   FREE / PAID badge → #28a745 (var(--success))
+ *   Grand total amount → #1a9eff (var(--accent-light))
+ */
+function renderReceipt(result) {
+
+    /* ── Header meta ─────────────────────────────────────────── */
+    document.getElementById("rcpt-order-id").textContent  = result.order_id || "—";
+    document.getElementById("rcpt-slot").textContent      = result.slot      || "—";
+    document.getElementById("rcpt-boy-name").textContent  = result.boy_name  || "—";
+    document.getElementById("rcpt-boy-phone").textContent =
+        result.boy_phone ? `📞 ${result.boy_phone}` : "—";
+    document.getElementById("rcpt-customer").textContent  =
+        localStorage.getItem("username") || "Customer";
+
+    /* Shop brand color */
+    const brandEl = document.querySelector(".rcpt-brand");
+    if (brandEl) brandEl.style.color = "#007acc";
+
+    /* ── Date/time stamp ─────────────────────────────────────── */
+    const now = new Date();
+    document.getElementById("rcpt-datetime").textContent =
+        now.toLocaleString("en-IN", {
+            day: "2-digit", month: "short", year: "numeric",
+            hour: "2-digit", minute: "2-digit"
+        });
+
+    /* ── Inject colgroup for fixed column widths ─────────────── */
+    const table = document.querySelector(".rcpt-table");
+    if (table && !table.querySelector("colgroup")) {
+        const cg = document.createElement("colgroup");
+        cg.innerHTML = `
+            <col style="width:2rem;">
+            <col>
+            <col style="width:22%;">
+            <col style="width:16%;">
+            <col style="width:16%;">`;
+        table.prepend(cg);
+    }
+
+    /* Fix TH colors */
+    document.querySelectorAll(".rcpt-thead-row th").forEach(th => {
+        th.style.color = "#858585";
+    });
+
+    /* ── Build items table rows ───────────────────────────────── */
+    const tbody = document.getElementById("rcpt-items-tbody");
+    tbody.innerHTML = "";
+    let rowNum        = 1;
+    let computedTotal = 0;
+
+    (result.items || "").split(",").forEach(part => {
+        const segments = part.trim().split(":");
+        /* Require at minimum: veg_id + name + qty_g */
+        if (segments.length < 3 || !segments[0]) return;
+
+        /* 4-part parse: veg_id : name : qty_g : price_per_1000g */
+        const id          = segments[0].trim();
+        const nameFromStr = segments[1] ? segments[1].trim() : id;
+        const grams       = parseInt(segments[2])    || 0;
+        const priceSnap   = parseFloat(segments[3])  || 0;
+
+        const match      = cartItems.find(i => i.veg_id === id);
+        const name       = nameFromStr || (match ? match.name : id);
+        const isFree     = priceSnap === 0 || id.startsWith("VF") ||
+                           (match ? !!match.is_free : false);
+        const pricePerKg = priceSnap > 0
+            ? priceSnap
+            : (match ? parseFloat(match.price_per_1000g) || 0 : 0);
+
+        /* QTY always in kg */
+        const qtyDisplay  = `${(grams / 1000).toFixed(2)} kg`;
+        const rateDisplay = isFree ? "—" : `₹${pricePerKg.toFixed(2)}/kg`;
+
+        let lineAmount = "FREE";
+        if (!isFree) {
+            const lineTotal  = (pricePerKg * grams) / 1000;
+            lineAmount       = `₹${lineTotal.toFixed(2)}`;
+            computedTotal   += lineTotal;
+        }
+
+        tbody.insertAdjacentHTML("beforeend", `
+        <tr class="rcpt-item-row">
+            <td class="rcpt-td-num"    style="color:#858585;">${rowNum++}</td>
+            <td class="rcpt-td-name"   style="color:#ffffff; font-weight:500;">
+                ${name}
+                ${isFree
+                    ? `<span class="rcpt-free-badge"
+                              style="color:#28a745; background:rgba(40,167,69,0.18);
+                                     border:1px solid rgba(40,167,69,0.3); border-radius:3px;
+                                     font-size:0.66rem; font-weight:700; padding:0.1em 0.4em;
+                                     display:inline-block; vertical-align:middle;
+                                     margin-left:0.35rem;">🎁 FREE</span>`
+                    : ""}
+            </td>
+            <td class="rcpt-td-rate"
+                style="color:#ffffff; text-align:right; font-size:0.8rem; white-space:nowrap;">
+                ${rateDisplay}
+            </td>
+            <td class="rcpt-td-qty"
+                style="color:#ffffff; text-align:right; white-space:nowrap;">
+                ${qtyDisplay}
+            </td>
+            <td class="rcpt-td-amt"
+                style="text-align:right; font-weight:600; white-space:nowrap;
+                       color:${isFree ? '#28a745' : '#1a9eff'};">
+                ${lineAmount}
+            </td>
+        </tr>`);
+    });
+
+    /* ── Totals ───────────────────────────────────────────────── */
+    const finalTotal = parseFloat(result.total) || computedTotal;
+    document.getElementById("rcpt-subtotal").textContent = `₹${finalTotal.toFixed(2)}`;
+    document.getElementById("rcpt-total").textContent    = `₹${finalTotal.toFixed(2)}`;
+
+    /* Grand total color */
+    const grandAmtEl = document.querySelector("#rcpt-total");
+    if (grandAmtEl) grandAmtEl.style.color = "#1a9eff";
+}
+{% endraw %}
 
 {% raw %}
 /**
@@ -1400,23 +1559,14 @@ function renderProducts(products) {
 
 {% raw %}
 /**
- * downloadReceiptAsPDF — Deep-clone strategy for dark-theme PDF capture.
+ * downloadReceiptAsPDF — Deep-clone + full hex inline-stamp strategy.
  *
- * ROOT CAUSE OF BLANK WHITE BUG:
- *   html2canvas reads computed styles at capture time. When the live element
- *   uses CSS variables (var(--bg-main)), html2canvas running in its own
- *   rasterisation context often cannot resolve them — it falls back to
- *   transparent, which jpeg renders as white. Fix: force hardcoded hex
- *   values directly onto the clone's style before passing to html2canvas.
- *
- * STRATEGY:
- *   1. Deep-clone the receipt node.
- *   2. Walk every element in the clone and stamp hardcoded hex inline styles.
- *   3. Place clone off-screen in a fixed 794 px-wide container (A4 width).
- *   4. Capture with scale:3, backgroundColor:"#1e1e1e".
- *   5. Remove clone in finally — guaranteed even on error.
- *
- * FILENAME: <orderId>_<userId>_<YYYY-MM-DD>.pdf  e.g. ORD104_alice_2026-04-11.pdf
+ * CRITICAL FIXES applied:
+ *   1. Explicit clone.style.backgroundColor = "#1e1e1e" & color = "#ffffff"
+ *   2. html2canvas: { backgroundColor:"#1e1e1e", useCORS:true, scale:3,
+ *                     width: element.scrollWidth }
+ *   3. Filename: ORDERID_USERID_DATE.pdf  (pulled from order object / DOM)
+ *   4. All CSS-variable references replaced with hardcoded hex in clone.
  */
 async function downloadReceiptAsPDF() {
     const receiptElement = document.getElementById("receiptPrintArea");
@@ -1425,178 +1575,133 @@ async function downloadReceiptAsPDF() {
         return;
     }
 
-    /* ── Filename: ORDXXX_USERID_DATE ───────────────────────── */
-    const orderId  = (document.getElementById("rcpt-order-id").textContent || "ORD000").trim();
-    const userId   = (localStorage.getItem("username") || "USER").trim().replace(/\s+/g, "_");
+    /* ── Filename: ORDERID_USERID_DATE ──────────────────────── */
+    const orderId  = (document.getElementById("rcpt-order-id").textContent || "ORD000")
+                        .trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    const userId   = (localStorage.getItem("username") || "USER")
+                        .trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
     const dateStr  = new Date().toISOString().slice(0, 10);
     const filename = `${orderId}_${userId}_${dateStr}.pdf`;
 
     /* ── Button: loading state ───────────────────────────────── */
-    const dlBtn   = document.querySelector('button[onclick="downloadReceiptAsPDF()"]');
+    const dlBtn    = document.querySelector('button[onclick="downloadReceiptAsPDF()"]');
     const origHTML = dlBtn ? dlBtn.innerHTML : "";
     if (dlBtn) {
         dlBtn.disabled  = true;
         dlBtn.innerHTML = '<span class="spinner-sm me-2"></span>Generating PDF…';
     }
 
-    /* ── Hidden off-screen stage (removed in finally) ──────────
-       Using a fixed-position wrapper keeps it out of document flow
-       so no scroll/layout shifts occur while capturing.            */
+    /* ── Off-screen stage (A4 = 794px wide) ─────────────────── */
     const stage = document.createElement("div");
     stage.style.cssText = [
         "position:fixed", "top:-99999px", "left:-99999px",
-        "width:794px",           /* A4 at 96 dpi */
-        "background:#1e1e1e",
-        "overflow:hidden",
-        "z-index:-9999",
-        "pointer-events:none"
+        "width:794px", "background:#1e1e1e",
+        "overflow:hidden", "z-index:-9999", "pointer-events:none"
     ].join(";");
     document.body.appendChild(stage);
 
     /* ── Deep clone ──────────────────────────────────────────── */
     const clone = receiptElement.cloneNode(true);
-    clone.removeAttribute("id");           /* no duplicate IDs in DOM   */
-    clone.style.cssText = [
-        "background:#1e1e1e",
-        "color:#ffffff",
-        "padding:28px",
-        "box-sizing:border-box",
-        "width:794px",
-        "font-family:Segoe UI,system-ui,sans-serif"
-    ].join(";");
+    clone.removeAttribute("id");
+
+    /* CRITICAL: explicit hex — do NOT use var(--) here */
+    clone.style.backgroundColor = "#1e1e1e";
+    clone.style.color           = "#ffffff";
+    clone.style.padding         = "28px";
+    clone.style.boxSizing       = "border-box";
+    clone.style.width           = "794px";
+    clone.style.fontFamily      = "Segoe UI, system-ui, sans-serif";
+
     stage.appendChild(clone);
 
-    /* ── Inline-stamp hardcoded hex on every child element ──────
-       This is the critical step that defeats the CSS-variable problem.
-       We walk the entire subtree and apply colors per class.          */
-    const stamp = (selector, styles) => {
-        clone.querySelectorAll(selector).forEach(el => {
-            Object.assign(el.style, styles);
-        });
-    };
+    /* ── Inline-stamp helper ─────────────────────────────────── */
+    const stamp = (selector, styles) =>
+        clone.querySelectorAll(selector).forEach(el => Object.assign(el.style, styles));
 
-    /* Root / wrappers */
-    stamp("div, section, span, p",            { background: "transparent" });
+    /* Reset all divs/spans to transparent — no CSS-var leak */
+    stamp("div, section, span, p, td, th, tr", { background: "transparent" });
 
-    /* Brand name */
-    stamp(".rcpt-brand",                       { color: "#007acc", fontSize: "1.15rem",
-                                                 fontWeight: "700" });
-    /* Sub-text */
-    stamp(".rcpt-sub",                         { color: "#858585", fontSize: "0.78rem" });
+    /* Brand */
+    stamp(".rcpt-brand",        { color: "#007acc", fontSize: "1.15rem", fontWeight: "700" });
+    stamp(".rcpt-sub",          { color: "#858585", fontSize: "0.78rem" });
+    stamp(".rcpt-label",        { color: "#858585", fontSize: "0.68rem",
+                                  textTransform: "uppercase", letterSpacing: "0.08em" });
+    stamp(".rcpt-value",        { color: "#ffffff", fontSize: "0.88rem" });
+    stamp(".rcpt-order-chip",   { color: "#9cdcfe", background: "rgba(0,122,204,0.18)",
+                                  border: "1px solid rgba(0,122,204,0.4)",
+                                  borderRadius: "4px", padding: "0.2em 0.55em",
+                                  display: "inline-block", fontFamily: "monospace" });
+    stamp(".rcpt-datetime",     { color: "#858585" });
+    stamp(".rcpt-divider-dashed", { borderTop: "2px dashed #3c3c3c", margin: "1rem 0" });
+    stamp(".rcpt-paid-badge",   { color: "#28a745", background: "rgba(40,167,69,0.18)",
+                                  border: "1px solid rgba(40,167,69,0.4)",
+                                  borderRadius: "4px", padding: "0.15em 0.55em",
+                                  fontWeight: "700", display: "inline-block" });
+    stamp(".rcpt-delivery-row", { background: "#252526", border: "1px solid #3c3c3c",
+                                  borderRadius: "6px", padding: "0.75rem 1rem" });
+    stamp(".rcpt-table",        { color: "#ffffff", width: "100%",
+                                  borderCollapse: "collapse", tableLayout: "fixed" });
+    stamp(".rcpt-thead-row",    { borderBottom: "2px solid #3c3c3c" });
+    stamp(".rcpt-thead-row th", { color: "#858585", background: "#1e1e1e",
+                                  fontWeight: "600", fontSize: "0.7rem",
+                                  textTransform: "uppercase", padding: "0.4rem 0.5rem" });
+    stamp(".rcpt-item-row",     { borderBottom: "1px solid #3c3c3c" });
+    stamp(".rcpt-td-num",       { color: "#858585", padding: "0.45rem 0.5rem" });
+    stamp(".rcpt-td-name",      { color: "#ffffff", fontWeight: "500",
+                                  padding: "0.45rem 0.5rem" });
+    stamp(".rcpt-td-rate",      { color: "#ffffff", fontSize: "0.8rem",
+                                  textAlign: "right", padding: "0.45rem 0.5rem",
+                                  whiteSpace: "nowrap" });
+    stamp(".rcpt-td-qty",       { color: "#ffffff", textAlign: "right",
+                                  padding: "0.45rem 0.5rem", whiteSpace: "nowrap" });
+    stamp(".rcpt-td-amt",       { textAlign: "right", fontWeight: "600",
+                                  padding: "0.45rem 0.5rem", whiteSpace: "nowrap" });
+    stamp(".rcpt-free-badge",   { color: "#28a745", background: "rgba(40,167,69,0.18)",
+                                  border: "1px solid rgba(40,167,69,0.3)",
+                                  borderRadius: "3px", fontSize: "0.66rem",
+                                  fontWeight: "700", padding: "0.1em 0.4em",
+                                  display: "inline-block", verticalAlign: "middle",
+                                  lineHeight: "1.4" });
+    stamp(".rcpt-totals",       { borderTop: "1px solid #3c3c3c", paddingTop: "0.75rem" });
+    stamp(".rcpt-total-row",    { color: "#ffffff", fontSize: "0.85rem" });
+    stamp(".rcpt-free",         { color: "#28a745", fontWeight: "600" });
+    stamp(".rcpt-grand-row",    { color: "#ffffff", fontSize: "1.05rem",
+                                  fontWeight: "700", borderTop: "2px solid #3c3c3c",
+                                  paddingTop: "0.5rem" });
+    stamp(".rcpt-footer",       { color: "#858585", fontSize: "0.72rem",
+                                  textAlign: "center", borderTop: "1px dashed #3c3c3c",
+                                  paddingTop: "1rem", marginTop: "1.5rem" });
 
-    /* Meta labels */
-    stamp(".rcpt-label",                       { color: "#858585", fontSize: "0.68rem",
-                                                 textTransform: "uppercase",
-                                                 letterSpacing: "0.08em" });
-    /* Meta values */
-    stamp(".rcpt-value",                       { color: "#ffffff", fontSize: "0.88rem" });
-
-    /* Order chip */
-    stamp(".rcpt-order-chip",                  { color: "#9cdcfe",
-                                                 background: "rgba(0,122,204,0.18)",
-                                                 border: "1px solid rgba(0,122,204,0.4)",
-                                                 borderRadius: "4px", padding: "0.2em 0.55em",
-                                                 display: "inline-block",
-                                                 fontFamily: "monospace" });
-    /* Datetime */
-    stamp(".rcpt-datetime",                    { color: "#858585" });
-
-    /* Divider */
-    stamp(".rcpt-divider-dashed",              { borderTop: "2px dashed #3c3c3c",
-                                                 margin: "1rem 0" });
-    /* PAID badge */
-    stamp(".rcpt-paid-badge",                  { color: "#28a745",
-                                                 background: "rgba(40,167,69,0.18)",
-                                                 border: "1px solid rgba(40,167,69,0.4)",
-                                                 borderRadius: "4px", padding: "0.15em 0.55em",
-                                                 fontWeight: "700", display: "inline-block" });
-    /* Delivery row */
-    stamp(".rcpt-delivery-row",                { background: "#252526",
-                                                 border: "1px solid #3c3c3c",
-                                                 borderRadius: "6px",
-                                                 padding: "0.75rem 1rem" });
-    /* Table root */
-    stamp(".rcpt-table",                       { color: "#ffffff", width: "100%",
-                                                 borderCollapse: "collapse",
-                                                 tableLayout: "fixed" });
-    /* Thead row */
-    stamp(".rcpt-thead-row",                   { borderBottom: "2px solid #3c3c3c" });
-
-    /* TH — muted */
-    stamp(".rcpt-thead-row th",                { color: "#858585", background: "#1e1e1e",
-                                                 fontWeight: "600", fontSize: "0.7rem",
-                                                 textTransform: "uppercase",
-                                                 padding: "0.4rem 0.5rem" });
-    /* Item rows */
-    stamp(".rcpt-item-row",                    { borderBottom: "1px solid #3c3c3c" });
-
-    /* TD classes */
-    stamp(".rcpt-td-num",                      { color: "#858585", padding: "0.45rem 0.5rem" });
-    stamp(".rcpt-td-name",                     { color: "#ffffff", fontWeight: "500",
-                                                 padding: "0.45rem 0.5rem" });
-    stamp(".rcpt-td-rate",                     { color: "#858585", fontSize: "0.8rem",
-                                                 textAlign: "right", padding: "0.45rem 0.5rem",
-                                                 whiteSpace: "nowrap" });
-    stamp(".rcpt-td-qty",                      { color: "#ffffff", textAlign: "right",
-                                                 padding: "0.45rem 0.5rem",
-                                                 whiteSpace: "nowrap" });
-    stamp(".rcpt-td-amt",                      { textAlign: "right", fontWeight: "600",
-                                                 padding: "0.45rem 0.5rem",
-                                                 whiteSpace: "nowrap" });
-
-    /* FREE badge inside cells */
-    stamp(".rcpt-free-badge",                  { color: "#28a745",
-                                                 background: "rgba(40,167,69,0.18)",
-                                                 border: "1px solid rgba(40,167,69,0.3)",
-                                                 borderRadius: "3px", fontSize: "0.66rem",
-                                                 fontWeight: "700", padding: "0.1em 0.4em",
-                                                 display: "inline-block",
-                                                 verticalAlign: "middle", lineHeight: "1.4" });
-    /* Totals */
-    stamp(".rcpt-totals",                      { borderTop: "1px solid #3c3c3c",
-                                                 paddingTop: "0.75rem" });
-    stamp(".rcpt-total-row",                   { color: "#ffffff", fontSize: "0.85rem" });
-    stamp(".rcpt-free",                        { color: "#28a745", fontWeight: "600" });
-    stamp(".rcpt-grand-row",                   { color: "#ffffff", fontSize: "1.05rem",
-                                                 fontWeight: "700",
-                                                 borderTop: "2px solid #3c3c3c",
-                                                 paddingTop: "0.5rem" });
-
-    /* Grand total amount — bright blue */
+    /* Grand total amount */
     clone.querySelectorAll(".rcpt-grand-row span:last-child").forEach(el => {
         el.style.color = "#1a9eff";
     });
+    /* FREE amounts */
+    clone.querySelectorAll(".rcpt-td-amt").forEach(el => {
+        if (el.textContent.trim() === "FREE") el.style.color = "#28a745";
+    });
 
-    /* Footer */
-    stamp(".rcpt-footer",                      { color: "#858585", fontSize: "0.72rem",
-                                                 textAlign: "center",
-                                                 borderTop: "1px dashed #3c3c3c",
-                                                 paddingTop: "1rem", marginTop: "1.5rem" });
+    /* ── Two rAF: ensure layout & paint are flushed ─────────── */
+    await new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+    );
 
-    /* ── Settle: let the browser paint the clone once ───────── */
-    await new Promise(resolve => requestAnimationFrame(() =>
-        requestAnimationFrame(resolve)   /* two rAF = after layout & paint */
-    ));
-
-    /* ── html2pdf options ────────────────────────────────────── */
+    /* ── html2canvas options — no CSS vars, explicit hex ────── */
     const pdfOptions = {
         margin:      [8, 8, 8, 8],
         filename,
         image:       { type: "jpeg", quality: 0.97 },
         html2canvas: {
-            scale:           3,          /* high-res: 3× crisp on any screen  */
+            backgroundColor: "#1e1e1e",   /* CRITICAL — no white fallback */
             useCORS:         true,
-            logging:         true,       /* shows html2canvas errors in console*/
-            backgroundColor: "#1e1e1e", /* no white fallback                  */
-            windowWidth:     794,
+            scale:           3,
+            width:           receiptElement.scrollWidth,
             scrollX:         0,
-            scrollY:         0
+            scrollY:         0,
+            logging:         false
         },
         jsPDF: {
-            unit:        "mm",
-            format:      "a4",
-            orientation: "portrait",
-            compress:    true
+            unit: "mm", format: "a4", orientation: "portrait", compress: true
         }
     };
 
@@ -1605,9 +1710,8 @@ async function downloadReceiptAsPDF() {
         showToast(`Saved: ${filename}`, "success");
     } catch (err) {
         console.error("[downloadReceiptAsPDF]", err);
-        showToast("PDF generation failed. Check the console for details.", "danger");
+        showToast("PDF generation failed. Check the console.", "danger");
     } finally {
-        /* Always remove — even on error */
         if (stage.parentNode) stage.parentNode.removeChild(stage);
         if (dlBtn) {
             dlBtn.innerHTML = origHTML;

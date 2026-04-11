@@ -44,5 +44,5 @@ V1043|Special|Ladiesfinger|20000|40.00|Healthy Choice|4
 V1044|Special|Corn|20000|25.00|Sweet Fresh|6
 V1045|Special|Mushroom|8000|150.00|Exotic|3
 V1046|Special|Banana Flower|8000|35.00|Traditional|5
-V1047|Special|Asparagus|6000|200.00|Exotic|3
+V1047|Special|Asparagus|5500|200.00|Exotic|3
 V1048|Cooking|Pumpkin|30000|18.00|Farm Fresh|10
