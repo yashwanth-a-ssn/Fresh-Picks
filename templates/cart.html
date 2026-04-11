@@ -36,10 +36,49 @@
 {% block title %}My Cart — FreshPicks{% endblock %}
 
 {% block extra_head %}
-{# html2pdf CDN — required for "Download Receipt" PDF export #}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-        integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnA=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+/* ── Cart Progress Bar — Glassmorphism ──────────────────────── */
+.cart-progress-track {
+    height: 8px;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.cart-progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.4s ease, background-color 0.4s ease;
+    background-color: var(--danger);
+}
+.cart-progress-fill--danger  { background-color: var(--danger);  }
+.cart-progress-fill--warning { background-color: var(--accent);  }  /* accent, bridging */
+.cart-progress-fill--success { background-color: var(--success); }  /* green at ₹100    */
+
+/* Glassmorphism wrapper (Order Summary sidebar) */
+.cart-summary-sticky .mt-3.mb-3 {
+    background: rgba(37, 37, 38, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #3e3e42;
+    border-radius: var(--radius-lg);
+    padding: 0.75rem 1rem;
+}
+
+/* Progress labels */
+.cart-progress-labels { font-size: 0.78rem; color: var(--text-muted); }
+.cart-progress-label  { font-size: 0.78rem; font-weight: 600; }
+.cart-progress-label--danger  { color: var(--danger);  }
+.cart-progress-label--warning { color: var(--accent-light); }
+.cart-progress-label--success { color: var(--success); }
+@keyframes fpPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.6; }
+}
+.cart-progress-pulse { animation: fpPulse 1.4s ease-in-out infinite; }
+</style>
+
 {% endblock %}
 
 {% block content %}
@@ -325,8 +364,9 @@
                             <div class="cart-section-label">Items in this Order</div>
                             <div class="cart-table-header">
                                 <span style="flex:3;">Product</span>
-                                <span style="flex:1; text-align:center;">Qty</span>
-                                <span style="flex:1; text-align:right;">Amount</span>
+                                <span style="flex:1.5; text-align:right;">Rate</span>
+                                <span style="flex:1.5; text-align:right;">Qty</span>
+                                <span style="flex:1.5; text-align:right;">Amount</span>
                             </div>
                             {# JS → renderInvoicePreview() populates this #}
                             <div id="prev-items-list"></div>
@@ -452,7 +492,8 @@
                             <tr class="rcpt-thead-row">
                                 <th style="width:2rem;">#</th>
                                 <th style="text-align:left;">Item</th>
-                                <th style="text-align:center;">Qty</th>
+                                <th style="text-align:right;">Rate</th>
+                                <th style="text-align:right;">Qty</th>
                                 <th style="text-align:right;">Amount</th>
                             </tr>
                         </thead>
@@ -673,106 +714,230 @@ async function loadCart() {
     }
 }
 
+{% raw %}
 /**
- * renderCartItems — build one row per cart item in the cart list.
- * FREE items (is_free === 1):  green 🎁 badge, qty in grams, ₹0.00, no remove button.
- * Paid items:                  price/kg, item total, trash remove button.
- * IMAGE: /product_images/<veg_id>.jpeg  (1:1 ratio; emoji fallback on 404)
+ * renderCartItems — Horizontal flex card layout.
+ * LHS: 1:1 thumbnail | Middle: ID + Name / qty@price=total | RHS: Remove btn
+ * FREE items: green badge, qty in grams, ₹0.00, no remove button.
  */
 function renderCartItems() {
     const container = document.getElementById("cartItemsList");
     container.innerHTML = "";
 
     cartItems.forEach((item, idx) => {
-        const subtotal   = parseFloat(item.item_total || 0).toFixed(2);
-        const unitPrice  = item.is_free
-            ? "FREE"
-            : `₹${parseFloat(item.price_per_1000g).toFixed(2)}/kg`;
-        const qtyDisplay = item.qty_g >= 1000
-            ? `${(item.qty_g / 1000).toFixed(2)} kg`
-            : `${item.qty_g} g`;
-        const isLast     = idx === cartItems.length - 1;
+        const isLast    = idx === cartItems.length - 1;
+        const unitPrice = parseFloat(item.price_per_1000g) || 0;
+        const qtyGrams  = item.qty_g || 0;
+        const lineTotal = ((unitPrice / 1000) * qtyGrams).toFixed(2);
 
-        const rowHTML = `
+        container.insertAdjacentHTML("beforeend", `
         <div class="cart-item-row${isLast ? " cart-item-row--last" : ""}"
-             id="row-${item.veg_id}">
+             id="row-${item.veg_id}"
+             style="display:flex; align-items:center; gap:0.85rem;
+                    padding:0.85rem 1rem; border-bottom:${isLast ? "none" : "1px solid var(--border-color)"};">
 
-            <!-- Product image: /product_images/<veg_id>.jpeg, 1:1 ratio -->
-            <div class="cart-item-thumb">
+            <!-- LHS: Fixed 1:1 thumbnail -->
+            <div style="flex-shrink:0; width:64px; height:64px;
+                        border-radius:var(--radius); overflow:hidden;
+                        background:var(--bg-elevated);">
                 <img src="/product_images/${item.veg_id}.jpeg"
                      alt="${item.name}"
-                     class="cart-item-img"
+                     style="width:100%; height:100%; object-fit:cover; display:block;"
                      onerror="this.onerror=null;
-                              this.parentNode.innerHTML='<div class=\'inv-img-placeholder\'>🥬</div>';"
-            </div>   
+                              this.parentNode.innerHTML='<div style=\'display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:1.8rem;\'>🥬</div>';">
+            </div>
 
-            <!-- Name + badges -->
-            <div class="cart-item-meta">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
+            <!-- Middle: Two-line info -->
+            <div style="flex:1; min-width:0;">
+
+                <!-- Line 1: [Veg ID] — [Name] + FREE badge -->
+                <div style="font-size:0.78rem; color:var(--text-muted); margin-bottom:0.25rem;
+                            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <span style="font-family:var(--font-mono);">${item.veg_id}</span>
+                    &mdash;
                     <span class="text-bright fw-bold">${item.name}</span>
+                    ${item.is_free ? `<span class="cart-free-badge" style="margin-left:0.4rem;">🎁 FREE</span>` : ""}
+                </div>
+
+                <!-- Line 2: qty-input @ price/kg = line total -->
+                <div style="display:flex; align-items:center; gap:0.4rem;
+                            flex-wrap:wrap; font-size:0.8rem; color:var(--text-muted);">
                     ${item.is_free
-                        ? `<span class="cart-free-badge">🎁 FREE</span>`
-                        : ""}
-                </div>
-                <div class="cart-item-detail">
-                    ${qtyDisplay} &nbsp;·&nbsp; ${unitPrice}
+                        ? `<span>${qtyGrams >= 1000
+                                    ? (qtyGrams/1000).toFixed(2)+"kg"
+                                    : qtyGrams+"g"} &nbsp;·&nbsp; <span style="color:var(--success);">FREE</span></span>`
+                        : `<input type="number"
+                                  id="qtyInput-${item.veg_id}"
+                                  value="${qtyGrams}"
+                                  min="50"
+                                  step="50"
+                                  style="width:72px; padding:0.2rem 0.4rem;
+                                         background:var(--bg-elevated);
+                                         border:1px solid var(--border-color);
+                                         border-radius:var(--radius);
+                                         color:var(--text-primary); font-size:0.8rem;
+                                         text-align:center; outline:none;"
+                                  onchange="onQtyChange('${item.veg_id}', this)"
+                                  oninput="onQtyChange('${item.veg_id}', this)">
+                           <span>g &nbsp;@&nbsp;
+                               ₹<span id="unitPrice-${item.veg_id}">${unitPrice.toFixed(2)}</span>/kg
+                               &nbsp;=&nbsp;
+                               ₹<span id="lineTotal-${item.veg_id}">${lineTotal}</span>
+                           </span>`
+                    }
                 </div>
             </div>
 
-            <!-- Subtotal -->
-            <div class="cart-item-total">
-                ${item.is_free ? "₹0.00" : "₹" + subtotal}
-            </div>
-
-            <!-- Remove button (paid items only) -->
+            <!-- RHS: Remove button (paid items only) -->
             ${item.is_free ? "" : `
             <button onclick="removeItem('${item.veg_id}')"
                     class="cart-remove-btn"
-                    title="Remove ${item.name} from cart"
-                    aria-label="Remove ${item.name}">
+                    title="Remove ${item.name}"
+                    aria-label="Remove ${item.name}"
+                    style="flex-shrink:0;">
                 <i class="bi bi-trash3"></i>
             </button>`}
 
-        </div>`;
-
-        container.insertAdjacentHTML("beforeend", rowHTML);
+        </div>`);
     });
 
-    /* Update item count badge — count paid items only */
+    /* Update item count badge */
     const paidCount = cartItems.filter(i => !i.is_free).length;
     document.getElementById("itemCount").textContent =
         `${paidCount} item${paidCount !== 1 ? "s" : ""}`;
 }
+{% endraw %}
+
+{% raw %}
+/* ── Quantity debounce timers (one per item) ── */
+const _qtyDebounceTimers = {};
 
 /**
- * updateSummary — refresh the sidebar Order Summary card.
- * Handles: totals, progress bar, freebie unlock, proceed button state.
+ * onQtyChange — triggered on every qty input change.
+ *
+ * 1. Optimistic UI: instantly updates line total + order summary.
+ * 2. Debounce 600ms: then calls /api/update_stock to persist.
+ *
+ * @param {string}      veg_id  — the vegetable's ID
+ * @param {HTMLElement} input   — the <input type="number"> element
+ */
+function onQtyChange(veg_id, input) {
+    const newQty    = parseInt(input.value) || 0;
+    const itemIndex = cartItems.findIndex(i => i.veg_id === veg_id);
+    if (itemIndex === -1) return;
+
+    const item      = cartItems[itemIndex];
+    const unitPrice = parseFloat(item.price_per_1000g) || 0;
+
+    /* ── 1. OPTIMISTIC UI ── update line total and summary instantly ── */
+    const newLineTotal = (unitPrice / 1000) * newQty;
+    const lineTotalEl  = document.getElementById(`lineTotal-${veg_id}`);
+    if (lineTotalEl) lineTotalEl.textContent = newLineTotal.toFixed(2);
+
+    /* Adjust cartTotal: subtract old item contribution, add new */
+    const oldLineTotal = parseFloat(item.item_total) || 0;
+    cartTotal = cartTotal - oldLineTotal + newLineTotal;
+
+    /* Update in-memory state */
+    cartItems[itemIndex].qty_g      = newQty;
+    cartItems[itemIndex].item_total = newLineTotal;
+
+    /* Refresh the Order Summary sidebar immediately */
+    updateSummary();
+
+    /* ── 2. DEBOUNCE: wait 600ms of inactivity then sync to DB ── */
+    if (_qtyDebounceTimers[veg_id]) {
+        clearTimeout(_qtyDebounceTimers[veg_id]);
+    }
+
+    _qtyDebounceTimers[veg_id] = setTimeout(async () => {
+        if (!document.getElementById(`qtyInput-${veg_id}`)) return;
+        /* Visual feedback: dim the input while saving */
+        input.style.opacity = "0.5";
+
+        try {
+            const resp   = await fetch("/api/update_cart_qty", {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body:    JSON.stringify({
+                    veg_id: veg_id,
+                    qty_g:  newQty
+                })
+            });
+            const result = await resp.json();
+
+            if (result.status !== "SUCCESS") {
+                showToast(result.message || "Could not save quantity.", "warning");
+            }
+        } catch (err) {
+            showToast("Auto-save failed. Check your connection.", "danger");
+            console.error("[onQtyChange debounce]", err);
+        } finally {
+            input.style.opacity = "1";
+        }
+
+        delete _qtyDebounceTimers[veg_id];
+    }, 600);
+}
+{% endraw %}
+
+{% raw %}
+/**
+ * updateSummary — refresh sidebar Order Summary + glassmorphism progress bar.
+ *
+ * Progress states (three thresholds):
+ *   < ₹75    → danger red    — gradient fill, no glow
+ *   ₹75–₹99  → warning amber — gradient fill, no glow
+ *   ≥ ₹100   → success green — gradient fill + glow + pulse text
  */
 function updateSummary() {
     document.getElementById("subtotalDisplay").textContent   = `₹${cartTotal.toFixed(2)}`;
     document.getElementById("grandTotalDisplay").textContent = `₹${cartTotal.toFixed(2)}`;
 
-    /* Progress bar toward ₹100 minimum */
-    const pct = Math.min((cartTotal / MIN_ORDER) * 100, 100);
-    const bar = document.getElementById("summaryProgressBar");
-    bar.style.width = pct + "%";
-    bar.setAttribute("aria-valuenow", pct);
+    /* ── Progress bar ────────────────────────────────────────── */
+    const pct        = Math.min((cartTotal / MIN_ORDER) * 100, 100);
+    const bar        = document.getElementById("summaryProgressBar");
+    const labelEl    = document.getElementById("progressText");
 
-    if (cartTotal < 75) {
-        bar.style.backgroundColor = "var(--danger)";
-        document.getElementById("progressText").innerHTML =
-            `<span style="color:var(--danger);">₹${cartTotal.toFixed(2)} / ₹100</span>`;
+    bar.style.width = pct + "%";
+    bar.setAttribute("aria-valuenow", pct.toFixed(0));
+
+    /* Remove all state classes, add the correct one */
+    bar.classList.remove(
+        "cart-progress-fill--danger",
+        "cart-progress-fill--warning",
+        "cart-progress-fill--success"
+    );
+
+    if (cartTotal <= 0) {
+        /* Empty cart: bare track, no text */
+        bar.classList.add("cart-progress-fill--danger");
+        labelEl.innerHTML = "";
+
+    } else if (cartTotal < 75) {
+        bar.classList.add("cart-progress-fill--danger");
+        labelEl.innerHTML =
+            `<span class="cart-progress-label cart-progress-label--danger">
+                ₹${cartTotal.toFixed(2)} / ₹100
+            </span>`;
+
     } else if (cartTotal < MIN_ORDER) {
-        bar.style.backgroundColor = "var(--warning)";
-        document.getElementById("progressText").innerHTML =
-            `<span style="color:var(--warning);">₹${cartTotal.toFixed(2)} / ₹100</span>`;
+        bar.classList.add("cart-progress-fill--warning");
+        const needed = (MIN_ORDER - cartTotal).toFixed(2);
+        labelEl.innerHTML =
+            `<span class="cart-progress-label cart-progress-label--warning">
+                ₹${needed} away!
+            </span>`;
+
     } else {
-        bar.style.backgroundColor = "var(--success)";
-        document.getElementById("progressText").innerHTML =
-            `<span style="color:var(--success);">✓ Ready!</span>`;
+        bar.classList.add("cart-progress-fill--success");
+        labelEl.innerHTML =
+            `<span class="cart-progress-label cart-progress-label--success cart-progress-pulse">
+                ✓ Ready to checkout
+            </span>`;
     }
 
-    /* Proceed button state */
+    /* ── Proceed button ──────────────────────────────────────── */
     const proceedBtn = document.getElementById("proceedBtn");
     const minWarning = document.getElementById("minOrderWarning");
     if (cartTotal >= MIN_ORDER) {
@@ -785,13 +950,14 @@ function updateSummary() {
             (MIN_ORDER - cartTotal).toFixed(2);
     }
 
-    /* Freebie progress box */
+    /* ── Freebie progress box ────────────────────────────────── */
     const freebieText   = document.getElementById("freebieProgressText");
     const freebieNotice = document.getElementById("freebieNotice");
     if (cartTotal >= FREEBIE_THRESHOLD) {
-        freebieText.innerHTML = `<span style="color:var(--success);">
-            🎁 Freebie unlocked! Curry Leaves &amp; Coriander added at checkout.
-        </span>`;
+        freebieText.innerHTML =
+            `<span style="color:var(--success);">
+                🎁 Freebie unlocked! Curry Leaves &amp; Coriander added at checkout.
+            </span>`;
         freebieNotice.classList.remove("d-none");
     } else {
         const remaining = (FREEBIE_THRESHOLD - cartTotal).toFixed(2);
@@ -800,6 +966,7 @@ function updateSummary() {
         freebieNotice.classList.add("d-none");
     }
 }
+{% endraw %}
 
 /**
  * removeItem — optimistic remove: dim row → POST /api/remove_item → update DOM.
@@ -892,15 +1059,14 @@ function selectSlot(slot, clickedCard) {
    Client-side only. /api/checkout is NOT called here.
 ═══════════════════════════════════════════════════════════════ */
 
+{% raw %}
 /**
  * renderInvoicePreview — populate State 3 before revealing it.
  *
- * FREEBIE 500-MULTIPLIER LOGIC:
- *   multiplier  = floor(cartTotal / 500)
- *   freeQty_g   = multiplier × 500
- *   e.g. ₹750  → floor(750/500)=1  → 500 g each of Curry Leaves + Coriander
- *        ₹1100 → floor(1100/500)=2 → 1000 g each
- *   C re-confirms and applies this at checkout.
+ * items_string format (4-part): "veg_id:name:qty_g:price_per_1000g"
+ * Source: cartItems[] from /api/view_cart — already in memory.
+ *
+ * Column order: PRODUCT | RATE | QTY | AMOUNT
  */
 function renderInvoicePreview() {
     const slotLabels = {
@@ -908,39 +1074,61 @@ function renderInvoicePreview() {
         Afternoon: "☀️ Afternoon (12:00 PM – 4:00 PM)",
         Evening:   "🌙 Evening (5:00 PM – 8:00 PM)"
     };
-    document.getElementById("prev-slot").textContent     =
+    document.getElementById("prev-slot").textContent =
         slotLabels[selectedSlot] || selectedSlot;
     document.getElementById("prev-customer").textContent =
         localStorage.getItem("username") || "Customer";
 
-    /* Build item rows */
+    /* ── Build item rows ─────────────────────────────────────── */
     const container = document.getElementById("prev-items-list");
     container.innerHTML = "";
 
     cartItems.forEach(item => {
-        const qtyDisplay = item.qty_g >= 1000
-            ? `${(item.qty_g / 1000).toFixed(2)} kg`
-            : `${item.qty_g} g`;
-        const amount = item.is_free
-            ? "FREE"
-            : `₹${parseFloat(item.item_total).toFixed(2)}`;
+        /* QTY: always display in kg (per spec) */
+        const qtyKg      = (item.qty_g / 1000).toFixed(2);
+        const qtyDisplay = `${qtyKg} kg`;
+
+        /* RATE */
+        const pricePerKg  = parseFloat(item.price_per_1000g) || 0;
+        const rateDisplay = item.is_free ? "—" : `₹${pricePerKg.toFixed(2)} / kg`;
+
+        /* AMOUNT: (price_per_1000g * qty_g) / 1000 */
+        const lineTotal   = (pricePerKg * item.qty_g) / 1000;
+        const amtDisplay  = item.is_free ? "FREE" : `₹${lineTotal.toFixed(2)}`;
 
         container.insertAdjacentHTML("beforeend", `
         <div class="cart-prev-item-row">
-            <span style="flex:3; color:var(--text-bright);">
+
+            <!-- PRODUCT -->
+            <span style="flex:3; color:var(--text-primary); font-weight:500;">
                 ${item.name}
                 ${item.is_free
-                    ? `<span style="color:var(--success); font-size:0.72rem;
-                                   margin-left:0.4rem;">🎁 FREE</span>`
+                    ? `<span style="color:var(--success); font-size:0.7rem;
+                                   font-weight:700; margin-left:0.4rem;">🎁 FREE</span>`
                     : ""}
             </span>
-            <span style="flex:1; text-align:center; color:var(--text-muted);">${qtyDisplay}</span>
-            <span style="flex:1; text-align:right; color:var(--accent-light);
-                         font-weight:600;">${amount}</span>
+
+            <!-- RATE -->
+            <span style="flex:1.5; text-align:right;
+                         color:var(--text-muted); font-size:0.8rem;">
+                ${rateDisplay}
+            </span>
+
+            <!-- QTY -->
+            <span style="flex:1.5; text-align:right; color:var(--text-primary);">
+                ${qtyDisplay}
+            </span>
+
+            <!-- AMOUNT -->
+            <span style="flex:1.5; text-align:right; font-weight:600;
+                         color:${item.is_free ? "var(--success)" : "var(--accent-hover)"};">
+                ${amtDisplay}
+            </span>
+
         </div>`);
     });
 
-    /* Freebie 500-multiplier estimate */
+    /* ── Freebie 500-multiplier estimate ─────────────────────── */
     const freebieBox  = document.getElementById("prev-freebie-box");
     const freebieText = document.getElementById("prev-freebie-text");
     if (cartTotal >= FREEBIE_THRESHOLD) {
@@ -958,10 +1146,11 @@ function renderInvoicePreview() {
         freebieBox.classList.add("d-none");
     }
 
-    /* Totals */
+    /* ── Totals ───────────────────────────────────────────────── */
     document.getElementById("prev-subtotal").textContent = `₹${cartTotal.toFixed(2)}`;
     document.getElementById("prev-total").textContent    = `₹${cartTotal.toFixed(2)}`;
 }
+{% endraw %}
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1025,79 +1214,183 @@ async function confirmPayment() {
    SECTION 6: RECEIPT RENDERING — STATE 5
 ═══════════════════════════════════════════════════════════════ */
 
+{% raw %}
 /**
- * renderReceipt — populate the #receiptPrintArea from /api/checkout JSON.
- *
- * result.items format: "V1001:500,V1003:1000,VF101:50"
- *   comma-separated pairs of veg_id:qty_g
- *   Freebie IDs start with "VF" or have is_free flag in cartItems.
- *
- * @param {Object} result — confirmed checkout response from C backend
+ * renderProducts — Groups products by category, renders a collapsible
+ * section header + responsive grid per category.
+ * Default: first category expanded, rest collapsed.
  */
-function renderReceipt(result) {
-    /* Header fields */
-    document.getElementById("rcpt-order-id").textContent  = result.order_id || "—";
-    document.getElementById("rcpt-slot").textContent      = result.slot      || "—";
-    document.getElementById("rcpt-boy-name").textContent  = result.boy_name  || "—";
-    document.getElementById("rcpt-boy-phone").textContent =
-        result.boy_phone ? `📞 ${result.boy_phone}` : "—";
-    document.getElementById("rcpt-customer").textContent  =
-        localStorage.getItem("username") || "Customer";
+function renderProducts(products) {
+    const grid    = document.getElementById("productGrid");
+    const emptyEl = document.getElementById("emptySearch");
 
-    /* Date/time stamp */
-    const now = new Date();
-    document.getElementById("rcpt-datetime").textContent =
-        now.toLocaleString("en-IN", {
-            day: "2-digit", month: "short", year: "numeric",
-            hour: "2-digit", minute: "2-digit"
-        });
+    grid.innerHTML = "";
+    grid.className = "d-block fade-in";   /* override row-cols, we control layout */
 
-    /* Build items table rows */
-    const tbody = document.getElementById("rcpt-items-tbody");
-    tbody.innerHTML = "";
-    let rowNum         = 1;
-    let computedTotal  = 0;
+    if (products.length === 0) {
+        emptyEl.classList.remove("d-none");
+        document.getElementById("resultCount").textContent = "";
+        return;
+    }
+    emptyEl.classList.add("d-none");
 
-    (result.items || "").split(",").forEach(part => {
-        const [id, gramsStr] = part.split(":");
-        if (!id || !id.trim()) return;
+    document.getElementById("resultCount").textContent =
+        `${products.length} product${products.length !== 1 ? "s" : ""} found`;
 
-        const grams      = parseInt(gramsStr) || 0;
-        const match      = cartItems.find(i => i.veg_id === id.trim());
-        const name       = match ? match.name : id.trim();
-        const isFree     = match ? !!match.is_free : id.trim().startsWith("VF");
-        const qtyDisplay = grams >= 1000
-            ? `${(grams / 1000).toFixed(2)} kg`
-            : `${grams} g`;
+    const clearBtn  = document.getElementById("clearFiltersBtn");
+    const hasFilter = activeCategory || document.getElementById("searchInput").value.trim();
+    clearBtn.style.display = hasFilter ? "" : "none";
 
-        let lineAmount = "FREE";
-        if (!isFree && match) {
-            const pricePerKg = parseFloat(match.price_per_1000g) || 0;
-            const lineTotal  = (pricePerKg * grams) / 1000;
-            lineAmount       = `₹${lineTotal.toFixed(2)}`;
-            computedTotal   += lineTotal;
-        }
-
-        tbody.insertAdjacentHTML("beforeend", `
-        <tr class="rcpt-item-row">
-            <td class="rcpt-td-num">${rowNum++}</td>
-            <td class="rcpt-td-name">
-                ${name}
-                ${isFree ? `<span class="rcpt-free-badge">🎁 FREE</span>` : ""}
-            </td>
-            <td class="rcpt-td-qty">${qtyDisplay}</td>
-            <td class="rcpt-td-amt" style="color:${isFree ? "#1b7a5a" : "#007ACC"};">
-                ${lineAmount}
-            </td>
-        </tr>`);
+    /* ── Group by category (preserve insertion order) ── */
+    const grouped = {};
+    products.forEach(p => {
+        const cat = p.category || "Uncategorised";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(p);
     });
 
-    /* Totals — prefer server total, fall back to computed */
-    const finalTotal = parseFloat(result.total) || computedTotal;
-    document.getElementById("rcpt-subtotal").textContent = `₹${finalTotal.toFixed(2)}`;
-    document.getElementById("rcpt-total").textContent    = `₹${finalTotal.toFixed(2)}`;
-}
+    let isFirstCategory = true;
 
+    Object.entries(grouped).forEach(([cat, items]) => {
+        const expanded = isFirstCategory;
+        isFirstCategory = false;
+
+        /* ── Section header ── */
+        const header = document.createElement("div");
+        header.className = "cat-section-header";
+        header.innerHTML = `
+            <i class="bi ${CAT_ICONS[cat] || 'bi-tag'}"
+               style="color:var(--accent); font-size:1rem;"></i>
+            <span class="cat-section-title">${escHtml(cat)}</span>
+            <span class="cat-section-count">${items.length}</span>
+            <i class="bi bi-chevron-down cat-chevron ${expanded ? 'open' : ''}"></i>`;
+
+        /* ── Grid wrapper ── */
+        const gridWrap = document.createElement("div");
+        gridWrap.className = "cat-grid-wrap" + (expanded ? " expanded" : "");
+
+        const innerGrid = document.createElement("div");
+        innerGrid.className =
+            "row row-cols-1 row-cols-sm-2 row-cols-md-2 row-cols-xl-3 row-cols-xxl-4 g-3 pb-3 pt-1";
+
+        /* ── Toggle on header click ── */
+        header.addEventListener("click", () => {
+            const chevron = header.querySelector(".cat-chevron");
+            const isOpen  = gridWrap.classList.contains("expanded");
+            gridWrap.classList.toggle("expanded", !isOpen);
+            chevron.classList.toggle("open", !isOpen);
+        });
+
+        /* ── Render cards into innerGrid ── */
+        items.forEach(p => {
+            const stockDisplay = p.stock_g >= 1000
+                ? `${(p.stock_g / 1000).toFixed(1)} kg`
+                : `${p.stock_g} g`;
+
+            const isOOS      = p.stock_g === 0;
+            const isLowStock = !isOOS && p.stock_g < 5000;
+            const pricePer50 = ((p.price_per_1000g / 1000) * 50).toFixed(2);
+            const tagColor   = TAG_COLORS[p.tag] || "var(--accent)";
+
+            const col = document.createElement("div");
+            col.className = "col";
+            col.innerHTML = `
+            <div class="veg-card${isOOS ? ' opacity-50' : ''}" id="card-${p.veg_id}">
+                <div class="card-img-wrap">
+                    <img src="/product_images/${p.veg_id}.jpeg"
+                         alt="${escHtml(p.name)}"
+                         onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\'inv-img-placeholder\'>🥬</div>';">
+                    <span class="card-tag-badge"
+                          style="background:${tagColor};">${escHtml(p.tag)}</span>
+                    ${isOOS ? `<div class="oos-overlay"><span>Out of Stock</span></div>` : ""}
+                </div>
+                <div class="veg-card-body">
+                    <h6 class="text-bright mb-1"
+                        style="font-weight:700; font-size:0.98rem; line-height:1.3;">
+                        ${escHtml(p.name)}
+                    </h6>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span style="font-size:0.72rem; color:var(--text-muted);">
+                            <i class="bi bi-tag me-1"></i>${escHtml(p.category)}
+                        </span>
+                        <span style="font-size:0.7rem;
+                                     color:${isLowStock ? 'var(--warning)' : 'var(--text-muted)'};">
+                            <i class="bi bi-box-seam me-1"></i>${stockDisplay} left
+                        </span>
+                    </div>
+                    <div class="mb-1">
+                        <span style="color:var(--accent-light); font-size:1.1rem; font-weight:700;">
+                            ₹${p.price_per_1000g}
+                        </span>
+                        <span style="color:var(--text-muted); font-size:0.75rem;"> / kg</span>
+                        <span style="color:var(--text-muted); font-size:0.7rem; margin-left:0.4rem;">
+                            (₹${pricePer50}/50g)
+                        </span>
+                    </div>
+                    <div class="mb-3">
+                        <span class="validity-chip">
+                            <i class="bi bi-calendar2-check"></i>
+                            ${p.validity_days} day${p.validity_days !== 1 ? 's' : ''} fresh
+                        </span>
+                    </div>
+                    ${isOOS
+                        ? `<div class="text-muted text-center mt-auto"
+                                  style="font-size:0.82rem; padding:0.5rem 0;">
+                               Currently unavailable
+                           </div>`
+                        : `<div class="d-flex gap-1 mb-2">
+                               <button class="qty-btn"
+                                       data-id="${p.veg_id}" data-grams="250"
+                                       onclick="selectQty('${p.veg_id}', 250, this)">250g</button>
+                               <button class="qty-btn"
+                                       data-id="${p.veg_id}" data-grams="500"
+                                       onclick="selectQty('${p.veg_id}', 500, this)">500g</button>
+                               <button class="qty-btn"
+                                       data-id="${p.veg_id}" data-grams="1000"
+                                       onclick="selectQty('${p.veg_id}', 1000, this)">1 kg</button>
+                           </div>
+                           <div class="d-flex align-items-center gap-2 mb-2">
+                               <input type="number"
+                                      class="custom-gram-input"
+                                      id="custom-${p.veg_id}"
+                                      placeholder="Custom (g)"
+                                      min="50" max="${p.stock_g}" step="50"
+                                      oninput="onCustomInput('${p.veg_id}', this.value)">
+                               <span style="font-size:0.72rem; color:var(--text-muted);
+                                            white-space:nowrap;">grams</span>
+                           </div>
+                           <input type="hidden" id="qty-${p.veg_id}" value="500">
+                           <div id="qtyDisplay-${p.veg_id}"
+                                style="font-size:0.77rem; min-height:1.1rem;
+                                       margin-bottom:0.6rem; color:var(--text-muted);">
+                           </div>
+                           <button id="addBtn-${p.veg_id}"
+                                   onclick="addToCart('${p.veg_id}', ${p.price_per_1000g})"
+                                   class="btn btn-primary w-100 mt-auto"
+                                   style="font-size:0.85rem; padding:0.5rem;">
+                               <i class="bi bi-cart-plus me-1"></i>Add to Cart
+                           </button>`
+                    }
+                </div>
+            </div>`;
+
+            innerGrid.appendChild(col);
+
+            if (!isOOS) {
+                const defaultBtn = col.querySelector(`.qty-btn[data-grams="500"]`);
+                if (defaultBtn) selectQty(p.veg_id, 500, defaultBtn);
+            }
+        });
+
+        gridWrap.appendChild(innerGrid);
+        grid.appendChild(header);
+        grid.appendChild(gridWrap);
+    });
+
+    /* Show the grid container (was d-none during load) */
+    grid.classList.remove("d-none");
+}
+{% endraw %}
 
 /* ═══════════════════════════════════════════════════════════════
    SECTION 7: PDF GENERATION
@@ -1105,55 +1398,224 @@ function renderReceipt(result) {
    The download button is intentionally outside that div.
 ═══════════════════════════════════════════════════════════════ */
 
+{% raw %}
 /**
- * downloadReceiptAsPDF — export #receiptPrintArea as an A4 PDF.
- * Uses html2pdf.js loaded from CDN in extra_head block.
- * Filename: FreshPicks_<order_id>_<YYYY-MM-DD>.pdf
+ * downloadReceiptAsPDF — Deep-clone strategy for dark-theme PDF capture.
+ *
+ * ROOT CAUSE OF BLANK WHITE BUG:
+ *   html2canvas reads computed styles at capture time. When the live element
+ *   uses CSS variables (var(--bg-main)), html2canvas running in its own
+ *   rasterisation context often cannot resolve them — it falls back to
+ *   transparent, which jpeg renders as white. Fix: force hardcoded hex
+ *   values directly onto the clone's style before passing to html2canvas.
+ *
+ * STRATEGY:
+ *   1. Deep-clone the receipt node.
+ *   2. Walk every element in the clone and stamp hardcoded hex inline styles.
+ *   3. Place clone off-screen in a fixed 794 px-wide container (A4 width).
+ *   4. Capture with scale:3, backgroundColor:"#1e1e1e".
+ *   5. Remove clone in finally — guaranteed even on error.
+ *
+ * FILENAME: <orderId>_<userId>_<YYYY-MM-DD>.pdf  e.g. ORD104_alice_2026-04-11.pdf
  */
-function downloadReceiptAsPDF() {
+async function downloadReceiptAsPDF() {
     const receiptElement = document.getElementById("receiptPrintArea");
     if (!receiptElement) {
         showToast("Receipt not found. Please try again.", "danger");
         return;
     }
 
-    const orderId  = document.getElementById("rcpt-order-id").textContent || "receipt";
+    /* ── Filename: ORDXXX_USERID_DATE ───────────────────────── */
+    const orderId  = (document.getElementById("rcpt-order-id").textContent || "ORD000").trim();
+    const userId   = (localStorage.getItem("username") || "USER").trim().replace(/\s+/g, "_");
     const dateStr  = new Date().toISOString().slice(0, 10);
-    const filename = `FreshPicks_${orderId}_${dateStr}.pdf`;
+    const filename = `${orderId}_${userId}_${dateStr}.pdf`;
 
-    const pdfOptions = {
-        margin:      [10, 10, 10, 10],
-        filename,
-        image:       { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-            scale:           2,
-            useCORS:         true,
-            logging:         false,
-            backgroundColor: "#ffffff"
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    /* ── Button: loading state ───────────────────────────────── */
+    const dlBtn   = document.querySelector('button[onclick="downloadReceiptAsPDF()"]');
+    const origHTML = dlBtn ? dlBtn.innerHTML : "";
+    if (dlBtn) {
+        dlBtn.disabled  = true;
+        dlBtn.innerHTML = '<span class="spinner-sm me-2"></span>Generating PDF…';
+    }
+
+    /* ── Hidden off-screen stage (removed in finally) ──────────
+       Using a fixed-position wrapper keeps it out of document flow
+       so no scroll/layout shifts occur while capturing.            */
+    const stage = document.createElement("div");
+    stage.style.cssText = [
+        "position:fixed", "top:-99999px", "left:-99999px",
+        "width:794px",           /* A4 at 96 dpi */
+        "background:#1e1e1e",
+        "overflow:hidden",
+        "z-index:-9999",
+        "pointer-events:none"
+    ].join(";");
+    document.body.appendChild(stage);
+
+    /* ── Deep clone ──────────────────────────────────────────── */
+    const clone = receiptElement.cloneNode(true);
+    clone.removeAttribute("id");           /* no duplicate IDs in DOM   */
+    clone.style.cssText = [
+        "background:#1e1e1e",
+        "color:#ffffff",
+        "padding:28px",
+        "box-sizing:border-box",
+        "width:794px",
+        "font-family:Segoe UI,system-ui,sans-serif"
+    ].join(";");
+    stage.appendChild(clone);
+
+    /* ── Inline-stamp hardcoded hex on every child element ──────
+       This is the critical step that defeats the CSS-variable problem.
+       We walk the entire subtree and apply colors per class.          */
+    const stamp = (selector, styles) => {
+        clone.querySelectorAll(selector).forEach(el => {
+            Object.assign(el.style, styles);
+        });
     };
 
-    const dlBtn = document.querySelector('button[onclick="downloadReceiptAsPDF()"]');
-    if (dlBtn) {
-        const orig     = dlBtn.innerHTML;
-        dlBtn.disabled = true;
-        dlBtn.innerHTML = '<span class="spinner-sm"></span> Generating PDF…';
-        html2pdf()
-            .set(pdfOptions)
-            .from(receiptElement)
-            .save()
-            .then(() => { dlBtn.innerHTML = orig; dlBtn.disabled = false; })
-            .catch(err => {
-                console.error("[downloadReceiptAsPDF]", err);
-                dlBtn.innerHTML = orig;
-                dlBtn.disabled  = false;
-                showToast("PDF generation failed. Please try again.", "danger");
-            });
-    } else {
-        html2pdf().set(pdfOptions).from(receiptElement).save();
+    /* Root / wrappers */
+    stamp("div, section, span, p",            { background: "transparent" });
+
+    /* Brand name */
+    stamp(".rcpt-brand",                       { color: "#007acc", fontSize: "1.15rem",
+                                                 fontWeight: "700" });
+    /* Sub-text */
+    stamp(".rcpt-sub",                         { color: "#858585", fontSize: "0.78rem" });
+
+    /* Meta labels */
+    stamp(".rcpt-label",                       { color: "#858585", fontSize: "0.68rem",
+                                                 textTransform: "uppercase",
+                                                 letterSpacing: "0.08em" });
+    /* Meta values */
+    stamp(".rcpt-value",                       { color: "#ffffff", fontSize: "0.88rem" });
+
+    /* Order chip */
+    stamp(".rcpt-order-chip",                  { color: "#9cdcfe",
+                                                 background: "rgba(0,122,204,0.18)",
+                                                 border: "1px solid rgba(0,122,204,0.4)",
+                                                 borderRadius: "4px", padding: "0.2em 0.55em",
+                                                 display: "inline-block",
+                                                 fontFamily: "monospace" });
+    /* Datetime */
+    stamp(".rcpt-datetime",                    { color: "#858585" });
+
+    /* Divider */
+    stamp(".rcpt-divider-dashed",              { borderTop: "2px dashed #3c3c3c",
+                                                 margin: "1rem 0" });
+    /* PAID badge */
+    stamp(".rcpt-paid-badge",                  { color: "#28a745",
+                                                 background: "rgba(40,167,69,0.18)",
+                                                 border: "1px solid rgba(40,167,69,0.4)",
+                                                 borderRadius: "4px", padding: "0.15em 0.55em",
+                                                 fontWeight: "700", display: "inline-block" });
+    /* Delivery row */
+    stamp(".rcpt-delivery-row",                { background: "#252526",
+                                                 border: "1px solid #3c3c3c",
+                                                 borderRadius: "6px",
+                                                 padding: "0.75rem 1rem" });
+    /* Table root */
+    stamp(".rcpt-table",                       { color: "#ffffff", width: "100%",
+                                                 borderCollapse: "collapse",
+                                                 tableLayout: "fixed" });
+    /* Thead row */
+    stamp(".rcpt-thead-row",                   { borderBottom: "2px solid #3c3c3c" });
+
+    /* TH — muted */
+    stamp(".rcpt-thead-row th",                { color: "#858585", background: "#1e1e1e",
+                                                 fontWeight: "600", fontSize: "0.7rem",
+                                                 textTransform: "uppercase",
+                                                 padding: "0.4rem 0.5rem" });
+    /* Item rows */
+    stamp(".rcpt-item-row",                    { borderBottom: "1px solid #3c3c3c" });
+
+    /* TD classes */
+    stamp(".rcpt-td-num",                      { color: "#858585", padding: "0.45rem 0.5rem" });
+    stamp(".rcpt-td-name",                     { color: "#ffffff", fontWeight: "500",
+                                                 padding: "0.45rem 0.5rem" });
+    stamp(".rcpt-td-rate",                     { color: "#858585", fontSize: "0.8rem",
+                                                 textAlign: "right", padding: "0.45rem 0.5rem",
+                                                 whiteSpace: "nowrap" });
+    stamp(".rcpt-td-qty",                      { color: "#ffffff", textAlign: "right",
+                                                 padding: "0.45rem 0.5rem",
+                                                 whiteSpace: "nowrap" });
+    stamp(".rcpt-td-amt",                      { textAlign: "right", fontWeight: "600",
+                                                 padding: "0.45rem 0.5rem",
+                                                 whiteSpace: "nowrap" });
+
+    /* FREE badge inside cells */
+    stamp(".rcpt-free-badge",                  { color: "#28a745",
+                                                 background: "rgba(40,167,69,0.18)",
+                                                 border: "1px solid rgba(40,167,69,0.3)",
+                                                 borderRadius: "3px", fontSize: "0.66rem",
+                                                 fontWeight: "700", padding: "0.1em 0.4em",
+                                                 display: "inline-block",
+                                                 verticalAlign: "middle", lineHeight: "1.4" });
+    /* Totals */
+    stamp(".rcpt-totals",                      { borderTop: "1px solid #3c3c3c",
+                                                 paddingTop: "0.75rem" });
+    stamp(".rcpt-total-row",                   { color: "#ffffff", fontSize: "0.85rem" });
+    stamp(".rcpt-free",                        { color: "#28a745", fontWeight: "600" });
+    stamp(".rcpt-grand-row",                   { color: "#ffffff", fontSize: "1.05rem",
+                                                 fontWeight: "700",
+                                                 borderTop: "2px solid #3c3c3c",
+                                                 paddingTop: "0.5rem" });
+
+    /* Grand total amount — bright blue */
+    clone.querySelectorAll(".rcpt-grand-row span:last-child").forEach(el => {
+        el.style.color = "#1a9eff";
+    });
+
+    /* Footer */
+    stamp(".rcpt-footer",                      { color: "#858585", fontSize: "0.72rem",
+                                                 textAlign: "center",
+                                                 borderTop: "1px dashed #3c3c3c",
+                                                 paddingTop: "1rem", marginTop: "1.5rem" });
+
+    /* ── Settle: let the browser paint the clone once ───────── */
+    await new Promise(resolve => requestAnimationFrame(() =>
+        requestAnimationFrame(resolve)   /* two rAF = after layout & paint */
+    ));
+
+    /* ── html2pdf options ────────────────────────────────────── */
+    const pdfOptions = {
+        margin:      [8, 8, 8, 8],
+        filename,
+        image:       { type: "jpeg", quality: 0.97 },
+        html2canvas: {
+            scale:           3,          /* high-res: 3× crisp on any screen  */
+            useCORS:         true,
+            logging:         true,       /* shows html2canvas errors in console*/
+            backgroundColor: "#1e1e1e", /* no white fallback                  */
+            windowWidth:     794,
+            scrollX:         0,
+            scrollY:         0
+        },
+        jsPDF: {
+            unit:        "mm",
+            format:      "a4",
+            orientation: "portrait",
+            compress:    true
+        }
+    };
+
+    try {
+        await html2pdf().set(pdfOptions).from(clone).save();
+        showToast(`Saved: ${filename}`, "success");
+    } catch (err) {
+        console.error("[downloadReceiptAsPDF]", err);
+        showToast("PDF generation failed. Check the console for details.", "danger");
+    } finally {
+        /* Always remove — even on error */
+        if (stage.parentNode) stage.parentNode.removeChild(stage);
+        if (dlBtn) {
+            dlBtn.innerHTML = origHTML;
+            dlBtn.disabled  = false;
+        }
     }
 }
+{% endraw %}
 
 
 /* ═══════════════════════════════════════════════════════════════

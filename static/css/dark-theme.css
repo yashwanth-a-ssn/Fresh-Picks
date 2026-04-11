@@ -1233,6 +1233,7 @@ footer a:hover {
     border-radius: var(--radius-lg);
     padding: 1rem 1.25rem;
     cursor: pointer;
+    color: var(--text-primary);   /* ← anchors title text to white; badges style sub-elements only */
     transition: border-color var(--transition), background var(--transition),
                 box-shadow var(--transition);
 }
@@ -1258,7 +1259,7 @@ footer a:hover {
 }
 
 /* ── Slot time-of-day badges ── */
-.slot-morning {
+/* .slot-morning {
     background: rgba(40, 167, 69, 0.15);
     color: var(--success);
     border: 1px solid rgba(40, 167, 69, 0.35);
@@ -1274,6 +1275,25 @@ footer a:hover {
     background: rgba(204, 167, 0, 0.15);
     color: var(--warning);
     border: 1px solid rgba(204, 167, 0, 0.35);
+} */
+
+/* ── Slot time-of-day badges ── */
+/* color is intentionally NOT set here — slot titles inherit        */
+/* var(--text-primary) from .slot-card. Status colors are           */
+/* applied only to sub-elements (e.g. .slot-time .text-success).   */
+.slot-morning {
+    background: rgba(40, 167, 69, 0.15);
+    border: 1px solid rgba(40, 167, 69, 0.35);
+}
+
+.slot-afternoon {
+    background: rgba(0, 122, 204, 0.15);
+    border: 1px solid rgba(0, 122, 204, 0.35);
+}
+
+.slot-evening {
+    background: rgba(204, 167, 0, 0.15);
+    border: 1px solid rgba(204, 167, 0, 0.35);
 }
 
 /* ── Invoice preview (State 3) ── */
@@ -1283,6 +1303,12 @@ footer a:hover {
     padding: 1rem 1.25rem;
     margin-bottom: 1.25rem;
     border-left: 3px solid var(--accent);
+    color: var(--text-primary);        /* base text white for all children */
+}
+
+/* Shop name heading inside the invoice block */
+.cart-shop-block .text-bright {
+    color: var(--accent) !important;   /* "CodeCrafters Fresh Picks" → blue */
 }
 
 .cart-unconfirmed-badge {
@@ -1291,9 +1317,17 @@ footer a:hover {
     border: 1px solid var(--border-color);
 }
 
-.cart-section-label {
+/* .cart-section-label {
     font-size: 0.75rem;
     color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+} */
+
+.cart-section-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);   /* ← was --text-muted; section labels need full contrast */
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 0.75rem;
@@ -1305,7 +1339,7 @@ footer a:hover {
     padding: 0.4rem 0;
     border-bottom: 2px solid var(--border-color);
     font-size: 0.72rem;
-    color: var(--text-muted);
+    color: var(--text-primary);        /* ← was --text-muted; headers must be white */
     text-transform: uppercase;
     letter-spacing: 0.06em;
 }
@@ -1317,6 +1351,7 @@ footer a:hover {
     padding: 0.5rem 0;
     border-bottom: 1px solid var(--border-color);
     font-size: 0.85rem;
+    color: var(--text-primary);        /* ← forces all item row text to white */
 }
 
 .cart-prev-item-row:last-child {
@@ -1375,6 +1410,13 @@ footer a:hover {
     margin: 0 auto;
 }
 
+/* Fix for Shop Name in Invoice Preview */
+.cart-shop-block .text-bright, 
+.cart-shop-block h4,
+.rcpt-brand {
+    color: var(--text-primary) !important;
+}
+
 /* ── Receipt (print area) ── */
 /*
  * Hard-coded light colors intentionally kept here.
@@ -1428,19 +1470,19 @@ footer a:hover {
 .rcpt-brand {
     font-size: 1.25rem;
     font-weight: 700;
-    color: #007acc;
+    color: var(--accent);              /* ← was hardcoded #007acc; now uses token */
 }
 
 .rcpt-sub {
     font-size: 0.78rem;
-    color: #555;
+    color: var(--text-muted);          /* ← was #555 */
     margin-top: 0.25rem;
     line-height: 1.55;
 }
 
 .rcpt-label {
     font-size: 0.7rem;
-    color: #888;
+    color: var(--text-muted);          /* ← was #888 */
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 0.25rem;
@@ -1465,7 +1507,7 @@ footer a:hover {
 }
 
 .rcpt-value {
-    color: #1a1a1a;
+    color: var(--text-primary);        /* ← was #1a1a1a */
     font-size: 0.9rem;
 }
 
@@ -1516,15 +1558,16 @@ footer a:hover {
     border-collapse: collapse;
     margin-bottom: 1.25rem;
     font-size: 0.85rem;
+    color: var(--text-primary);        /* ← root override: all cells default white */
 }
 
 .rcpt-thead-row {
-    border-bottom: 2px solid #ccc;
+    border-bottom: 2px solid var(--border-color);
 }
 
 .rcpt-thead-row th {
     padding: 0.4rem 0.5rem;
-    color: #555;
+    color: var(--text-primary);        /* ← was #555 */
     font-weight: 600;
     text-transform: uppercase;
     font-size: 0.7rem;
@@ -1532,26 +1575,19 @@ footer a:hover {
 }
 
 .rcpt-item-row {
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.rcpt-td-num  { padding: 0.45rem 0.5rem; color: #888; }
-.rcpt-td-name { padding: 0.45rem 0.5rem; color: #1a1a1a; font-weight: 500; }
-.rcpt-td-qty  { padding: 0.45rem 0.5rem; text-align: center; color: #555; }
-.rcpt-td-amt  { padding: 0.45rem 0.5rem; text-align: right; font-weight: 600; }
+.rcpt-td-num  { padding: 0.45rem 0.5rem; color: var(--text-muted); }
+.rcpt-td-name { padding: 0.45rem 0.5rem; color: var(--text-primary); font-weight: 500; }
+.rcpt-td-qty  { padding: 0.45rem 0.5rem; text-align: center; color: var(--text-primary); }
+.rcpt-td-amt  { padding: 0.45rem 0.5rem; text-align: right;  font-weight: 600; }
 
-.rcpt-free-badge {
-    background: #e6f9f4;
-    color: #1b7a5a;
-    font-size: 0.68rem;
-    font-weight: 700;
-    padding: 0.1em 0.4em;
-    border-radius: 3px;
-    margin-left: 0.4rem;
-}
+/* New column: rate/price per kg */
+.rcpt-td-rate { padding: 0.45rem 0.5rem; text-align: right; color: var(--text-muted); font-size: 0.8rem; }
 
 .rcpt-totals {
-    border-top: 1px solid #ddd;
+    border-top: 1px solid var(--border-color);
     padding-top: 0.75rem;
 }
 
@@ -1560,11 +1596,11 @@ footer a:hover {
     justify-content: space-between;
     font-size: 0.85rem;
     margin-bottom: 0.3rem;
-    color: #555;
+    color: var(--text-primary);        /* ← was #555 */
 }
 
 .rcpt-free {
-    color: #1b7a5a;
+    color: var(--success);             /* ← was hardcoded #1b7a5a */
     font-weight: 600;
 }
 
@@ -1573,23 +1609,23 @@ footer a:hover {
     justify-content: space-between;
     font-size: 1.05rem;
     font-weight: 700;
-    border-top: 2px solid #1a1a1a;
+    border-top: 2px solid var(--border-color);
     padding-top: 0.5rem;
     margin-top: 0.4rem;
-    color: #1a1a1a;
+    color: var(--text-primary);        /* ← was #1a1a1a */
 }
 
 .rcpt-grand-row span:last-child {
-    color: #007acc;
+    color: var(--accent);              /* ← was hardcoded #007acc */
 }
 
 .rcpt-footer {
-    border-top: 1px dashed #ddd;
+    border-top: 1px dashed var(--border-color);
     margin-top: 1.5rem;
     padding-top: 1rem;
     text-align: center;
     font-size: 0.75rem;
-    color: #888;
+    color: var(--text-muted);          /* ← was #888 */
     line-height: 1.6;
 }
 
@@ -1960,3 +1996,520 @@ footer a:hover {
     }
 
 }
+
+/* ══════════════════════════════════════════════════════════════
+   FRESHPICKS — Invoice Preview & Receipt Dark Theme Overrides
+   Session Fix: contrast, brand color, table columns
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── State 3: Invoice Preview ─────────────────────────────── */
+
+/* Force the whole invoice card onto the dark surface */
+#invoicePreviewState .card,
+#invoicePreviewState .card-body {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Shop name → accent blue */
+.cart-shop-block .fw-bold {
+    color: var(--accent) !important;
+}
+
+/* Shop sub-text (address, GSTIN) → muted */
+.cart-shop-block .text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Table column headers: muted tone */
+.cart-table-header span {
+    color: var(--text-muted) !important;
+    font-weight: 600;
+}
+
+/* Item rows: root color white so all children default to it */
+.cart-prev-item-row {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+/* Section label ("Items in this Order") */
+.cart-section-label {
+    color: var(--text-muted) !important;   /* intentionally muted — it's a label */
+}
+
+/* ── State 5: Receipt ──────────────────────────────────────── */
+
+/* Dark background — no white override */
+.cart-receipt-print {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+}
+
+/* Remove the old rule that forced white bg on all child elements */
+.cart-receipt-print,
+.cart-receipt-print p,
+.cart-receipt-print h1,
+.cart-receipt-print h2,
+.cart-receipt-print h3,
+.cart-receipt-print h4,
+.cart-receipt-print h5,
+.cart-receipt-print h6 {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+/* Brand name → accent blue */
+.rcpt-brand {
+    color: var(--accent) !important;
+}
+
+/* Sub-text (address line) */
+.rcpt-sub {
+    color: var(--text-muted) !important;
+}
+
+/* Meta labels ("Bill To", "Delivery Slot") → muted */
+.rcpt-label {
+    color: var(--text-muted) !important;
+}
+
+/* Meta values (customer name, slot value) → white */
+.rcpt-value {
+    color: var(--text-primary) !important;
+}
+
+/* PAID badge → success green */
+.rcpt-paid-badge {
+    background: rgba(40, 167, 69, 0.15) !important;
+    color: var(--success) !important;
+    border: 1px solid rgba(40, 167, 69, 0.35) !important;
+}
+
+/* Delivery row background */
+.rcpt-delivery-row {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+/* Divider */
+.rcpt-divider-dashed {
+    border-top-color: var(--border-color) !important;
+}
+
+/* ── Receipt table ─────────────────────────────────────────── */
+
+/* Root: all cells default to white */
+.rcpt-table {
+    color: var(--text-primary) !important;
+}
+
+/* Column headers → muted */
+.rcpt-thead-row {
+    border-bottom-color: var(--border-color) !important;
+}
+.rcpt-thead-row th {
+    color: var(--text-muted) !important;
+}
+
+/* Row dividers */
+.rcpt-item-row {
+    border-bottom-color: var(--border-color) !important;
+}
+
+/* Row number column */
+.rcpt-td-num {
+    color: var(--text-muted) !important;
+}
+
+/* Product name → strictly white */
+.rcpt-td-name {
+    color: var(--text-primary) !important;
+}
+
+/* Rate column → muted (it's supplementary info) */
+.rcpt-td-rate {
+    padding: 0.45rem 0.5rem;
+    text-align: right;
+    color: var(--text-muted) !important;
+    font-size: 0.8rem;
+}
+
+/* Qty column → white */
+.rcpt-td-qty {
+    color: var(--text-primary) !important;
+    text-align: right !important;
+}
+
+/* Amount column — color set inline per row (free=success, paid=accent-hover) */
+.rcpt-td-amt {
+    text-align: right;
+    font-weight: 600;
+}
+
+/* FREE badge on free items */
+.rcpt-free-badge {
+    background: rgba(40, 167, 69, 0.15) !important;
+    color: var(--success) !important;
+    border: 1px solid rgba(40, 167, 69, 0.3) !important;
+}
+
+/* ── Receipt totals ────────────────────────────────────────── */
+.rcpt-totals {
+    border-top-color: var(--border-color) !important;
+}
+
+.rcpt-total-row {
+    color: var(--text-primary) !important;
+}
+
+.rcpt-free {
+    color: var(--success) !important;
+}
+
+.rcpt-grand-row {
+    border-top-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Total Paid amount → accent-hover (bright blue) */
+.rcpt-grand-row span:last-child {
+    color: var(--accent-hover) !important;
+}
+
+/* Order ID chip */
+.rcpt-order-chip {
+    background: rgba(0, 122, 204, 0.15) !important;
+    color: var(--accent-light) !important;
+    border-color: rgba(0, 122, 204, 0.35) !important;
+}
+
+.rcpt-datetime {
+    color: var(--text-muted) !important;
+}
+
+/* Receipt footer */
+.rcpt-footer {
+    border-top-color: var(--border-color) !important;
+    color: var(--text-muted) !important;
+}
+
+/* Override Bootstrap .table pollution inside receipt */
+.cart-receipt-print .table,
+.cart-receipt-print .table th,
+.cart-receipt-print .table td {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+    border-color: var(--border-color) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PDF PRINT OVERRIDES — .is-printing
+   Applied ONLY to the off-screen clone used by downloadReceiptAsPDF.
+   All values are hardcoded hex — no CSS variable references —
+   because html2canvas cannot resolve custom properties on a detached
+   cloned node positioned off-screen.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Root container ──────────────────────────────────────────── */
+.is-printing {
+    background:   #1e1e1e !important;
+    color:        #ffffff !important;
+    font-family:  "Segoe UI", system-ui, -apple-system, sans-serif !important;
+}
+
+/* ── Brand name ("CodeCrafters Fresh Picks") ─────────────────── */
+.is-printing .rcpt-brand {
+    color:       #007acc !important;   /* var(--accent)       */
+    font-size:   1.15rem !important;
+    font-weight: 700 !important;
+}
+
+/* ── Sub-text (address, GSTIN, phone) ────────────────────────── */
+.is-printing .rcpt-sub {
+    color:       #858585 !important;   /* var(--text-muted)   */
+    font-size:   0.78rem !important;
+    line-height: 1.55 !important;
+}
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.is-printing .rcpt-divider-dashed {
+    border-top: 2px dashed #3c3c3c !important;  /* var(--border-color) */
+    margin: 1rem 0 !important;
+}
+
+/* ── Meta section labels ("BILL TO", "DELIVERY SLOT", "STATUS") ─ */
+.is-printing .rcpt-label {
+    color:           #858585 !important;   /* var(--text-muted)   */
+    font-size:       0.68rem !important;
+    text-transform:  uppercase !important;
+    letter-spacing:  0.08em !important;
+    margin-bottom:   0.2rem !important;
+}
+
+/* ── Meta values (customer name, slot time) ──────────────────── */
+.is-printing .rcpt-value {
+    color:       #ffffff !important;   /* var(--text-primary) */
+    font-size:   0.88rem !important;
+}
+
+/* ── Order ID chip ───────────────────────────────────────────── */
+.is-printing .rcpt-order-chip {
+    background:  rgba(0, 122, 204, 0.18) !important;
+    color:       #9cdcfe !important;   /* var(--accent-light) */
+    border:      1px solid rgba(0, 122, 204, 0.4) !important;
+    font-family: monospace !important;
+    font-size:   0.82rem !important;
+    padding:     0.2em 0.55em !important;
+    border-radius: 4px !important;
+    display:     inline-block !important;
+}
+
+/* ── Datetime ─────────────────────────────────────────────────── */
+.is-printing .rcpt-datetime {
+    color: #858585 !important;
+}
+
+/* ── PAID badge ──────────────────────────────────────────────── */
+.is-printing .rcpt-paid-badge {
+    background:    rgba(40, 167, 69, 0.18) !important;
+    color:         #28a745 !important;   /* var(--success)    */
+    border:        1px solid rgba(40, 167, 69, 0.4) !important;
+    border-radius: 4px !important;
+    padding:       0.15em 0.55em !important;
+    font-weight:   700 !important;
+    font-size:     0.82rem !important;
+    display:       inline-block !important;
+}
+
+/* ── Delivery partner row ─────────────────────────────────────── */
+.is-printing .rcpt-delivery-row {
+    background:    #252526 !important;   /* var(--bg-elevated) */
+    border:        1px solid #3c3c3c !important;
+    border-radius: 6px !important;
+    padding:       0.75rem 1rem !important;
+    margin-bottom: 1.25rem !important;
+    display:       flex !important;
+    align-items:   center !important;
+    gap:           0.75rem !important;
+}
+
+/* ── Items table ─────────────────────────────────────────────── */
+.is-printing .rcpt-table {
+    width:           100% !important;
+    border-collapse: collapse !important;
+    table-layout:    fixed !important;   /* prevents column width jitter  */
+    font-size:       0.84rem !important;
+    color:           #ffffff !important;
+}
+
+/* Fixed column widths — prevents RATE/AMOUNT overlap */
+.is-printing .rcpt-table colgroup col:nth-child(1) { width: 2.2rem; }
+.is-printing .rcpt-table colgroup col:nth-child(2) { width: auto;   }   /* ITEM  */
+.is-printing .rcpt-table colgroup col:nth-child(3) { width: 7rem;   }   /* RATE  */
+.is-printing .rcpt-table colgroup col:nth-child(4) { width: 5rem;   }   /* QTY   */
+.is-printing .rcpt-table colgroup col:nth-child(5) { width: 6rem;   }   /* AMOUNT*/
+
+/* Table header row */
+.is-printing .rcpt-thead-row {
+    border-bottom: 2px solid #3c3c3c !important;
+}
+
+.is-printing .rcpt-thead-row th {
+    color:          #858585 !important;   /* var(--text-muted)  */
+    font-weight:    600 !important;
+    font-size:      0.7rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    padding:        0.4rem 0.5rem !important;
+    background:     #1e1e1e !important;
+}
+
+/* Item rows */
+.is-printing .rcpt-item-row {
+    border-bottom: 1px solid #3c3c3c !important;
+}
+
+/* Row number */
+.is-printing .rcpt-td-num {
+    padding: 0.45rem 0.5rem !important;
+    color:   #858585 !important;
+    width:   2.2rem !important;
+}
+
+/* Product name — strictly white */
+.is-printing .rcpt-td-name {
+    padding:     0.45rem 0.5rem !important;
+    color:       #ffffff !important;
+    font-weight: 500 !important;
+    word-break:  break-word !important;
+}
+
+/* Rate column — muted */
+.is-printing .rcpt-td-rate {
+    padding:    0.45rem 0.5rem !important;
+    text-align: right !important;
+    color:      #858585 !important;
+    font-size:  0.8rem !important;
+    white-space: nowrap !important;
+}
+
+/* Qty column — white */
+.is-printing .rcpt-td-qty {
+    padding:     0.45rem 0.5rem !important;
+    text-align:  right !important;
+    color:       #ffffff !important;
+    white-space: nowrap !important;
+}
+
+/* Amount column — color set inline per row; ensure no override */
+.is-printing .rcpt-td-amt {
+    padding:     0.45rem 0.5rem !important;
+    text-align:  right !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+}
+
+/* FREE item badge inside cells */
+.is-printing .rcpt-free-badge {
+    background:    rgba(40, 167, 69, 0.18) !important;
+    color:         #28a745 !important;
+    border:        1px solid rgba(40, 167, 69, 0.35) !important;
+    border-radius: 3px !important;
+    font-size:     0.66rem !important;
+    font-weight:   700 !important;
+    padding:       0.1em 0.4em !important;
+    margin-left:   0.4rem !important;
+    /* inline-block keeps it from stretching row height */
+    display:       inline-block !important;
+    vertical-align: middle !important;
+    line-height:   1.4 !important;
+}
+
+/* ── Totals block ─────────────────────────────────────────────── */
+.is-printing .rcpt-totals {
+    border-top: 1px solid #3c3c3c !important;
+    padding-top: 0.75rem !important;
+    margin-top:  0.5rem !important;
+}
+
+.is-printing .rcpt-total-row {
+    display:         flex !important;
+    justify-content: space-between !important;
+    color:           #ffffff !important;
+    font-size:       0.85rem !important;
+    margin-bottom:   0.3rem !important;
+}
+
+/* "FREE" delivery charge */
+.is-printing .rcpt-free {
+    color:       #28a745 !important;   /* var(--success)      */
+    font-weight: 600 !important;
+}
+
+/* Grand total row */
+.is-printing .rcpt-grand-row {
+    display:         flex !important;
+    justify-content: space-between !important;
+    border-top:      2px solid #3c3c3c !important;
+    padding-top:     0.5rem !important;
+    margin-top:      0.4rem !important;
+    font-size:       1.05rem !important;
+    font-weight:     700 !important;
+    color:           #ffffff !important;
+}
+
+/* Total Paid amount — bright blue */
+.is-printing .rcpt-grand-row span:last-child {
+    color: #1a9eff !important;         /* var(--accent-hover) */
+}
+
+/* ── Receipt footer ───────────────────────────────────────────── */
+.is-printing .rcpt-footer {
+    border-top:  1px dashed #3c3c3c !important;
+    margin-top:  1.5rem !important;
+    padding-top: 1rem !important;
+    text-align:  center !important;
+    font-size:   0.72rem !important;
+    color:       #858585 !important;
+    line-height: 1.6 !important;
+}
+
+/* ── Suppress Bootstrap table overrides inside the clone ──────── */
+.is-printing table,
+.is-printing th,
+.is-printing td {
+    background-color: transparent !important;
+    color: inherit !important;
+    border-color: #3c3c3c !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLASSMORPHISM PROGRESS BAR — cart.html State 1
+   ══════════════════════════════════════════════════════════════ */
+
+/* Container: glassmorphism panel */
+.cart-progress-track {
+    height: 8px;
+    background: rgba(37, 37, 38, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #3e3e42;
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Base fill — shared properties */
+.cart-progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.4s ease,
+                box-shadow 0.4s ease;
+}
+
+/* State: danger (< ₹75) */
+.cart-progress-fill--danger {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+    box-shadow: none;
+}
+
+/* State: warning (₹75–₹99) */
+.cart-progress-fill--warning {
+    background: linear-gradient(90deg, #007acc, #1a9eff);
+    box-shadow: none;
+}
+
+/* State: success (≥ ₹100) — glow effect */
+.cart-progress-fill--success {
+    background: linear-gradient(90deg, #28a745, #34d058);
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.55),
+                0 0 20px rgba(40, 167, 69, 0.25);
+}
+
+/* Progress label text */
+.cart-progress-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: color 0.3s ease;
+}
+
+.cart-progress-label--danger  { color: #e74c3c; }
+.cart-progress-label--warning { color: #1a9eff; }
+.cart-progress-label--success { color: #34d058; }
+
+/* Pulse animation on "Ready to checkout" text */
+@keyframes fp-pulse-green {
+    0%, 100% { opacity: 1;    text-shadow: none; }
+    50%       { opacity: 0.7; text-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
+}
+
+.cart-progress-pulse {
+    animation: fp-pulse-green 2s ease-in-out infinite;
+}
+

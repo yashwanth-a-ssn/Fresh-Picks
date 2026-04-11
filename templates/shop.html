@@ -227,17 +227,17 @@
 }
 .custom-gram-input::placeholder { color: var(--text-muted); opacity: 0.7; }
 
-/* Sticky progress bar */
+/* ── Min-Order Progress Bar — Glassmorphism, natural flow (NOT sticky) ── */
 #progressSection {
-    position: sticky;
-    top: 60px;
-    z-index: 100;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
+    background: rgba(37, 37, 38, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #3e3e42;
     border-radius: var(--radius-lg);
     padding: 0.85rem 1.25rem;
     margin-bottom: 1.5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    /* position: sticky and top: 60px intentionally removed */
 }
 
 /* Sidebar sticky on desktop */
@@ -292,6 +292,61 @@
 }
 
 #resultCount { font-size: 0.78rem; color: var(--text-muted); }
+
+/* ── Category Section Header ─────────────────────────────── */
+.cat-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color var(--transition), background var(--transition);
+}
+.cat-section-header:first-of-type { margin-top: 0; }
+.cat-section-header:hover {
+    border-color: rgba(0,122,204,0.4);
+    background: rgba(0,122,204,0.06);
+}
+.cat-section-title {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 1;
+    text-transform: capitalize;
+}
+.cat-section-count {
+    background: rgba(0,122,204,0.18);
+    color: var(--accent-light);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15em 0.6em;
+    border-radius: 10px;
+    border: 1px solid rgba(0,122,204,0.3);
+}
+.cat-chevron {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    transition: transform 0.25s ease;
+}
+.cat-chevron.open { transform: rotate(180deg); }
+.cat-grid-wrap {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+    max-height: 0;
+    opacity: 0;
+}
+.cat-grid-wrap.expanded {
+    max-height: 4000px;   /* large enough for any category */
+    opacity: 1;
+}
+
 </style>
 {% endblock %}
 
@@ -920,13 +975,10 @@ async function addToCart(veg_id, price_per_1000g) {
    PROGRESS BAR
 ════════════════════════════════════════════════ */
 
+{% raw %}
 /**
- * updateProgressBar
- * Colours:
- *   --danger  (red)    → cartTotal <  ₹75
- *   --warning (yellow) → ₹75 ≤ cartTotal < ₹100
- *   --success (green)  → cartTotal ≥ ₹100
- * Width is capped at 100%.
+ * updateProgressBar — Shop page progress bar.
+ * Fill color: var(--accent) below ₹100, var(--success) at ₹100+.
  */
 function updateProgressBar() {
     const MIN_ORDER = 100;
@@ -945,11 +997,13 @@ function updateProgressBar() {
         bar.style.backgroundColor = "var(--danger)";
         label.innerHTML =
             `<span style="color:var(--danger);">₹${cartTotal.toFixed(2)} / ₹100 needed</span>`;
-    } else if (cartTotal < 100) {
-        bar.style.backgroundColor = "var(--warning)";
+    } else if (cartTotal < MIN_ORDER) {
+        /* ₹75–₹99: accent color, transitioning toward success */
+        bar.style.backgroundColor = "var(--accent)";
         label.innerHTML =
-            `<span style="color:var(--warning);">Almost there! ₹${cartTotal.toFixed(2)} / ₹100</span>`;
+            `<span style="color:var(--accent-light);">Almost there! ₹${cartTotal.toFixed(2)} / ₹100</span>`;
     } else {
+        /* ₹100+: transition to success green */
         bar.style.backgroundColor = "var(--success)";
         label.innerHTML =
             `<span style="color:var(--success);">✓ Ready to checkout — ₹${cartTotal.toFixed(2)}</span>`;
@@ -960,6 +1014,7 @@ function updateProgressBar() {
         badge.textContent   = `₹${cartTotal.toFixed(0)}`;
     }
 }
+{% endraw %}
 
 
 /* ════════════════════════════════════════════════

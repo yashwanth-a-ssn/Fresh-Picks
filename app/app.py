@@ -341,6 +341,40 @@ def api_list_products():
         if len(parts) >= 7: products.append({"veg_id": parts[0], "category": parts[1], "name": parts[2], "stock_g": int(parts[3]), "price_per_1000g": float(parts[4]), "tag": parts[5], "validity_days": int(parts[6])})
     return jsonify({"status": "SUCCESS", "products": products})
 
+@app.route("/api/update_stock", methods=["POST"])
+def api_update_stock():
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    data = request.get_json()
+    veg_id   = data.get("veg_id",   "").strip()
+    stock_g  = int(data.get("stock_g",  0))
+    price    = float(data.get("price",  0))
+    validity = int(data.get("validity", 1))
+    if not veg_id:
+        return jsonify({"status": "error", "message": "veg_id required"})
+    result = run_c_binary("inventory", [
+        "update_stock", veg_id, str(stock_g), str(price), str(validity)
+    ])
+    return jsonify({
+        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
+        "message": result["data"]
+    })
+
+@app.route("/api/update_promo_stock", methods=["POST"])
+def api_update_promo_stock():
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    data    = request.get_json()
+    vf_id   = data.get("vf_id",   "").strip()
+    stock_g = int(data.get("stock_g", 0))
+    if not vf_id:
+        return jsonify({"status": "error", "message": "vf_id required"})
+    result = run_c_binary("inventory", ["update_promo_stock", vf_id, str(stock_g)])
+    return jsonify({
+        "status":  "success" if result["status"] == "SUCCESS" else "error",
+        "message": result["data"]
+    })
+
 @app.route("/api/add_to_cart", methods=["POST"])
 def api_add_to_cart():
     if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
@@ -360,6 +394,32 @@ def api_view_cart():
         parts = line.strip().split("|")
         if len(parts) >= 6: items.append({"veg_id": parts[0], "name": parts[1], "qty_g": int(parts[2]), "price_per_1000g": float(parts[3]), "item_total": float(parts[4]), "is_free": int(parts[5])})
     return jsonify({"status": "SUCCESS", "total": float(lines[0].split("|")[1]), "items": items})
+
+@app.route("/api/update_cart_qty", methods=["POST"])
+def api_update_cart_qty():
+    """
+    Called by onQtyChange debounce in cart.html.
+    Updates one item's quantity in the user's cart DLL (re-writes cart file via C).
+    Body: { "veg_id": "V1001", "qty_g": 750 }
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data   = request.get_json()
+    veg_id = data.get("veg_id", "").strip()
+    qty_g  = int(data.get("qty_g", 0))
+
+    if not veg_id or qty_g <= 0:
+        return jsonify({"status": "ERROR", "message": "Invalid veg_id or qty_g"})
+
+    # Re-uses the existing add_to_cart C command which does update_or_append
+    result = run_c_binary("order", [
+        "add_to_cart", session["user_id"], veg_id, str(qty_g)
+    ])
+    return jsonify({
+        "status":  result["status"],
+        "message": result["data"]
+    })
 
 @app.route("/api/remove_item", methods=["POST"])
 def api_remove_item():
