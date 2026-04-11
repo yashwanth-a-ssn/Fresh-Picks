@@ -499,98 +499,6 @@ int find_boy_by_id(DeliveryBoy* boys, int count,
  *   order_id|user_id|total|slot|boy_id|status|timestamp|items|boy_name|boy_phone
  *   ...
  */
-void cmd_admin_orders(void) {
-
-    /* ── Step 1: Load ALL delivery boys into an array (ONE file read) ─── */
-    /* WHY LOAD FIRST? We do a JOIN below: for each order we look up the
-       boy's name/phone. Loading boys once and searching in-memory is O(n*d).
-       Reopening the file per-order would be O(n) file opens — far worse. */
-    DeliveryBoy boys[MAX_DELIVERY_BOYS];
-    int boy_count = load_delivery_boys(boys, MAX_DELIVERY_BOYS);
-
-    /* ── Step 2: Open orders.txt and build the Min-Heap ────────────────── */
-    FILE* fp = fopen(ORDERS_FILE, "r");
-    if (!fp) { PRINT_ERROR("Could not open orders file"); return; }
-
-    MinHeap heap;
-    heap.size = 0;  /* Initialise: no elements yet */
-
-    char line[MAX_LINE_LEN];
-    while (fgets(line, sizeof(line), fp)) {
-        line[strcspn(line, "\n")] = '\0';
-        if (strlen(line) == 0) continue;
-
-        /* ── Parse the 8 fields of an order row ── */
-        Order o;
-        char* tok = strtok(line, "|");
-        if (!tok) continue;
-        strncpy(o.order_id,        tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
-        if (!tok) continue;
-        strncpy(o.user_id,         tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
-        if (!tok) continue;
-        o.total_amount = atof(tok);                          tok = strtok(NULL, "|");
-        if (!tok) continue;
-        strncpy(o.delivery_slot,   tok, MAX_STR_LEN - 1);  tok = strtok(NULL, "|");
-        if (!tok) continue;
-        strncpy(o.delivery_boy_id, tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
-        if (!tok) continue;
-        strncpy(o.status,          tok, MAX_STR_LEN - 1);  tok = strtok(NULL, "|");
-        if (!tok) continue;
-        strncpy(o.timestamp,       tok, TIMESTAMP_LEN - 1); tok = strtok(NULL, "|");
-        if (tok) strncpy(o.items_string, tok, MAX_LINE_LEN - 1);
-        else     o.items_string[0] = '\0';
-
-        /* Null-terminate all strings defensively */
-        o.order_id[MAX_ID_LEN - 1]        = '\0';
-        o.user_id[MAX_ID_LEN - 1]         = '\0';
-        o.delivery_slot[MAX_STR_LEN - 1]  = '\0';
-        o.delivery_boy_id[MAX_ID_LEN - 1] = '\0';
-        o.status[MAX_STR_LEN - 1]         = '\0';
-        o.timestamp[TIMESTAMP_LEN - 1]    = '\0';
-        o.items_string[MAX_LINE_LEN - 1]  = '\0';
-
-        /* ── Priority Filter: only ACTIVE orders ── */
-        int is_active =
-            (strcmp(o.status, "Order Placed")     == 0) ||
-            (strcmp(o.status, "Out for Delivery") == 0);
-        if (!is_active) continue;
-
-        o.slot_priority = get_slot_priority(o.delivery_slot);
-        heap_insert(&heap, o);
-    }
-    fclose(fp);
-
-    /* ── Step 3: Print header then extract orders in priority order ─── */
-    printf("SUCCESS|%d\n", heap.size);
-
-    Order out;
-    while (heap_extract_min(&heap, &out)) {
-        /* ── C-Side JOIN: look up boy's name and phone ─────────────────
-           WHY HERE (not in Flask)?
-             The constraint says "Flask must NOT read delivery_boys.txt."
-             Doing the JOIN in C means one binary produces the complete
-             row — Flask just forwards JSON to the browser. */
-        char boy_name[MAX_STR_LEN]  = "Unknown";
-        char boy_phone[MAX_STR_LEN] = "N/A";
-        find_boy_by_id(boys, boy_count, out.delivery_boy_id,
-                       boy_name, boy_phone);
-
-        /* Output format (10 fields):
-           order_id|user_id|total|slot|boy_id|status|timestamp|items|boy_name|boy_phone */
-        printf("%s|%s|%.2f|%s|%s|%s|%s|%s|%s|%s\n",
-            out.order_id,
-            out.user_id,
-            out.total_amount,
-            out.delivery_slot,
-            out.delivery_boy_id,
-            out.status,
-            out.timestamp,
-            out.items_string,
-            boy_name,    /* NEW — from delivery_boys.txt JOIN */
-            boy_phone    /* NEW — from delivery_boys.txt JOIN */
-        );
-    }
-}
 
 /*
  * COMMAND: list_products
@@ -1144,6 +1052,103 @@ void cmd_update_order_status(const char* order_id, const char* new_status) {
     PRINT_SUCCESS("Status updated");
 }
 
+ /*
+ * COMMAND: list_all_orders  (NEW)
+ * PURPOSE: Dump EVERY order from orders.txt, newest-first (reverse file order).
+ *          Unlike admin_orders (Min-Heap, active-only), this outputs ALL statuses.
+ *          Used by Flask's /api/get_admin_orders when the admin needs a full view.
+ *
+ * OUTPUT FORMAT:
+ *   SUCCESS|<total_count>
+ *   order_id|user_id|total|slot|boy_id|status|timestamp|items_string|boy_name|boy_phone
+ *   ...
+ *
+ * NOTE: Enriches each row with boy_name + boy_phone via C-side JOIN
+ *       (same strategy as cmd_admin_orders — one file read, in-memory lookup).
+ */
+void cmd_list_all_orders(void) {
+
+    /* ── Load delivery boys once for the JOIN ─────────────────────────── */
+    DeliveryBoy boys[MAX_DELIVERY_BOYS];
+    int boy_count = load_delivery_boys(boys, MAX_DELIVERY_BOYS);
+
+    /* ── Read ALL orders into a heap-allocated array ──────────────────── */
+    Order* orders = (Order*)malloc(sizeof(Order) * MAX_ORDERS);
+    if (!orders) { PRINT_ERROR("Memory allocation failed"); return; }
+    int count = 0;
+
+    FILE* fp = fopen(ORDERS_FILE, "r");
+    if (!fp) {
+        /* orders.txt doesn't exist yet (no orders placed) — return empty */
+        free(orders);
+        printf("SUCCESS|0\n");
+        return;
+    }
+
+    char line[MAX_LINE_LEN];
+    while (fgets(line, sizeof(line), fp) && count < MAX_ORDERS) {
+        line[strcspn(line, "\n")] = '\0';
+        if (strlen(line) == 0) continue;
+
+        Order o;
+        char* tok = strtok(line, "|");
+        if (!tok) continue;
+        strncpy(o.order_id,        tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(o.user_id,         tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
+        if (!tok) continue;
+        o.total_amount = atof(tok);                          tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(o.delivery_slot,   tok, MAX_STR_LEN - 1);  tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(o.delivery_boy_id, tok, MAX_ID_LEN  - 1);  tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(o.status,          tok, MAX_STR_LEN - 1);  tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(o.timestamp,       tok, TIMESTAMP_LEN - 1); tok = strtok(NULL, "|");
+        if (tok) strncpy(o.items_string, tok, MAX_LINE_LEN - 1);
+        else     o.items_string[0] = '\0';
+
+        /* Null-terminate defensively */
+        o.order_id[MAX_ID_LEN - 1]        = '\0';
+        o.user_id[MAX_ID_LEN - 1]         = '\0';
+        o.delivery_slot[MAX_STR_LEN - 1]  = '\0';
+        o.delivery_boy_id[MAX_ID_LEN - 1] = '\0';
+        o.status[MAX_STR_LEN - 1]         = '\0';
+        o.timestamp[TIMESTAMP_LEN - 1]    = '\0';
+        o.items_string[MAX_LINE_LEN - 1]  = '\0';
+
+        o.slot_priority = get_slot_priority(o.delivery_slot);
+        orders[count++] = o;
+    }
+    fclose(fp);
+
+    /* Header line */
+    printf("SUCCESS|%d\n", count);
+
+    /* Output in reverse order (newest first — last written = highest ORD number) */
+    for (int i = count - 1; i >= 0; i--) {
+        char boy_name[MAX_STR_LEN]  = "Unknown";
+        char boy_phone[MAX_STR_LEN] = "N/A";
+        find_boy_by_id(boys, boy_count, orders[i].delivery_boy_id,
+                       boy_name, boy_phone);
+
+        printf("%s|%s|%.2f|%s|%s|%s|%s|%s|%s|%s\n",
+            orders[i].order_id,
+            orders[i].user_id,
+            orders[i].total_amount,
+            orders[i].delivery_slot,
+            orders[i].delivery_boy_id,
+            orders[i].status,
+            orders[i].timestamp,
+            orders[i].items_string,
+            boy_name,
+            boy_phone
+        );
+    }
+
+    free(orders);
+}
 
 /* ═════════════════════════════════════════════════════════════
    SECTION 3: MAIN — Command Dispatcher
@@ -1198,13 +1203,12 @@ int main(int argc, char* argv[]) {
         if (argc < 4) { PRINT_ERROR("Usage: update_order_status <order_id> <status>"); return 1; }
         cmd_update_order_status(argv[2], argv[3]);
 
-    } else if (strcmp(cmd, "update_order_status") == 0) {
-        if (argc < 4) { PRINT_ERROR("Usage: update_order_status <order_id> <status>"); return 1; }
-        cmd_update_order_status(argv[2], argv[3]);
-
     } else if (strcmp(cmd, "batch_promote_slot") == 0) {
         if (argc < 3) { PRINT_ERROR("Usage: batch_promote_slot <slot_name>"); return 1; }
         cmd_batch_promote_slot(argv[2]);
+
+    } else if (strcmp(cmd, "list_all_orders") == 0) {
+        cmd_list_all_orders();
 
     } else {
         char err[MAX_STR_LEN];
@@ -1212,6 +1216,5 @@ int main(int argc, char* argv[]) {
         PRINT_ERROR(err);
         return 1;
     }
-
     return 0;
 }

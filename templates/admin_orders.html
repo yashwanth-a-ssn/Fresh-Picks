@@ -288,18 +288,48 @@ async function runJitPromotion(slotName) {
      ]
    }
 */
+
+{% raw %}
+/* ──────────────────────────────────────────────────────────────────────
+   SECTION 4 — FETCH & RENDER ORDERS
+   Calls POST /api/get_admin_orders (Flask → C admin_orders command).
+   SAFE: checks Content-Type before calling .json() to prevent the
+   "Unexpected token <" crash when Flask returns an HTML error page.
+*/
 async function loadOrders() {
+    const statusMsg = document.getElementById("jitStatusMsg");
+    const container = document.getElementById("ordersContainer");
+
     try {
-        const res  = await fetch("/api/get_admin_orders", {
+        const res = await fetch("/api/get_admin_orders", {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
             body:    "{}"
         });
+
+        /* ── Guard: ensure response is JSON, not an HTML error page ── */
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+            /* Server returned HTML (likely a 404 or 500 page) */
+            console.error(`[loadOrders] Expected JSON but got: ${contentType}. HTTP ${res.status}`);
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-exclamation-triangle"
+                       style="font-size:2.5rem; color:var(--danger);"></i>
+                    <p class="text-muted mt-3">
+                        API error (HTTP ${res.status}). The route
+                        <code>/api/get_admin_orders</code> may not be registered in Flask.
+                    </p>
+                </div>`;
+            document.getElementById("loadingPlaceholder")?.remove();
+            statusMsg.textContent = "Failed to load orders — API unreachable.";
+            return;
+        }
+
         const data = await res.json();
-
         document.getElementById("loadingPlaceholder")?.remove();
-        const container = document.getElementById("ordersContainer");
 
+        /* ── Empty state ── */
         if (!data.orders || data.orders.length === 0) {
             container.innerHTML = `
                 <div class="col-12 text-center py-5">
@@ -307,98 +337,112 @@ async function loadOrders() {
                        style="font-size:3rem; color:var(--success);"></i>
                     <p class="text-muted mt-3">All clear — no active orders right now.</p>
                 </div>`;
-            document.getElementById("jitStatusMsg").textContent =
-                "Queue is empty.";
+            statusMsg.textContent = "Queue is empty.";
             return;
         }
 
-        /* Priority label shown in the page subtitle */
-        document.getElementById("jitStatusMsg").textContent =
+        /* ── Render one card per order ── */
+        statusMsg.textContent =
             `${data.orders.length} order${data.orders.length !== 1 ? "s" : ""} loaded — Morning orders prioritised.`;
-
-        /* Render one card per order (already priority-sorted by C heap) */
-        data.orders.forEach(order => {
-            container.appendChild(buildOrderCard(order));
-        });
+        data.orders.forEach(order => container.appendChild(buildOrderCard(order)));
 
     } catch (err) {
         console.error("loadOrders error:", err);
-        document.getElementById("jitStatusMsg").textContent =
-            "Error loading orders. Check browser console.";
+        document.getElementById("loadingPlaceholder")?.remove();
+        statusMsg.textContent = "Network error. Check server connection.";
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-wifi-off"
+                   style="font-size:2.5rem; color:var(--danger);"></i>
+                <p class="text-muted mt-3">${err.message}</p>
+            </div>`;
     }
 }
+{% endraw %}
 
-
+{% raw %}
 /* ──────────────────────────────────────────────────────────────────────
-   SECTION 5 — BUILD ORDER CARD (DOM construction)
+   SECTION 5 — BUILD ORDER CARD
    ──────────────────────────────────────────────────────────────────────
-   Constructs and returns the Bootstrap column div for one order.
+   items_string format from C (4-part):
+     "veg_id:name:qty_g:price_per_1000g"
+     e.g. "V1001:Tomato:500:40.00,VF101:CurryLeaves:50:0.00"
 
-   Dependency gate (button enable/disable):
-     "Out for Delivery" button → enabled only when status === "Order Placed"
-     "Delivered" button        → enabled only when status === "Out for Delivery"
-
-   Status badge colours (via CSS classes in dark-theme.css):
-     .badge-status-placed       → Blue
-     .badge-status-out-delivery → Yellow
-     .badge-status-delivered    → Green
+   Handles both 3-part (legacy) and 4-part (current) items_string safely.
 */
 function buildOrderCard(order) {
 
-    /* ── Column wrapper ── */
-    const col   = document.createElement("div");
+    const col     = document.createElement("div");
     col.className = "col-md-6 col-xl-4 order-card fade-in";
     col.id        = `card-${order.order_id}`;
 
-    /* ── Slot badge class ── */
+    /* ── CSS class maps ── */
     const slotClass = {
         "Morning":   "slot-morning",
         "Afternoon": "slot-afternoon",
         "Evening":   "slot-evening"
     }[order.delivery_slot] ?? "slot-evening";
 
-    /* ── Status dot + header CSS class ── */
-    const statusCss   = {
-        "Order Placed":      "status-placed",
-        "Out for Delivery":  "status-out-delivery",
-        "Delivered":         "status-delivered"
+    const statusCss = {
+        "Order Placed":     "status-placed",
+        "Out for Delivery": "status-out-delivery",
+        "Delivered":        "status-delivered"
     }[order.status] ?? "status-placed";
 
-    /* ── Status badge class ── */
     const statusBadge = {
         "Order Placed":     "badge-status-placed",
         "Out for Delivery": "badge-status-out-delivery",
         "Delivered":        "badge-status-delivered"
     }[order.status] ?? "badge-status-placed";
 
-    /* ── Items string → readable HTML
-       DB format: "V1001:500:40.00,VF101:50:0.00"
-       Fields    : veg_id : qty_grams : price  (models.h items_string)
-    */
+    /* ── Items string parser — handles 3-part AND 4-part formats ─────
+       3-part (old): veg_id:qty_g:price_per_1000g
+       4-part (new): veg_id:name:qty_g:price_per_1000g              ── */
     const itemsHtml = (order.items_string || "")
         .split(",")
         .filter(Boolean)
         .map(entry => {
-            const [vid, qty, price] = entry.split(":");
+            const parts  = entry.trim().split(":");
+            let vid, itemName, qty, price;
+
+            if (parts.length >= 4) {
+                /* 4-part: veg_id : name : qty_g : price */
+                [vid, itemName, qty, price] = parts;
+            } else if (parts.length === 3) {
+                /* 3-part legacy: veg_id : qty_g : price */
+                [vid, qty, price] = parts;
+                itemName = vid;
+            } else {
+                return "";   /* malformed entry — skip silently */
+            }
+
             const isFree = parseFloat(price) === 0;
+            const qtyKg  = parseInt(qty) >= 1000
+                ? `${(parseInt(qty) / 1000).toFixed(2)} kg`
+                : `${qty} g`;
+
             return `<span class="item-chip">
-                        ${vid} · ${qty}g
+                        <strong>${itemName || vid}</strong>
+                        <span class="text-muted ms-1">(${qtyKg})</span>
                         ${isFree
-                            ? `<em class="item-free">Free</em>`
-                            : `<span class="item-price">₹${parseFloat(price).toFixed(2)}</span>`
+                            ? `<em class="item-free ms-1">FREE</em>`
+                            : `<span class="item-price ms-1">₹${parseFloat(price).toFixed(2)}/kg</span>`
                         }
                     </span>`;
         })
         .join("");
 
-    /* ── Dependency gate ── */
     const canDispatch = order.status === "Order Placed";
     const canDeliver  = order.status === "Out for Delivery";
+
+    /* ── PDF filename: ORDERID_USERID_DATE.pdf ── */
+    const pdfDate     = (order.timestamp || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+    const pdfFilename = `${order.order_id}_${order.user_id}_${pdfDate}`;
 
     col.innerHTML = `
         <div class="card h-100">
 
-            <!-- ── Card Header ── -->
+            <!-- Card Header -->
             <div class="card-header d-flex justify-content-between align-items-center ${statusCss}">
                 <span class="d-flex align-items-center gap-2">
                     <span class="status-dot"></span>
@@ -414,8 +458,11 @@ function buildOrderCard(order) {
                 </span>
             </div>
 
-            <!-- ── Card Body (also used as the PDF receipt source element) ── -->
-            <div class="card-body" id="receipt-body-${order.order_id}">
+            <!-- Card Body — also the PDF receipt capture target -->
+            <div class="card-body" id="receipt-body-${order.order_id}"
+                 data-order-id="${order.order_id}"
+                 data-user-id="${order.user_id}"
+                 data-date="${pdfDate}">
 
                 <!-- Customer + Delivery Boy -->
                 <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
@@ -438,9 +485,21 @@ function buildOrderCard(order) {
                     </div>
                 </div>
 
+                <!-- Slot & Status row -->
+                <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <span class="badge rounded-pill ${slotClass}">
+                        <i class="bi bi-clock me-1"></i>${order.delivery_slot}
+                    </span>
+                    <span class="badge rounded-pill ${statusBadge}">
+                        ${order.status}
+                    </span>
+                </div>
+
                 <!-- Items -->
                 <div class="profile-field-label mb-1">Items</div>
-                <div class="items-list mb-3">${itemsHtml || "<span class='text-muted'>—</span>"}</div>
+                <div class="items-list mb-3">
+                    ${itemsHtml || "<span class='text-muted'>—</span>"}
+                </div>
 
                 <!-- Total + Timestamp -->
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -452,18 +511,12 @@ function buildOrderCard(order) {
                     </div>
                     <div class="text-end">
                         <div class="profile-field-label">Placed At</div>
-                        <div class="order-timestamp">${order.timestamp}</div>
+                        <div class="order-timestamp">${order.timestamp || "—"}</div>
                     </div>
                 </div>
 
-                <!-- ── Action Buttons ── -->
+                <!-- Action Buttons -->
                 <div class="action-row">
-
-                    <!--
-                      "Out for Delivery" — Manual Override
-                      Enabled only when status == "Order Placed".
-                      Calls updateStatus() → POST /api/update_order_status
-                    -->
                     <button class="btn btn-sm btn-action btn-dispatch"
                             id="btn-dispatch-${order.order_id}"
                             ${canDispatch ? "" : "disabled"}
@@ -471,14 +524,6 @@ function buildOrderCard(order) {
                         <i class="bi bi-truck me-1"></i>Out for Delivery
                     </button>
 
-                    <!--
-                      "Delivered" — Dependency-gated
-                      ONLY enabled when status == "Out for Delivery".
-                      On click → markDelivered():
-                        1. POST /api/update_order_status { status: "Delivered" }
-                        2. Add .fading-out → CSS 5-second opacity + scale transition
-                        3. setTimeout(5000) removes the card from the DOM
-                    -->
                     <button class="btn btn-sm btn-action btn-deliver"
                             id="btn-deliver-${order.order_id}"
                             ${canDeliver ? "" : "disabled"}
@@ -486,23 +531,18 @@ function buildOrderCard(order) {
                         <i class="bi bi-check-circle me-1"></i>Delivered
                     </button>
 
-                    <!--
-                      PDF Receipt — always available
-                      Calls generatePdf() → html2pdf.js clones receipt-body div,
-                      injects a branded header/footer, and triggers download.
-                    -->
                     <button class="btn btn-sm btn-action btn-pdf"
                             onclick="generatePdf('${order.order_id}')">
                         <i class="bi bi-file-earmark-pdf me-1"></i>Receipt
                     </button>
-
                 </div>
+
             </div>
-        </div>
-    `;
+        </div>`;
 
     return col;
 }
+{% endraw %}
 
 
 /* ──────────────────────────────────────────────────────────────────────
@@ -623,25 +663,22 @@ async function markDelivered(orderId, clickedBtn) {
     }
 }
 
-
+{% raw %}
 /* ──────────────────────────────────────────────────────────────────────
-   SECTION 8 — PDF RECEIPT GENERATOR
+   SECTION 8 — PDF RECEIPT GENERATOR (Dark-theme deep-clone strategy)
    ──────────────────────────────────────────────────────────────────────
-   Uses html2pdf.js (html2canvas + jsPDF) to convert the visible
-   receipt-body div into a downloadable PDF receipt.
+   Filename convention: ORDERID_USERID_DATE.pdf
+     e.g.  ORD107_Yashwanth_2026-04-11.pdf
+   Pulled from data-* attributes stamped onto #receipt-body-<id>
+   during buildOrderCard() so no extra state is needed here.
 
-   WHY JS AND NOT C?
-     Project constraint: "DON'T write PDF logic in C."
-     html2pdf.js renders the HTML/CSS as-is — zero server load.
-
-   PROCESS:
-     1. Clone #receipt-body-<orderId> (prevents flash on live card).
-     2. Apply white/print-friendly styles to the clone.
-     3. Inject branded header + footer into the clone.
-     4. Position the clone off-screen and append to <body> so
-        html2canvas can render it.
-     5. html2pdf generates + downloads the PDF.
-     6. Remove the clone from DOM.
+   Deep-clone approach:
+     1. Clone the card body.
+     2. Stamp ALL inline hex styles — no CSS vars (html2canvas cannot
+        resolve var(--) in its rasterisation context).
+     3. backgroundColor = "#1e1e1e", color = "#ffffff" on root.
+     4. Render off-screen with scale:3 + windowWidth:794.
+     5. Remove clone in finally (even on error).
 */
 async function generatePdf(orderId) {
 
@@ -651,63 +688,138 @@ async function generatePdf(orderId) {
         return;
     }
 
+    /* ── Filename: ORDERID_USERID_DATE.pdf ── */
+    const userId   = (sourceEl.dataset.userId   || orderId).replace(/\s+/g, "_");
+    const dateStr  = (sourceEl.dataset.date      || new Date().toISOString().slice(0, 10));
+    const filename = `${orderId}_${userId}_${dateStr}.pdf`;
+
+    /* ── Off-screen stage ── */
+    const stage = document.createElement("div");
+    stage.style.cssText = [
+        "position:fixed", "top:-99999px", "left:0",
+        "width:794px", "background:#1e1e1e",
+        "overflow:visible", "z-index:-9999", "pointer-events:none"
+    ].join(";");
+    document.body.appendChild(stage);
+
+    /* ── Deep clone ── */
     const clone = sourceEl.cloneNode(true);
+    clone.removeAttribute("id");
 
-    /* Print-friendly base styles */
-    clone.style.cssText = `
-        background: #ffffff;
-        color: #1a1a1a;
-        padding: 20px;
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 13px;
-        width: 780px;
-        max-width: 780px;
-        min-width: 780px;
-    `;
+    /* Root: explicit dark hex values — NO CSS vars */
+    clone.style.backgroundColor = "#1e1e1e";
+    clone.style.color           = "#ffffff";
+    clone.style.padding         = "20px 24px";
+    clone.style.boxSizing       = "border-box";
+    clone.style.width           = "794px";
+    clone.style.fontFamily      = "Segoe UI, Arial, system-ui, sans-serif";
+    clone.style.fontSize        = "13px";
+    clone.style.lineHeight      = "1.5";
+    stage.appendChild(clone);
 
-    /* Override child element colors for white background */
-    clone.querySelectorAll("*").forEach(el => {
-        el.style.color      = el.style.color || "#1a1a1a";
-        el.style.border     = el.style.border || "none";
-        el.style.background = "";
+    /* ── Stamp helper ── */
+    const stamp = (sel, styles) =>
+        clone.querySelectorAll(sel).forEach(el => Object.assign(el.style, styles));
+
+    /* Background-only reset — never touch display/flex */
+    stamp("div, span, p", { backgroundColor: "transparent" });
+    stamp("td, th, tr",   { backgroundColor: "transparent" });
+
+    /* Inject branded receipt header at top of clone */
+    const rcptHeader = document.createElement("div");
+    rcptHeader.style.cssText =
+        "text-align:center; margin-bottom:16px; border-bottom:2px solid #007acc; padding-bottom:12px;";
+    rcptHeader.innerHTML = `
+        <h2 style="color:#007acc; font-size:1.3rem; margin:0; font-weight:700;">
+            🥦 CodeCrafters Fresh Picks
+        </h2>
+        <p style="color:#858585; font-size:0.78rem; margin:4px 0 0;">
+            123 Grocery Ave · Chennai – 600045 · support@freshpicks.in<br>
+            <strong style="font-family:monospace; color:#9cdcfe;">${orderId}</strong>
+            — Official Admin Receipt
+        </p>`;
+    clone.insertBefore(rcptHeader, clone.firstChild);
+
+    /* ── Style the order meta content ── */
+    stamp(".profile-field-label", {
+        color:         "#858585",
+        fontSize:      "0.68rem",
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        display:       "block",
+        marginBottom:  "2px"
     });
+    stamp(".text-bright", { color: "#ffffff", fontWeight: "500" });
+    stamp(".text-muted",  { color: "#858585" });
+    stamp(".order-total", {
+        color:      "#1a9eff",
+        fontWeight: "700",
+        fontSize:   "1.1rem"
+    });
+    stamp(".order-timestamp", { color: "#858585", fontSize: "0.8rem" });
 
-    /* Branded receipt header */
-    const header = document.createElement("div");
-    header.innerHTML = `
-        <div style="text-align:center; margin-bottom:16px;
-                    border-bottom:2px solid #007ACC; padding-bottom:12px;">
-            <h2 style="color:#007ACC; font-size:1.4rem; margin:0;">🥦 Fresh Picks</h2>
-            <p style="color:#555; font-size:0.8rem; margin:4px 0 0;">
-                Your neighbourhood grocery store, now online.<br>
-                <strong style="font-family:monospace;">${orderId}</strong> — Official Receipt
-            </p>
-        </div>`;
-    clone.insertBefore(header, clone.firstChild);
+    /* Item chips */
+    stamp(".item-chip", {
+        display:         "inline-block",
+        backgroundColor: "rgba(0,122,204,0.12)",
+        border:          "1px solid rgba(0,122,204,0.3)",
+        borderRadius:    "4px",
+        padding:         "2px 8px",
+        marginRight:     "4px",
+        marginBottom:    "4px",
+        fontSize:        "0.8rem",
+        color:           "#ffffff"
+    });
+    stamp(".item-free",  { color: "#28a745", fontStyle: "normal", fontWeight: "700" });
+    stamp(".item-price", { color: "#858585" });
+
+    /* Status + slot badges — keep their existing colors but make bg opaque */
+    stamp(".badge-status-placed",       { backgroundColor: "#1a3a5c", color: "#9cdcfe" });
+    stamp(".badge-status-out-delivery", { backgroundColor: "#3a2e00", color: "#ffd700" });
+    stamp(".badge-status-delivered",    { backgroundColor: "#1a3a1a", color: "#28a745" });
+    stamp(".slot-morning",   { backgroundColor: "#1a3a1a", color: "#90ee90" });
+    stamp(".slot-afternoon", { backgroundColor: "#3a2e00", color: "#ffd700" });
+    stamp(".slot-evening",   { backgroundColor: "#1a1a4a", color: "#9cdcfe" });
+
+    /* Hide action buttons — they should not appear in the PDF */
+    stamp(".action-row", { display: "none" });
 
     /* Receipt footer */
-    const footer = document.createElement("div");
-    footer.innerHTML = `
-        <div style="text-align:center; margin-top:16px;
-                    border-top:1px solid #ccc; padding-top:10px;
-                    font-size:0.75rem; color:#888;">
-            Generated by Fresh Picks Admin Panel · CodeCrafters SDP-1
-        </div>`;
-    clone.appendChild(footer);
+    const rcptFooter = document.createElement("div");
+    rcptFooter.style.cssText =
+        "text-align:center; margin-top:16px; border-top:1px dashed #3c3c3c;" +
+        "padding-top:10px; font-size:0.72rem; color:#858585;";
+    rcptFooter.textContent =
+        "Generated by Fresh Picks Admin Panel · CodeCrafters SDP-1 · " + dateStr;
+    clone.appendChild(rcptFooter);
 
-    /* html2pdf options — A4 portrait, 2× scale for sharpness */
+    /* ── Two rAF to flush layout before capture ── */
+    await new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+    );
+
+    /* ── html2pdf options ── */
     const opt = {
-        margin:      [10, 15, 10, 15],
-        filename:    `FreshPicks_${orderId}.pdf`,
+        margin:      [6, 0, 6, 0],
+        filename,
         image:       { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" }
+        html2canvas: {
+            backgroundColor: "#1e1e1e",   /* explicit hex — no CSS vars */
+            useCORS:         true,
+            scale:           3,            /* high-res: 3× as required */
+            width:           794,
+            windowWidth:     794,
+            scrollX:         0,
+            scrollY:         0,
+            logging:         false
+        },
+        jsPDF: {
+            unit:        "mm",
+            format:      "a4",
+            orientation: "portrait",
+            compress:    true
+        }
     };
-
-    /* Render off-screen */
-    clone.style.position = "fixed";
-    clone.style.left     = "-9999px";
-    document.body.appendChild(clone);
 
     try {
         await html2pdf().set(opt).from(clone).save();
@@ -715,9 +827,10 @@ async function generatePdf(orderId) {
         console.error("PDF generation error:", err);
         alert("PDF generation failed. Check browser console.");
     } finally {
-        document.body.removeChild(clone);
+        if (stage.parentNode) stage.parentNode.removeChild(stage);
     }
 }
+{% endraw %}
 
 
 /* ──────────────────────────────────────────────────────────────────────

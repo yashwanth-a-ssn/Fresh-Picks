@@ -464,6 +464,111 @@ def api_admin_orders():
         if len(parts) >= 8: orders.append({"order_id": parts[0], "user_id": parts[1], "total_amount": float(parts[2]), "delivery_slot": parts[3], "delivery_boy_id": parts[4], "status": parts[5], "timestamp": parts[6], "items": parts[7], "boy_name": parts[8] if len(parts)>8 else "Unknown", "boy_phone": parts[9] if len(parts)>9 else "N/A"})
     return jsonify({"status": "SUCCESS", "orders": orders})
 
+@app.route("/api/get_admin_orders", methods=["POST"])
+def api_get_admin_orders():
+    """
+    POST /api/get_admin_orders
+    ──────────────────────────
+    Called by admin_orders.html on every page load.
+    Delegates to the C binary: ./order admin_orders
+    
+    C output format (10 pipe-delimited fields per order line):
+      order_id|user_id|total|slot|boy_id|status|timestamp|items_string|boy_name|boy_phone
+
+    items_string uses comma-separated 4-part entries:
+      veg_id:name:qty_g:price_per_1000g
+      e.g. "V1001:Tomato:500:40.00,VF101:CurryLeaves:50:0.00"
+
+    Returns:
+      { "status": "SUCCESS", "orders": [...] }   — even if list is empty
+      { "status": "ERROR",   "message": "..." }  — only on binary failure
+
+    SAFETY CONTRACT:
+      • Never returns HTML — always JSON.
+      • On empty orders.txt or no active orders → returns [] not an error.
+      • 404 crash ("Unexpected token <") is impossible with this route present.
+    """
+    # ── Auth guard ────────────────────────────────────────────────────────
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
+
+    # ── Call C binary ─────────────────────────────────────────────────────
+    result = run_c_binary("order", ["admin_orders"])
+
+    # ── Binary-level failure (e.g. binary not compiled, permissions) ──────
+    if result["status"] != "SUCCESS":
+        # Return empty list instead of an error string so the frontend
+        # renders "no active orders" rather than crashing on HTML error body.
+        return jsonify({"status": "SUCCESS", "orders": [], "warning": result.get("data", "")})
+
+    # ── Parse pipe-delimited output ───────────────────────────────────────
+    # Line 0 is the header: "SUCCESS|<count>" — skip it (already in raw_output[0])
+    orders = []
+    raw_lines = result["raw_output"].strip().split("\n")
+
+    for line in raw_lines[1:]:          # skip the SUCCESS|<count> header line
+        line = line.strip()
+        if not line:
+            continue
+
+        parts = line.split("|")
+        if len(parts) < 8:              # minimum viable: 8 fields required
+            continue
+
+        order = {
+            "order_id":      parts[0],
+            "user_id":       parts[1],
+            "total_amount":  _safe_float(parts[2]),
+            "delivery_slot": parts[3],
+            "delivery_boy_id": parts[4],
+            "status":        parts[5],
+            "timestamp":     parts[6],
+            "items_string":  parts[7],
+            # C-side JOIN fields (present if binary outputs 10 fields)
+            "boy_name":      parts[8]  if len(parts) > 8  else "Unknown",
+            "boy_phone":     parts[9]  if len(parts) > 9  else "N/A",
+        }
+        orders.append(order)
+
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+
+def _safe_float(value, default=0.0):
+    """Parse a float safely; return default on any parse error."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+    
+
+@app.route("/api/update_order_status", methods=["POST"])
+def api_update_order_status():
+    """
+    POST /api/update_order_status
+    Body: { "order_id": "ORD107", "status": "Out for Delivery" }
+
+    Valid status values (must match order.c string literals exactly):
+      "Order Placed" | "Out for Delivery" | "Delivered" | "Cancelled"
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
+
+    data      = request.get_json(silent=True) or {}
+    order_id  = data.get("order_id",  "").strip()
+    new_status = data.get("status",   "").strip()
+
+    VALID_STATUSES = {"Order Placed", "Out for Delivery", "Delivered", "Cancelled"}
+    if not order_id:
+        return jsonify({"status": "ERROR", "message": "order_id is required"})
+    if new_status not in VALID_STATUSES:
+        return jsonify({"status": "ERROR", "message": f"Invalid status: {new_status}"})
+
+    result = run_c_binary("order", ["update_order_status", order_id, new_status])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
+
 @app.route("/api/promote_slot_orders", methods=["POST"])
 def api_promote_slot_orders():
     if session.get("role") != "admin": return jsonify({"status": "ERROR", "message": "Admin only"})
