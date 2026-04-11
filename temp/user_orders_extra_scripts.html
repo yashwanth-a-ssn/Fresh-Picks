@@ -1,132 +1,21 @@
-{% extends "base.html" %}
 {#
-  user_orders.html — Fresh Picks: My Orders (Session 6 Refactor)
-  ==============================================================
-  Changes from Session 5:
-    ✔ Horizontal flex cards (not inline pills for items)
-    ✔ "View Items" button → Modal with invoice table (PRODUCT|RATE|QTY|AMOUNT)
-    ✔ Cancel button: visible only when status == "Order Placed"
-      → SweetAlert2-style warning → OTP modal → /api/cancel_order
-    ✔ Actual Delivery Agent Name + Phone shown (from boy_name / boy_phone)
-    ✔ Vertical timeline: "Delivered" step shows ✔ checkmark inside glowing circle
-    ✔ All JS template literals in {% raw %} ... {% endraw %}
-
-  Team: CodeCrafters | SDP-1
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  REPLACEMENT: {% block extra_scripts %} for user_orders.html ║
+  ║  Replace everything from <style> through </script> in the    ║
+  ║  existing {% block extra_scripts %} block with this content. ║
+  ╚══════════════════════════════════════════════════════════════╝
+  KEY FIXES IN THIS VERSION:
+    1. Timeline: "Delivered" node shows ✔ checkmark (bi-check-lg)
+       instead of just glowing. Done via JS logic in buildTracker().
+    2. Modal table: exact mirror of Invoice Preview —
+       PRODUCT | RATE | QTY | AMOUNT  with proper hex colors.
+    3. parseItemsInvoice: correctly extracts .name from 4-part format
+       (veg_id:name:qty:price). Falls back to id for 3-part legacy.
+    4. Agent: renders order.boy_name + order.boy_phone from the
+       enriched API response (after cmd_get_orders fix in order.c).
+    5. Cancel flow: confirm() → OTP modal (code: 0000) → API call.
+    6. All JS template literals wrapped in {% raw %} … {% endraw %}.
 #}
-
-{% block title %}My Orders | Fresh Picks{% endblock %}
-
-{% block content %}
-<div class="container py-4">
-
-    {# ── Page Header ── #}
-    <div class="welcome-banner fade-in mb-4">
-        <h2>
-            <i class="bi bi-box-seam me-2" style="color:var(--accent);"></i>
-            My Orders
-        </h2>
-        <p class="mb-0 text-muted">Track all your past and current orders.</p>
-    </div>
-
-    {# ── Orders Container (JS populates) ── #}
-    <div id="ordersContainer">
-        <div class="text-center py-5" id="loadingPlaceholder">
-            <span class="spinner-sm"></span>
-            <span class="text-muted ms-2">Loading your orders…</span>
-        </div>
-    </div>
-
-</div>
-
-{# ════════════════════════════════════════════════════════════════
-   VIEW ITEMS MODAL — Invoice format: PRODUCT | RATE | QTY | AMOUNT
-════════════════════════════════════════════════════════════════ #}
-<div class="modal fade" id="userItemsModal" tabindex="-1"
-     aria-labelledby="userItemsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content"
-             style="background:var(--bg-surface); border:1px solid var(--border-color);">
-            <div class="modal-header"
-                 style="border-bottom:1px solid var(--border-color);">
-                <h5 class="modal-title text-bright" id="userItemsModalLabel">
-                    <i class="bi bi-receipt me-2" style="color:var(--accent);"></i>
-                    Order Items
-                </h5>
-                <button type="button" class="btn-close btn-close-white"
-                        data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="userItemsModalBody"></div>
-            <div class="modal-footer"
-                 style="border-top:1px solid var(--border-color);">
-                <button class="btn btn-sm btn-action"
-                        style="background:var(--bg-elevated);"
-                        data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{# ════════════════════════════════════════════════════════════════
-   OTP CANCELLATION MODAL (user flow — same OTP: 0000 for demo)
-════════════════════════════════════════════════════════════════ #}
-<div class="modal fade" id="userOtpModal" tabindex="-1"
-     aria-labelledby="userOtpModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
-        <div class="modal-content"
-             style="background:var(--bg-surface); border:1px solid var(--border-color);">
-            <div class="modal-header"
-                 style="border-bottom:1px solid var(--border-color);">
-                <h5 class="modal-title text-bright" id="userOtpModalLabel">
-                    <i class="bi bi-shield-lock me-2" style="color:var(--danger);"></i>
-                    Cancel Order
-                </h5>
-                <button type="button" class="btn-close btn-close-white"
-                        data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="p-3 mb-3"
-                     style="background:rgba(220,53,69,0.08); border-radius:8px;
-                            border-left:3px solid var(--danger);">
-                    <p class="mb-0" style="font-size:0.83rem; color:var(--text-muted);">
-                        <strong style="color:var(--danger);">Cancellation Notice</strong><br>
-                        A cancellation fee of <strong>₹50</strong> will be deducted from your
-                        paid amount. The remaining balance will be refunded to your original
-                        payment method within <strong>2–3 working days</strong>. An email
-                        confirmation will be sent shortly.
-                    </p>
-                </div>
-                <div>
-                    <label class="form-label text-muted"
-                           style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em;">
-                        Enter Cancellation OTP
-                    </label>
-                    <input type="text" id="userOtpInput" class="form-control"
-                           placeholder="0000" maxlength="6"
-                           style="background:var(--bg-elevated); color:var(--text-bright);
-                                  border:1px solid var(--border-color); font-family:var(--font-mono);
-                                  letter-spacing:0.2em; font-size:1.2rem; text-align:center;">
-                    <div id="userOtpError" class="mt-1"
-                         style="color:var(--danger); font-size:0.78rem; display:none;">
-                        Incorrect OTP. Please try again.
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer"
-                 style="border-top:1px solid var(--border-color);">
-                <button class="btn btn-sm"
-                        style="background:var(--bg-elevated); color:var(--text-muted);"
-                        data-bs-dismiss="modal">Go Back</button>
-                <button class="btn btn-sm"
-                        style="background:var(--danger); color:#fff; border:none;"
-                        onclick="confirmUserCancelWithOtp()">
-                    <i class="bi bi-x-circle me-1"></i>Cancel Order
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-{% endblock %}
 
 {% block extra_scripts %}
 <style>
@@ -749,5 +638,3 @@ async function loadUserOrders() {
 document.addEventListener("DOMContentLoaded", loadUserOrders);
 </script>
 {% endblock %}
-
-

@@ -590,6 +590,25 @@ let cartItems     = [];   /* Array of item objects from /api/view_cart  */
 let cartTotal     = 0.0;  /* Running total (paid items only, in ₹)      */
 let selectedSlot  = "";   /* "Morning" | "Afternoon" | "Evening"        */
 let checkoutResult = {};  /* Confirmed order data from /api/checkout     */
+let _customerFullName = localStorage.getItem("fp_full_name") || localStorage.getItem("username") || "Customer";
+
+async function fetchCustomerName() {
+    try {
+        const res  = await fetch("/api/get_profile", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    "{}"
+        });
+        const data = await res.json();
+        if (data.status === "SUCCESS" && data.full_name) {
+            _customerFullName = data.full_name;
+            /* Cache it so subsequent page loads are instant */
+            localStorage.setItem("fp_full_name", data.full_name);
+        }
+    } catch (_) {
+        /* Silent fail — _customerFullName already has a safe fallback */
+    }
+}
 
 const MIN_ORDER        = 100;   /* ₹ minimum required to checkout       */
 const FREEBIE_THRESHOLD = 500;  /* ₹ threshold to unlock freebies       */
@@ -603,7 +622,10 @@ const STATE_IDS = {
 };
 
 /* ── Boot ───────────────────────────────────────────────────── */
-window.addEventListener("DOMContentLoaded", loadCart);
+window.addEventListener("DOMContentLoaded", () => {
+    fetchCustomerName();   /* fetch full name early, non-blocking */
+    loadCart();
+});
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1081,8 +1103,7 @@ function renderInvoicePreview() {
     };
     document.getElementById("prev-slot").textContent =
         slotLabels[selectedSlot] || selectedSlot;
-    document.getElementById("prev-customer").textContent =
-        localStorage.getItem("username") || "Customer";
+    document.getElementById("prev-customer").textContent = _customerFullName;
 
     /* Apply accent color to shop name in the invoice block */
     const shopNameEl = document.querySelector(".cart-shop-block .text-bright");
@@ -1263,8 +1284,7 @@ function renderReceipt(result) {
     document.getElementById("rcpt-boy-name").textContent  = result.boy_name  || "—";
     document.getElementById("rcpt-boy-phone").textContent =
         result.boy_phone ? `📞 ${result.boy_phone}` : "—";
-    document.getElementById("rcpt-customer").textContent  =
-        localStorage.getItem("username") || "Customer";
+    document.getElementById("rcpt-customer").textContent = _customerFullName;
 
     /* Shop brand color */
     const brandEl = document.querySelector(".rcpt-brand");
@@ -1566,331 +1586,39 @@ function renderProducts(products) {
    The download button is intentionally outside that div.
 ═══════════════════════════════════════════════════════════════ */
 
-{% raw %}
-/**
- * downloadReceiptAsPDF — Dark-theme deep-clone PDF capture.
- *
- * BUGS FIXED IN THIS VERSION:
- *   1. Header right-side clipping: stamp flex layout on rcpt-header-row
- *      with min-width:0 on children so "Order Receipt" chip doesn't overflow.
- *   2. Totals row showing "0" / "P" fragments: stamp display:flex +
- *      justify-content:space-between on every totals row element.
- *   3. Meta-grid (Bill To / Slot) blank: stamp display:grid on rcpt-meta-grid.
- *   4. Delivery row layout broken: stamp display:flex + gap on rcpt-delivery-row.
- *   5. Global td/th/tr reset was wiping display values: now background-only reset.
- *   6. windowWidth:794 added to html2canvas for accurate A4 rendering.
- */
-async function downloadReceiptAsPDF() {
-    const receiptElement = document.getElementById("receiptPrintArea");
-    if (!receiptElement) {
-        showToast("Receipt not found. Please try again.", "danger");
+// ✅ ADD THIS INSTEAD
+function downloadReceiptAsPDF() {
+    const btn = document.getElementById("btnDownloadReceipt");
+    if (btn) {
+        btn.innerHTML = '<span class="spinner-sm"></span> Generating...';
+        btn.disabled = true;
+    }
+
+    /* We assume 'currentOrderData' is the variable where you saved the 
+      order JSON after the checkout API succeeded. If your variable is named 
+      something else (like 'checkoutResult'), use that name here!
+    */
+    if (typeof currentOrderData === 'undefined' || !currentOrderData) {
+        console.error("Order data missing.");
+        showToast("Error: Order data not found.", "danger");
+        if (btn) {
+            btn.innerHTML = '<i class="bi bi-download me-2"></i>Download Receipt';
+            btn.disabled = false;
+        }
         return;
     }
 
-    /* ── Filename: ORDERID_USERID_DATE ──────────────────────── */
-    const orderId  = (document.getElementById("rcpt-order-id").textContent || "ORD000")
-                        .trim().replace(/[^a-zA-Z0-9_-]/g, "");
-    const userId   = (localStorage.getItem("username") || "USER")
-                        .trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
-    const dateStr  = new Date().toISOString().slice(0, 10);
-    const filename = `${orderId}_${userId}_${dateStr}.pdf`;
+    // Call your new centralized brute-force function from receipt.js!
+    generateStandardReceiptPDF(currentOrderData);
 
-    /* ── Button: loading state ───────────────────────────────── */
-    const dlBtn    = document.querySelector('button[onclick="downloadReceiptAsPDF()"]');
-    const origHTML = dlBtn ? dlBtn.innerHTML : "";
-    if (dlBtn) {
-        dlBtn.disabled  = true;
-        dlBtn.innerHTML = '<span class="spinner-sm me-2"></span>Generating PDF…';
-    }
-
-    /* ── Off-screen stage — overflow:visible prevents right-clip ─ */
-    const stage = document.createElement("div");
-    stage.style.cssText = [
-        "position:fixed",
-        "top:-99999px",
-        "left:0",               /* left:0 so layout engine has reference point */
-        "width:794px",
-        "background:#1e1e1e",
-        "overflow:visible",     /* FIX: was "hidden", caused right-side clipping */
-        "z-index:-9999",
-        "pointer-events:none"
-    ].join(";");
-    document.body.appendChild(stage);
-
-    /* ── Deep clone ──────────────────────────────────────────── */
-    const clone = receiptElement.cloneNode(true);
-    clone.removeAttribute("id");
-
-    /* Root: explicit dark background, no CSS vars */
-    clone.style.backgroundColor = "#1e1e1e";
-    clone.style.color           = "#ffffff";
-    clone.style.padding         = "20px 24px";   /* reduced: 48px horiz leaves 746px content */
-    clone.style.boxSizing       = "border-box";
-    clone.style.width           = "794px";
-    clone.style.fontFamily      = "Segoe UI, Arial, system-ui, sans-serif";
-    clone.style.fontSize        = "13px";
-    clone.style.lineHeight      = "1.5";
-    stage.appendChild(clone);
-
-    /* ── stamp() helper — applies styles to all matching elements ── */
-    const stamp = (selector, styles) =>
-        clone.querySelectorAll(selector).forEach(el => Object.assign(el.style, styles));
-
-    /* ── 1. BACKGROUND-ONLY reset — DO NOT reset display/flex ── */
-    /* Wipe any inherited CSS-var backgrounds from the live page  */
-    stamp("div, section, article", { backgroundColor: "transparent" });
-    stamp("span, p",               { backgroundColor: "transparent" });
-    /* Tables: background transparent but preserve table display */
-    stamp("table",  { backgroundColor: "transparent" });
-    stamp("thead",  { backgroundColor: "transparent" });
-    stamp("tbody",  { backgroundColor: "transparent" });
-    stamp("tr",     { backgroundColor: "transparent" });
-    stamp("td, th", { backgroundColor: "transparent" });
-
-    /* ── 2. HEADER ROW — fix right-side clip ────────────────── */
-    stamp(".rcpt-header-row", {
-        display:        "flex",
-        justifyContent: "space-between",
-        alignItems:     "flex-start",
-        gap:            "1rem",
-        width:          "100%",
-        overflow:       "visible"
-    });
-    /* Both children get min-width:0 so they can shrink without overflow */
-    clone.querySelectorAll(".rcpt-header-row > div").forEach(el => {
-        el.style.minWidth  = "0";
-        el.style.overflow  = "visible";
-        el.style.flexShrink = "1";
-    });
-    /* Right-side header child: don't shrink the order chip */
-    clone.querySelectorAll(".rcpt-header-row > div.text-end").forEach(el => {
-        el.style.textAlign  = "right";
-        el.style.flexShrink = "0";
-        el.style.whiteSpace = "nowrap";
-    });
-
-    /* ── 3. BRAND & META ────────────────────────────────────── */
-    stamp(".rcpt-brand",  {
-        color: "#007acc", fontSize: "1.1rem", fontWeight: "700",
-        whiteSpace: "normal", wordBreak: "break-word"
-    });
-    stamp(".rcpt-sub",    { color: "#858585", fontSize: "0.76rem", lineHeight: "1.55" });
-    stamp(".rcpt-label",  {
-        color: "#858585", fontSize: "0.66rem",
-        textTransform: "uppercase", letterSpacing: "0.08em",
-        marginBottom: "2px", display: "block"
-    });
-    stamp(".rcpt-value",  { color: "#ffffff", fontSize: "0.88rem", fontWeight: "500" });
-    stamp(".rcpt-order-chip", {
-        color:        "#9cdcfe",
-        backgroundColor: "rgba(0,122,204,0.2)",
-        border:       "1px solid rgba(0,122,204,0.4)",
-        borderRadius: "4px",
-        padding:      "0.15em 0.5em",
-        display:      "inline-block",
-        fontFamily:   "monospace",
-        fontSize:     "0.85rem",
-        whiteSpace:   "nowrap",
-        marginBottom: "4px"
-    });
-    stamp(".rcpt-datetime", { color: "#858585", fontSize: "0.76rem", whiteSpace: "nowrap" });
-
-    /* ── 4. DASHED DIVIDER ──────────────────────────────────── */
-    stamp(".rcpt-divider-dashed", {
-        borderTop:  "2px dashed #3c3c3c",
-        margin:     "12px 0",
-        display:    "block",
-        height:     "0"
-    });
-
-    /* ── 5. META GRID (Bill To / Delivery Slot / Status) ────── */
-    /* FIX: was missing display:grid — caused blank columns      */
-    stamp(".rcpt-meta-grid", {
-        display:             "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap:                 "0.75rem",
-        margin:              "12px 0",
-        padding:             "10px 0"
-    });
-
-    /* ── 6. PAID BADGE ──────────────────────────────────────── */
-    stamp(".rcpt-paid-badge", {
-        color:           "#28a745",
-        backgroundColor: "rgba(40,167,69,0.18)",
-        border:          "1px solid rgba(40,167,69,0.4)",
-        borderRadius:    "4px",
-        padding:         "0.15em 0.55em",
-        fontWeight:      "700",
-        display:         "inline-block",
-        fontSize:        "0.82rem"
-    });
-
-    /* ── 7. DELIVERY ROW ────────────────────────────────────── */
-    /* FIX: was missing display:flex — broken layout             */
-    stamp(".rcpt-delivery-row", {
-        backgroundColor: "#252526",
-        border:          "1px solid #3c3c3c",
-        borderRadius:    "6px",
-        padding:         "10px 14px",
-        display:         "flex",
-        alignItems:      "center",
-        gap:             "0.75rem",
-        margin:          "12px 0"
-    });
-    stamp(".rcpt-moto", { fontSize: "1.3rem", flexShrink: "0" });
-
-    /* ── 8. TABLE ────────────────────────────────────────────── */
-    stamp(".rcpt-table", {
-        color:          "#ffffff",
-        width:          "100%",
-        borderCollapse: "collapse",
-        tableLayout:    "fixed",
-        marginTop:      "12px"
-    });
-    stamp(".rcpt-thead-row",    { borderBottom: "2px solid #3c3c3c" });
-    stamp(".rcpt-thead-row th", {
-        color:          "#858585",
-        backgroundColor:"#1e1e1e",
-        fontWeight:     "600",
-        fontSize:       "0.68rem",
-        textTransform:  "uppercase",
-        letterSpacing:  "0.06em",
-        padding:        "6px 8px"
-    });
-    stamp(".rcpt-item-row",  { borderBottom: "1px solid #2d2d2d" });
-    stamp(".rcpt-td-num",    { color: "#858585", padding: "7px 8px", fontSize: "0.8rem" });
-    stamp(".rcpt-td-name",   {
-        color:      "#ffffff",
-        fontWeight: "500",
-        padding:    "7px 8px",
-        wordBreak:  "break-word"
-    });
-    stamp(".rcpt-td-rate",   {
-        color:      "#ffffff",
-        textAlign:  "right",
-        fontSize:   "0.8rem",
-        padding:    "7px 8px",
-        whiteSpace: "nowrap"
-    });
-    stamp(".rcpt-td-qty",    {
-        color:      "#ffffff",
-        textAlign:  "right",
-        padding:    "7px 8px",
-        whiteSpace: "nowrap"
-    });
-    stamp(".rcpt-td-amt",    {
-        textAlign:  "right",
-        fontWeight: "600",
-        padding:    "7px 8px",
-        whiteSpace: "nowrap"
-    });
-    /* Per-cell amount colors (paid=blue, free=green) */
-    clone.querySelectorAll(".rcpt-td-amt").forEach(el => {
-        const txt = el.textContent.trim();
-        el.style.color = (txt === "FREE" || txt === "") ? "#28a745" : "#1a9eff";
-    });
-    stamp(".rcpt-free-badge", {
-        color:           "#28a745",
-        backgroundColor: "rgba(40,167,69,0.18)",
-        border:          "1px solid rgba(40,167,69,0.3)",
-        borderRadius:    "3px",
-        fontSize:        "0.63rem",
-        fontWeight:      "700",
-        padding:         "1px 5px",
-        display:         "inline-block",
-        verticalAlign:   "middle",
-        marginLeft:      "4px",
-        lineHeight:      "1.5"
-    });
-
-    /* ── 9. TOTALS — FIX: must stamp display:flex on each row ── */
-    stamp(".rcpt-totals", {
-        borderTop:   "1px solid #3c3c3c",
-        paddingTop:  "10px",
-        marginTop:   "4px",
-        display:     "block"          /* container is block */
-    });
-    stamp(".rcpt-total-row", {
-        display:        "flex",       /* FIX: was missing — caused "0"/"P" fragments */
-        justifyContent: "space-between",
-        alignItems:     "center",
-        color:          "#ffffff",
-        fontSize:       "0.85rem",
-        padding:        "3px 0"
-    });
-    stamp(".rcpt-free", { color: "#28a745", fontWeight: "600" });
-    stamp(".rcpt-grand-row", {
-        display:        "flex",       /* FIX: same issue as rcpt-total-row */
-        justifyContent: "space-between",
-        alignItems:     "center",
-        color:          "#ffffff",
-        fontSize:       "1rem",
-        fontWeight:     "700",
-        borderTop:      "2px solid #3c3c3c",
-        paddingTop:     "8px",
-        marginTop:      "6px"
-    });
-    /* Grand total amount — bright blue */
-    clone.querySelectorAll(".rcpt-grand-row span:last-child").forEach(el => {
-        el.style.color     = "#1a9eff";
-        el.style.fontSize  = "1.05rem";
-        el.style.fontWeight = "700";
-    });
-
-    /* ── 10. FOOTER ─────────────────────────────────────────── */
-    stamp(".rcpt-footer", {
-        color:       "#858585",
-        fontSize:    "0.72rem",
-        textAlign:   "center",
-        borderTop:   "1px dashed #3c3c3c",
-        paddingTop:  "12px",
-        marginTop:   "16px",
-        display:     "block"
-    });
-
-    /* ── 11. Two rAF: flush layout & paint before capture ────── */
-    await new Promise(resolve =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve))
-    );
-
-    /* ── 12. html2canvas options ─────────────────────────────── */
-    const pdfOptions = {
-        margin:      [6, 0, 6, 0],   /* top/bottom margin only; left/right = 0 (padding on clone) */
-        filename,
-        image:       { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-            backgroundColor: "#1e1e1e",
-            useCORS:         true,
-            scale:           3,
-            width:           794,            /* fixed A4 width — not scrollWidth which may vary */
-            windowWidth:     794,            /* FIX: tells html2canvas the viewport is 794px wide */
-            scrollX:         0,
-            scrollY:         0,
-            logging:         false
-        },
-        jsPDF: {
-            unit:        "mm",
-            format:      "a4",
-            orientation: "portrait",
-            compress:    true
+    // Reset button after a short delay
+    setTimeout(() => {
+        if (btn) {
+            btn.innerHTML = '<i class="bi bi-download me-2"></i>Download Receipt';
+            btn.disabled = false;
         }
-    };
-
-    try {
-        await html2pdf().set(pdfOptions).from(clone).save();
-        showToast(`Saved: ${filename}`, "success");
-    } catch (err) {
-        console.error("[downloadReceiptAsPDF]", err);
-        showToast("PDF generation failed. Check the console.", "danger");
-    } finally {
-        if (stage.parentNode) stage.parentNode.removeChild(stage);
-        if (dlBtn) {
-            dlBtn.innerHTML = origHTML;
-            dlBtn.disabled  = false;
-        }
-    }
+    }, 1500);
 }
-{% endraw %}
 
 /* ═══════════════════════════════════════════════════════════════
    SECTION 8: VS CODE–STYLED TOAST SYSTEM

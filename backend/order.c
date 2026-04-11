@@ -501,13 +501,13 @@ int find_boy_by_id(DeliveryBoy* boys, int count,
  */
 
 /*
- * COMMAND: list_products
- * PURPOSE: Read vegetables.txt and print every row.
- * Flask splits by "\n" to build the products JSON array.
+ * COMMAND: list_products  (FIXED — header now on its own line)
+ * The previous version printed "SUCCESS|" with no newline, fusing
+ * the header with the first product row. Flask's [1:] slice then
+ * discarded that first product. Fix: header gets its own \n.
  *
  * OUTPUT FORMAT:
  *   SUCCESS|
- *   veg_id|category|name|stock_g|price_per_1000g|tag|validity_days
  *   veg_id|category|name|stock_g|price_per_1000g|tag|validity_days
  *   ...
  */
@@ -515,18 +515,14 @@ void cmd_list_products(void) {
     FILE* fp = fopen(PRODUCTS_FILE, "r");
     if (!fp) { PRINT_ERROR("Could not open vegetables.txt"); return; }
 
-    printf("SUCCESS|");  /* Header line — Flask uses this to know it succeeded */
+    printf("SUCCESS|\n");   /* ← FIXED: header on its own line */
 
     char line[MAX_LINE_LEN];
-    int  first = 1;
     while (fgets(line, sizeof(line), fp)) {
         line[strcspn(line, "\n")] = '\0';
         if (strlen(line) == 0) continue;
-        if (!first) printf("\n");
-        printf("%s", line);
-        first = 0;
+        printf("%s\n", line);  /* ← FIXED: each product always ends with \n */
     }
-    printf("\n");
     fclose(fp);
 }
 
@@ -713,27 +709,32 @@ void cmd_checkout(const char* user_id, const char* slot) {
     char order_id[MAX_ID_LEN];
     generate_order_id(order_id);
 
-    /* ── Step 7c: Build items_string WITH PRICE SNAPSHOT (NEW v3) ─
-       OLD format: "V1001:500,V1003:1000"
-       NEW format: "V1001:500:40.00,V1003:1000:60.00,VF101:100:0.00"
-
-       WHY INCLUDE THE PRICE?
-       If the admin changes the price of Onion from ₹40 to ₹50 next week,
-       an order placed TODAY should still show ₹40 on the invoice.
-       Storing the price AT ORDER TIME prevents historical bills from changing.
+    /* ── Step 7c: Build items_string WITH NAME + PRICE SNAPSHOT ──────
+       4-part format: veg_id:name:qty_g:price_per_1000g
+       This is the ONLY format the JS parser should need.
+       The name is captured here at order time so it survives
+       future product renames or deletions.
     */
     char items_string[MAX_LINE_LEN] = "";
     curr = head;
     while (curr != NULL) {
-        char part[80];
-        /* Format: veg_id:qty_g:price_per_1000g */
-        snprintf(part, sizeof(part), "%s:%d:%.2f",
+        char part[128];
+        /* Sanitize name: replace ':' and ',' with spaces to avoid
+           breaking our delimiter format */
+        char safe_name[MAX_STR_LEN];
+        strncpy(safe_name, curr->name, MAX_STR_LEN - 1);
+        safe_name[MAX_STR_LEN - 1] = '\0';
+        for (char* p = safe_name; *p; p++) {
+            if (*p == ':' || *p == ',') *p = ' ';
+        }
+
+        snprintf(part, sizeof(part), "%s:%s:%d:%.2f",
             curr->veg_id,
+            safe_name,
             curr->qty_g,
-            curr->price_per_1000g  /* Price snapshot! */
+            curr->price_per_1000g
         );
 
-        /* Append comma separator before each item except the first */
         if (strlen(items_string) > 0) {
             strncat(items_string, ",", MAX_LINE_LEN - strlen(items_string) - 1);
         }
@@ -801,41 +802,59 @@ void cmd_checkout(const char* user_id, const char* slot) {
 }
 
 /*
- * COMMAND: get_orders
- * PURPOSE: Return all past orders for a specific user from orders.txt.
- *          argv: get_orders <user_id>
+ * COMMAND: get_orders  (FIXED — enriched with boy_name + boy_phone)
+ * Now loads delivery_boys.txt once and JOINs each order row
+ * so Flask/JS gets the actual agent name, not just the ID.
  *
  * OUTPUT:
  *   SUCCESS|
- *   <full order row>
- *   <full order row>
+ *   order_id|user_id|total|slot|boy_id|status|timestamp|items_string|boy_name|boy_phone
  *   ...
  */
 void cmd_get_orders(const char* user_id) {
+    /* Load delivery boys once for the JOIN */
+    DeliveryBoy boys[MAX_DELIVERY_BOYS];
+    int boy_count = load_delivery_boys(boys, MAX_DELIVERY_BOYS);
+
     FILE* fp = fopen(ORDERS_FILE, "r");
     if (!fp) { PRINT_ERROR("Could not open orders file"); return; }
 
-    printf("SUCCESS|\n");  /* Header line */
+    printf("SUCCESS|\n");
 
     char line[MAX_LINE_LEN];
     while (fgets(line, sizeof(line), fp)) {
-        /* Keep a copy of the original line for printing (strtok modifies) */
-        char orig[MAX_LINE_LEN];
-        strncpy(orig, line, MAX_LINE_LEN - 1);
-        orig[strcspn(orig, "\n")] = '\0';
-
         line[strcspn(line, "\n")] = '\0';
         if (strlen(line) == 0) continue;
 
-        /* user_id is the SECOND pipe-delimited field */
-        char* tok = strtok(line, "|");
-        if (!tok) continue;              /* order_id */
-        tok = strtok(NULL, "|");         /* user_id  */
-        if (!tok) continue;
+        /* Parse to check user_id (field 2) and get boy_id (field 5) */
+        char copy[MAX_LINE_LEN];
+        strncpy(copy, line, MAX_LINE_LEN - 1);
+        copy[MAX_LINE_LEN - 1] = '\0';
 
-        if (strcmp(tok, user_id) == 0) {
-            printf("%s\n", orig);  /* Print the original, unmodified row */
+        char* tok = strtok(copy, "|");
+        if (!tok) continue;                      /* order_id */
+        tok = strtok(NULL, "|");
+        if (!tok) continue;                      /* user_id  */
+
+        if (strcmp(tok, user_id) != 0) continue; /* Not this user's order */
+
+        /* Continue parsing to get boy_id */
+        tok = strtok(NULL, "|"); /* total       */
+        tok = strtok(NULL, "|"); /* slot        */
+        tok = strtok(NULL, "|"); /* boy_id      */
+        char boy_id_buf[MAX_ID_LEN] = "NONE";
+        if (tok) {
+            strncpy(boy_id_buf, tok, MAX_ID_LEN - 1);
+            boy_id_buf[MAX_ID_LEN - 1] = '\0';
         }
+
+        /* JOIN: look up name + phone */
+        char boy_name[MAX_STR_LEN]  = "Unknown";
+        char boy_phone[MAX_STR_LEN] = "N/A";
+        find_boy_by_id(boys, boy_count, boy_id_buf, boy_name, boy_phone);
+
+        /* Print: original line + enrichment */
+        printf("%s|%s|%s\n", line, boy_name, boy_phone);
     }
     fclose(fp);
 }

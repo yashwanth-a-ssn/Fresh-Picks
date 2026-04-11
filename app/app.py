@@ -446,15 +446,29 @@ def api_checkout():
 
 @app.route("/api/get_user_orders", methods=["POST"])
 def api_get_user_orders():
-    # Kept as POST per your request
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
     result = run_c_binary("order", ["get_orders", session["user_id"]])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
     orders = []
     for line in result["raw_output"].strip().split("\n")[1:]:
         parts = line.strip().split("|")
-        if len(parts) >= 8: orders.append({"order_id": parts[0], "user_id": parts[1], "total_amount": float(parts[2]), "delivery_slot": parts[3], "delivery_boy_id": parts[4], "status": parts[5], "timestamp": parts[6], "items_string": parts[7]})
+        if len(parts) < 8:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8] if len(parts) > 8 else "Unknown",
+            "boy_phone":       parts[9] if len(parts) > 9 else "N/A",
+        })
     return jsonify({"status": "SUCCESS", "orders": orders})
 
 @app.route("/api/admin_orders", methods=["GET"])

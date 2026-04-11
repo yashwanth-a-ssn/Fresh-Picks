@@ -159,6 +159,54 @@
 
 
 {% block extra_scripts %}
+
+<style>
+/* ── Shared Invoice Modal Table (mirrors Invoice Preview exactly) ──
+   Used by openItemsModal() in both user_orders.html and admin_orders.html.
+   Add to base.html or to each file's <style> block. */
+.fp-invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.fp-invoice-table thead tr {
+    background: var(--accent, #007acc);
+}
+.fp-invoice-table thead th {
+    padding: 9px 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.fp-invoice-table thead th:not(:first-child) { text-align: right; }
+.fp-invoice-table tbody tr:nth-child(even) { background: var(--bg-elevated); }
+.fp-invoice-table tbody tr:nth-child(odd)  { background: var(--bg-surface);  }
+.fp-invoice-table tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    color: var(--text-bright);
+    vertical-align: middle;
+}
+.fp-invoice-table tbody td:not(:first-child) { text-align: right; }
+.fp-invoice-table tfoot td {
+    padding: 10px 12px;
+    border-top: 2px solid var(--border-color);
+    font-size: 0.88rem;
+}
+.fp-invoice-badge-free {
+    display: inline-block;
+    font-size: 0.62rem; font-weight: 700;
+    color: #28a745;
+    background: rgba(40,167,69,0.12);
+    border: 1px solid rgba(40,167,69,0.3);
+    border-radius: 3px;
+    padding: 1px 5px; margin-left: 5px;
+    vertical-align: middle; line-height: 1.4;
+}
+</style>
+
 {# html2pdf.js loaded before receipt.js #}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
         crossorigin="anonymous"></script>
@@ -226,58 +274,68 @@ function parseItems(itemsString) {
 }
 
 /* ─── VIEW ITEMS MODAL ─────────────────────────────────────────────── */
+{% raw %}
+/* ─── VIEW ITEMS MODAL (FIXED) ───────────────────────────────────────
+   Exact mirror of Invoice Preview: PRODUCT | RATE | QTY | AMOUNT
+   Uses fp-invoice-table CSS class for consistent styling.
+   parseItems() is already correct in admin_orders.html — no change needed.
+   ─────────────────────────────────────────────────────────────────── */
 function openItemsModal(orderId, itemsString, total) {
-    const items = parseItems(itemsString);
-    let rows = items.map((it, idx) => `
-        <tr style="${idx % 2 === 0 ? "" : "opacity:0.85;"}">
-            <td class="text-bright">
-                ${it.name}
-                ${it.isFree ? `<span class="badge badge-status-delivered ms-1" style="font-size:0.65rem;">FREE</span>` : ""}
-            </td>
-            <td class="text-muted text-end" style="font-family:var(--font-mono);">
-                ${it.isFree ? "—" : `₹${it.priceNum.toFixed(2)}/kg`}
-            </td>
-            <td class="text-end" style="font-family:var(--font-mono);">
-                ${it.qty}
-            </td>
-            <td class="text-end font-weight-bold"
-                style="color:${it.isFree ? "var(--success)" : "var(--text-bright)"}; font-family:var(--font-mono);">
-                ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}
-            </td>
-        </tr>
-    `).join("");
+    const items = parseItems(itemsString);   /* parseItems() already in admin_orders.html */
 
-    if (!rows) rows = `<tr><td colspan="4" class="text-center text-muted py-3">No items found.</td></tr>`;
+    const rows = items.length > 0
+        ? items.map(it => `
+            <tr>
+                <td>
+                    ${it.name}
+                    ${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : ""}
+                </td>
+                <td style="font-family:var(--font-mono); color:var(--text-muted);">
+                    ${it.isFree ? "&mdash;" : `₹${it.priceNum.toFixed(2)}/kg`}
+                </td>
+                <td style="font-family:var(--font-mono);">${it.qty}</td>
+                <td style="font-family:var(--font-mono);
+                           color:${it.isFree ? "var(--success)" : "var(--text-bright)"};">
+                    ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}
+                </td>
+            </tr>`).join("")
+        : `<tr><td colspan="4"
+                  style="text-align:center; color:var(--text-muted); padding:14px;">
+               No items found.
+           </td></tr>`;
 
     document.getElementById("itemsModalLabel").innerHTML =
         `<i class="bi bi-receipt me-2" style="color:var(--accent);"></i>Items — ${orderId}`;
 
     document.getElementById("itemsModalBody").innerHTML = `
         <div class="table-responsive">
-            <table class="table table-borderless" style="margin-bottom:0;">
+            <table class="fp-invoice-table">
                 <thead>
-                    <tr style="border-bottom:1px solid var(--border-color);">
-                        <th class="text-muted" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; width:40%;">Product</th>
-                        <th class="text-muted text-end" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; width:20%;">Rate</th>
-                        <th class="text-muted text-end" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; width:15%;">Qty</th>
-                        <th class="text-muted text-end" style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.05em; width:25%;">Amount</th>
+                    <tr>
+                        <th style="width:40%; text-align:left;">Product</th>
+                        <th style="width:20%;">Rate</th>
+                        <th style="width:15%;">Qty</th>
+                        <th style="width:25%;">Amount</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
                 <tfoot>
-                    <tr style="border-top:2px solid var(--border-color);">
-                        <td colspan="3" class="text-end text-muted" style="font-size:0.85rem; padding-top:10px;">Grand Total</td>
-                        <td class="text-end" style="color:var(--accent); font-weight:700; font-family:var(--font-mono); padding-top:10px; font-size:1rem;">
+                    <tr>
+                        <td colspan="3" style="text-align:right; color:var(--text-muted);
+                                               font-size:0.82rem;">Grand Total</td>
+                        <td style="text-align:right; color:var(--accent); font-weight:700;
+                                   font-family:var(--font-mono); font-size:1rem;">
                             ₹${parseFloat(total).toFixed(2)}
                         </td>
                     </tr>
                 </tfoot>
             </table>
-        </div>
-    `;
+        </div>`;
 
     new bootstrap.Modal(document.getElementById("itemsModal")).show();
 }
+{% endraw %}
+
 
 /* ─── CANCEL FLOW — Step 1: SweetAlert2-style warning ─────────────── */
 /* We use a lightweight Bootstrap Modal as SweetAlert2 may not be loaded.
