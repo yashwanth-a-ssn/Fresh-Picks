@@ -24,19 +24,24 @@ echo "================================================"
 cd "$(dirname "$0")"
 
 # ── 1. order binary ─────────────────────────────────────────────
-echo "[1/3] Compiling order..."
+echo "[1/4] Compiling order..."
 gcc -Wall -Wextra -o order order.c ds_utils.c -lm
 echo "      ✓ order executed successfully"
 
 # ── 2. auth binary ──────────────────────────────────────────────
-echo "[2/3] Compiling auth..."
+echo "[2/4] Compiling auth..."
 gcc -Wall -Wextra -o auth auth.c ds_utils.c -lm
 echo "      ✓ auth executed successfully"
 
 # ── 3. inventory binary ─────────────────────────────────────────
-echo "[3/3] Compiling inventory..."
+echo "[3/4] Compiling inventory..."
 gcc -Wall -Wextra -o inventory inventory.c ds_utils.c -lm
 echo "      ✓ inventory executed successfully"
+
+# ── 4. delivery binary ─────────────────────────────────────────
+echo "[4/4] Compiling delivery..."
+gcc -Wall -Wextra -o delivery delivery.c ds_utils.c -lm
+echo "      ✓ delivery executed successfully"
 
 # ── Create the carts/ directory if it doesn't exist ────────────
 #

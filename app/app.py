@@ -135,7 +135,12 @@ _HERE     = os.path.dirname(os.path.abspath(__file__))
 CERT_FILE = os.path.join(_HERE, "cert.pem")  # Public certificate
 KEY_FILE  = os.path.join(_HERE, "key.pem")   # Private key — keep secret!
 
-
+# Helper Function
+def _safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 # =============================================================
 # PAGE ROUTES - These serve HTML pages
 # =============================================================
@@ -468,78 +473,44 @@ def api_admin_orders():
 def api_get_admin_orders():
     """
     POST /api/get_admin_orders
-    ──────────────────────────
-    Called by admin_orders.html on every page load.
-    Delegates to the C binary: ./order admin_orders
-    
-    C output format (10 pipe-delimited fields per order line):
-      order_id|user_id|total|slot|boy_id|status|timestamp|items_string|boy_name|boy_phone
+    Called by admin_orders.html on page load.
+    NOW delegates to: ./delivery list_all_orders
+    (previously called ./order admin_orders which was heap-sorted + active-only)
 
-    items_string uses comma-separated 4-part entries:
-      veg_id:name:qty_g:price_per_1000g
-      e.g. "V1001:Tomato:500:40.00,VF101:CurryLeaves:50:0.00"
-
-    Returns:
-      { "status": "SUCCESS", "orders": [...] }   — even if list is empty
-      { "status": "ERROR",   "message": "..." }  — only on binary failure
-
-    SAFETY CONTRACT:
-      • Never returns HTML — always JSON.
-      • On empty orders.txt or no active orders → returns [] not an error.
-      • 404 crash ("Unexpected token <") is impossible with this route present.
+    Returns all orders, newest-first, with boy enrichment.
     """
-    # ── Auth guard ────────────────────────────────────────────────────────
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
 
-    # ── Call C binary ─────────────────────────────────────────────────────
-    result = run_c_binary("order", ["admin_orders"])
+    result = run_c_binary("delivery", ["list_all_orders"])
 
-    # ── Binary-level failure (e.g. binary not compiled, permissions) ──────
     if result["status"] != "SUCCESS":
-        # Return empty list instead of an error string so the frontend
-        # renders "no active orders" rather than crashing on HTML error body.
-        return jsonify({"status": "SUCCESS", "orders": [], "warning": result.get("data", "")})
+        return jsonify({"status": "SUCCESS", "orders": [],
+                        "warning": result.get("data", "")})
 
-    # ── Parse pipe-delimited output ───────────────────────────────────────
-    # Line 0 is the header: "SUCCESS|<count>" — skip it (already in raw_output[0])
     orders = []
     raw_lines = result["raw_output"].strip().split("\n")
-
-    for line in raw_lines[1:]:          # skip the SUCCESS|<count> header line
+    for line in raw_lines[1:]:
         line = line.strip()
         if not line:
             continue
-
         parts = line.split("|")
-        if len(parts) < 8:              # minimum viable: 8 fields required
+        if len(parts) < 8:
             continue
-
-        order = {
-            "order_id":      parts[0],
-            "user_id":       parts[1],
-            "total_amount":  _safe_float(parts[2]),
-            "delivery_slot": parts[3],
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
             "delivery_boy_id": parts[4],
-            "status":        parts[5],
-            "timestamp":     parts[6],
-            "items_string":  parts[7],
-            # C-side JOIN fields (present if binary outputs 10 fields)
-            "boy_name":      parts[8]  if len(parts) > 8  else "Unknown",
-            "boy_phone":     parts[9]  if len(parts) > 9  else "N/A",
-        }
-        orders.append(order)
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
+            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
+        })
 
-    return jsonify({"status": "SUCCESS", "orders": orders})
-
-
-def _safe_float(value, default=0.0):
-    """Parse a float safely; return default on any parse error."""
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return default
-    
+    return jsonify({"status": "SUCCESS", "orders": orders})   
 
 @app.route("/api/update_order_status", methods=["POST"])
 def api_update_order_status():
@@ -547,15 +518,17 @@ def api_update_order_status():
     POST /api/update_order_status
     Body: { "order_id": "ORD107", "status": "Out for Delivery" }
 
-    Valid status values (must match order.c string literals exactly):
+    Delegates to: ./delivery update_status <order_id> <status>
+
+    Valid status values (must match delivery.c string literals exactly):
       "Order Placed" | "Out for Delivery" | "Delivered" | "Cancelled"
     """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
 
-    data      = request.get_json(silent=True) or {}
-    order_id  = data.get("order_id",  "").strip()
-    new_status = data.get("status",   "").strip()
+    data       = request.get_json(silent=True) or {}
+    order_id   = data.get("order_id",  "").strip()
+    new_status = data.get("status",    "").strip()
 
     VALID_STATUSES = {"Order Placed", "Out for Delivery", "Delivered", "Cancelled"}
     if not order_id:
@@ -563,7 +536,8 @@ def api_update_order_status():
     if new_status not in VALID_STATUSES:
         return jsonify({"status": "ERROR", "message": f"Invalid status: {new_status}"})
 
-    result = run_c_binary("order", ["update_order_status", order_id, new_status])
+    # ── Delegate to the NEW delivery binary ───────────────────────────
+    result = run_c_binary("delivery", ["update_status", order_id, new_status])
     return jsonify({
         "status":  result["status"],
         "message": result.get("data", "")
@@ -571,13 +545,133 @@ def api_update_order_status():
 
 @app.route("/api/promote_slot_orders", methods=["POST"])
 def api_promote_slot_orders():
-    if session.get("role") != "admin": return jsonify({"status": "ERROR", "message": "Admin only"})
-    slot = request.get_json().get("slot", "").strip()
-    result = run_c_binary("order", ["batch_promote_slot", slot])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    try: promoted = int(result["data"].strip())
-    except ValueError: promoted = 0
+    """
+    POST /api/promote_slot_orders
+    Body: { "slot": "Morning" }
+
+    Delegates to: ./delivery batch_promote_slot <slot>
+    Returns: { "status": "SUCCESS", "promoted": <int> }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+
+    slot = (request.get_json(silent=True) or {}).get("slot", "").strip()
+    if slot not in ["Morning", "Afternoon", "Evening"]:
+        return jsonify({"status": "ERROR", "message": "Invalid slot"})
+
+    result = run_c_binary("delivery", ["batch_promote_slot", slot])
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result.get("data", "")})
+
+    try:
+        promoted = int(result["data"].strip())
+    except (ValueError, AttributeError):
+        promoted = 0
+
     return jsonify({"status": "SUCCESS", "promoted": promoted})
+
+@app.route("/api/cancel_order", methods=["POST"])
+def api_cancel_order():
+    """
+    POST /api/cancel_order
+    Body: { "order_id": "ORD107" }
+
+    Business rules enforced in delivery.c:
+      - Only "Order Placed" orders may be cancelled.
+      - ₹50 cancellation fee is surfaced in the UI disclaimer only
+        (actual refund processing is outside scope for this project).
+
+    Delegates to: ./delivery cancel_order <order_id>
+
+    Returns:
+      { "status": "SUCCESS", "message": "Order cancelled" }
+      { "status": "ERROR",   "message": "Only Order Placed orders..." }
+    """
+    # Both admin and logged-in users may cancel their own orders.
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"}), 401
+
+    data     = request.get_json(silent=True) or {}
+    order_id = data.get("order_id", "").strip()
+
+    if not order_id:
+        return jsonify({"status": "ERROR", "message": "order_id is required"})
+
+    result = run_c_binary("delivery", ["cancel_order", order_id])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
+
+@app.route("/api/get_active_orders", methods=["GET"])
+def api_get_active_orders():
+    """
+    GET /api/get_active_orders
+
+    Returns only "Order Placed" and "Out for Delivery" orders,
+    enriched with boy_name + boy_phone.
+
+    Delegates to: ./delivery get_active_orders
+
+    Returns:
+      { "status": "SUCCESS", "orders": [...] }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    result = run_c_binary("delivery", ["get_active_orders"])
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "SUCCESS", "orders": [],
+                        "warning": result.get("data", "")})
+
+    orders = []
+    raw_lines = result["raw_output"].strip().split("\n")
+    for line in raw_lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 8:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
+            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
+        })
+
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+@app.route("/api/assign_agent", methods=["POST"])
+def api_assign_agent():
+    """
+    POST /api/assign_agent
+    Body: { "order_id": "ORD107", "boy_id": "D003" }
+
+    Delegates to: ./delivery assign_agent <order_id> <boy_id>
+    Returns: { "status": "SUCCESS", "message": "Agent assigned" }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    data     = request.get_json(silent=True) or {}
+    order_id = data.get("order_id", "").strip()
+    boy_id   = data.get("boy_id",   "").strip()
+
+    if not order_id or not boy_id:
+        return jsonify({"status": "ERROR", "message": "order_id and boy_id are required"})
+
+    result = run_c_binary("delivery", ["assign_agent", order_id, boy_id])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
 
 # ─────────────────────────────────────────────────────────────
 # NOTE FOR BRIDGE.PY:

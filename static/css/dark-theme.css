@@ -2520,3 +2520,197 @@ footer a:hover {
 .card-body .text-bright {
     color: var(--text-primary) !important;
 }
+
+/*
+ * dark-theme-additions.css — Fresh Picks: Session 6 Global UI Fixes
+ * ===================================================================
+ * APPEND the contents of this file to the end of your existing dark-theme.css
+ *
+ * Changes in this patch:
+ *   1. .btn-delivered hover fix (black hover resolved)
+ *   2. Category grouping: collapsible headers with chevron
+ *   3. Min-Order Bar: glassmorphism + accent→success fill transition
+ *   4. Cancelled order badge style
+ *
+ * Team: CodeCrafters | SDP-1
+ */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 1: .btn-delivered HOVER
+   Resolves the "black background on hover" issue caused by Bootstrap's
+   .btn:hover overriding var(--success) with #000.
+   !important guards are mandatory here — Bootstrap's specificity is high.
+   ════════════════════════════════════════════════════════════════════════ */
+.btn-delivered:hover,
+.btn-delivered:focus,
+.btn-delivered:focus-visible {
+    background-color: var(--success) !important;
+    color:            #fff           !important;
+    box-shadow:       0 0 10px rgba(40, 167, 69, 0.6) !important;
+    border-color:     var(--success) !important;
+    opacity:          0.92;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 2: CATEGORY GROUPING — Collapsible Headers
+   Used by both /shop and /admin_inventory pages.
+   Each category wraps in a .category-group.
+   The header .category-header is clickable and toggles .expanded.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container for one category */
+.category-group {
+    margin-bottom: 1.25rem;
+}
+
+/* Clickable header row */
+.category-header {
+    display:          flex;
+    align-items:      center;
+    justify-content:  space-between;
+    padding:          0.65rem 1rem;
+    background:       var(--bg-elevated);
+    border-radius:    var(--radius-md);
+    border-left:      3px solid var(--accent);
+    cursor:           pointer;
+    user-select:      none;
+    transition:       background var(--transition), box-shadow var(--transition);
+    margin-bottom:    0.5rem;
+}
+
+.category-header:hover {
+    background:  var(--bg-surface);
+    box-shadow:  0 2px 8px rgba(0,0,0,0.25);
+}
+
+.category-header .cat-title {
+    font-size:      0.88rem;
+    font-weight:    600;
+    color:          var(--text-bright);
+    letter-spacing: 0.03em;
+}
+
+.category-header .cat-count {
+    font-size:  0.72rem;
+    color:      var(--text-muted);
+    margin-left: 0.4rem;
+}
+
+/* Rotating chevron — down by default, up when expanded */
+.category-header .cat-chevron {
+    color:      var(--accent);
+    font-size:  0.85rem;
+    transition: transform 0.25s ease;
+}
+
+.category-group.expanded .category-header .cat-chevron {
+    transform: rotate(180deg);
+}
+
+/* Product rows container — hidden when collapsed */
+.category-body {
+    overflow:   hidden;
+    max-height: 0;
+    transition: max-height 0.35s ease;
+}
+
+/* When the group is expanded, auto-height via JS sets max-height */
+.category-group.expanded .category-body {
+    /* JS sets inline max-height to scrollHeight for smooth animation */
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 3: MIN-ORDER BAR — Glassmorphism + Color Transition
+   ────────────────────────────────────────────────────────────────────────
+   IMPORTANT: Do NOT use position:sticky. The bar must flow naturally in
+   the document (inside the cart container), below the navbar.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.min-order-bar-wrapper {
+    /* No sticky. Flows with document. */
+    margin-bottom: 1rem;
+    border-radius: var(--radius-lg);
+    overflow:      hidden;
+}
+
+/* Glassmorphism container */
+.min-order-bar {
+    background:     rgba(37, 37, 38, 0.80);    /* --bg-elevated at 80% opacity */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border:         1px solid #3e3e42;          /* exact hex per spec */
+    border-radius:  var(--radius-lg);
+    padding:        0.75rem 1.1rem;
+}
+
+.min-order-bar .bar-label {
+    font-size:  0.8rem;
+    color:      var(--text-muted);
+    margin-bottom: 0.4rem;
+    display:    flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.min-order-bar .bar-label .bar-amount {
+    font-family: var(--font-mono);
+    font-size:   0.82rem;
+    color:       var(--text-bright);
+}
+
+/* Track (background) */
+.min-order-bar .bar-track {
+    height:        8px;
+    background:    var(--bg-primary);
+    border-radius: 99px;
+    overflow:      hidden;
+}
+
+/* Fill — transitions from accent (#007acc) to success (#28a745)
+   JavaScript toggles the class .reached when total >= 100           */
+.min-order-bar .bar-fill {
+    height:     100%;
+    border-radius: 99px;
+    background: var(--accent);                /* default: blue */
+    transition: width 0.4s ease, background 0.5s ease;
+    will-change: width, background;
+}
+
+.min-order-bar .bar-fill.reached {
+    background: var(--success);               /* green when ₹100 met */
+}
+
+/* Optional helper message under the bar */
+.min-order-bar .bar-msg {
+    font-size:   0.74rem;
+    color:       var(--text-muted);
+    margin-top:  0.35rem;
+    text-align:  right;
+    transition:  color 0.4s ease;
+}
+.min-order-bar .bar-msg.reached {
+    color: var(--success);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 4: "Cancelled" Badge Style
+   (Ensures admin and user order pages both have this class available)
+   ════════════════════════════════════════════════════════════════════════ */
+.badge-status-cancelled {
+    background: rgba(220, 53, 69, 0.15);
+    color:      #dc3545;
+    border:     1px solid rgba(220, 53, 69, 0.35);
+}
+
+/* Card header strip for Cancelled status */
+.status-cancelled {
+    border-bottom: 2px solid var(--danger);
+}
+.status-cancelled .status-dot {
+    background: var(--danger);
+    box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
+}

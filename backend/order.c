@@ -1196,8 +1196,8 @@ int main(int argc, char* argv[]) {
         if (argc < 3) { PRINT_ERROR("Usage: get_orders <user_id>"); return 1; }
         cmd_get_orders(argv[2]);
 
-    } else if (strcmp(cmd, "admin_orders") == 0) {
-        cmd_admin_orders();
+    // } else if (strcmp(cmd, "admin_orders") == 0) {
+    //     cmd_admin_orders();
 
     } else if (strcmp(cmd, "update_order_status") == 0) {
         if (argc < 4) { PRINT_ERROR("Usage: update_order_status <order_id> <status>"); return 1; }

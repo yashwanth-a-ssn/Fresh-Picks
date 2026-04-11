@@ -1,19 +1,20 @@
 {% extends "base.html" %}
 {#
-  user_orders.html - Fresh Picks: My Orders (Session 5 — Amazon-style tracker)
-  ==============================================================================
-  Layout per order card:
-    LEFT   — Status illustration (SVG/emoji art that changes per status)
-    MIDDLE — Order details + delivery boy info
-    RIGHT  — Vertical graphical tracker: Placed → Out for Delivery → Delivered
-
-  JS fetches /api/get_user_orders (Flask calls ./order get_orders <user_id>)
-  and builds the cards dynamically.
+  user_orders.html — Fresh Picks: My Orders (Session 6 Refactor)
+  ==============================================================
+  Changes from Session 5:
+    ✔ Horizontal flex cards (not inline pills for items)
+    ✔ "View Items" button → Modal with invoice table (PRODUCT|RATE|QTY|AMOUNT)
+    ✔ Cancel button: visible only when status == "Order Placed"
+      → SweetAlert2-style warning → OTP modal → /api/cancel_order
+    ✔ Actual Delivery Agent Name + Phone shown (from boy_name / boy_phone)
+    ✔ Vertical timeline: "Delivered" step shows ✔ checkmark inside glowing circle
+    ✔ All JS template literals in {% raw %} ... {% endraw %}
 
   Team: CodeCrafters | SDP-1
 #}
 
-{% block title %}My Orders{% endblock %}
+{% block title %}My Orders | Fresh Picks{% endblock %}
 
 {% block content %}
 <div class="container py-4">
@@ -27,7 +28,7 @@
         <p class="mb-0 text-muted">Track all your past and current orders.</p>
     </div>
 
-    {# ── Orders Container (JS populates this) ── #}
+    {# ── Orders Container (JS populates) ── #}
     <div id="ordersContainer">
         <div class="text-center py-5" id="loadingPlaceholder">
             <span class="spinner-sm"></span>
@@ -36,16 +37,104 @@
     </div>
 
 </div>
+
+{# ════════════════════════════════════════════════════════════════
+   VIEW ITEMS MODAL — Invoice format: PRODUCT | RATE | QTY | AMOUNT
+════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="userItemsModal" tabindex="-1"
+     aria-labelledby="userItemsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content"
+             style="background:var(--bg-surface); border:1px solid var(--border-color);">
+            <div class="modal-header"
+                 style="border-bottom:1px solid var(--border-color);">
+                <h5 class="modal-title text-bright" id="userItemsModalLabel">
+                    <i class="bi bi-receipt me-2" style="color:var(--accent);"></i>
+                    Order Items
+                </h5>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="userItemsModalBody"></div>
+            <div class="modal-footer"
+                 style="border-top:1px solid var(--border-color);">
+                <button class="btn btn-sm btn-action"
+                        style="background:var(--bg-elevated);"
+                        data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ════════════════════════════════════════════════════════════════
+   OTP CANCELLATION MODAL (user flow — same OTP: 0000 for demo)
+════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="userOtpModal" tabindex="-1"
+     aria-labelledby="userOtpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content"
+             style="background:var(--bg-surface); border:1px solid var(--border-color);">
+            <div class="modal-header"
+                 style="border-bottom:1px solid var(--border-color);">
+                <h5 class="modal-title text-bright" id="userOtpModalLabel">
+                    <i class="bi bi-shield-lock me-2" style="color:var(--danger);"></i>
+                    Cancel Order
+                </h5>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="p-3 mb-3"
+                     style="background:rgba(220,53,69,0.08); border-radius:8px;
+                            border-left:3px solid var(--danger);">
+                    <p class="mb-0" style="font-size:0.83rem; color:var(--text-muted);">
+                        <strong style="color:var(--danger);">Cancellation Notice</strong><br>
+                        A cancellation fee of <strong>₹50</strong> will be deducted from your
+                        paid amount. The remaining balance will be refunded to your original
+                        payment method within <strong>2–3 working days</strong>. An email
+                        confirmation will be sent shortly.
+                    </p>
+                </div>
+                <div>
+                    <label class="form-label text-muted"
+                           style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.05em;">
+                        Enter Cancellation OTP
+                    </label>
+                    <input type="text" id="userOtpInput" class="form-control"
+                           placeholder="0000" maxlength="6"
+                           style="background:var(--bg-elevated); color:var(--text-bright);
+                                  border:1px solid var(--border-color); font-family:var(--font-mono);
+                                  letter-spacing:0.2em; font-size:1.2rem; text-align:center;">
+                    <div id="userOtpError" class="mt-1"
+                         style="color:var(--danger); font-size:0.78rem; display:none;">
+                        Incorrect OTP. Please try again.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer"
+                 style="border-top:1px solid var(--border-color);">
+                <button class="btn btn-sm"
+                        style="background:var(--bg-elevated); color:var(--text-muted);"
+                        data-bs-dismiss="modal">Go Back</button>
+                <button class="btn btn-sm"
+                        style="background:var(--danger); color:#fff; border:none;"
+                        onclick="confirmUserCancelWithOtp()">
+                    <i class="bi bi-x-circle me-1"></i>Cancel Order
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 
 {% block extra_scripts %}
 <style>
-/* ════════════════════════════════════════════════════════════════
-   ORDER TRACKER STYLES (Session 5)
-   ════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════
+   USER ORDER CARD STYLES
+   ═══════════════════════════════════════════════════════════ */
 
-/* ── Order Card wrapper ── */
 .order-track-card {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
@@ -54,11 +143,9 @@
     overflow: hidden;
     transition: box-shadow var(--transition);
 }
-.order-track-card:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-}
+.order-track-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 
-/* ── Card Header Strip ── */
+/* Header strip */
 .order-track-header {
     background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-color);
@@ -70,275 +157,166 @@
     gap: 0.5rem;
 }
 
-/* ── Three-column body ── */
+/* Body: left art + middle details + right tracker */
 .order-track-body {
     display: grid;
-    grid-template-columns: 120px 1fr 160px;  /* Left | Middle | Right */
-    gap: 0;
+    grid-template-columns: 110px 1fr 160px;
     align-items: stretch;
 }
-
-/* On small screens, stack vertically */
 @media (max-width: 640px) {
-    .order-track-body {
-        grid-template-columns: 1fr;
-    }
+    .order-track-body { grid-template-columns: 1fr; }
     .track-right {
         border-left: none !important;
         border-top: 1px solid var(--border-color);
-        padding: 1rem !important;
         flex-direction: row !important;
         justify-content: center !important;
         gap: 1.5rem !important;
     }
 }
 
-/* ── LEFT column: status illustration ── */
+/* LEFT: status art */
 .track-left {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
     padding: 1.25rem 0.75rem;
     border-right: 1px solid var(--border-color);
-    flex-direction: column;
     gap: 0.4rem;
 }
-
-.track-left .status-art {
-    font-size: 2.5rem;
-    line-height: 1;
-}
-
+.track-left .status-art  { font-size: 2.5rem; line-height: 1; }
 .track-left .status-label {
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    text-align: center;
+    font-size: 0.65rem; text-transform: uppercase;
+    letter-spacing: 0.07em; text-align: center;
     color: var(--text-muted);
 }
 
-/* ── MIDDLE column: order details ── */
-.track-middle {
-    padding: 1.25rem 1.5rem;
-}
-
+/* MIDDLE */
+.track-middle { padding: 1.25rem 1.5rem; }
 .track-middle .detail-row {
-    display: flex;
-    align-items: flex-start;
-    margin-bottom: 0.6rem;
-    gap: 0.5rem;
+    display: flex; align-items: flex-start;
+    margin-bottom: 0.6rem; gap: 0.5rem;
 }
-
 .track-middle .detail-icon {
-    color: var(--accent);
-    font-size: 0.85rem;
-    margin-top: 2px;
-    flex-shrink: 0;
+    color: var(--accent); font-size: 0.85rem;
+    margin-top: 2px; flex-shrink: 0;
 }
-
 .track-middle .detail-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    font-size: 0.7rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
 }
+.track-middle .detail-value { font-size: 0.88rem; color: var(--text-bright); }
 
-.track-middle .detail-value {
-    font-size: 0.88rem;
-    color: var(--text-bright);
-}
-
-/* Items chips */
-.item-chip {
-    display: inline-block;
-    background: rgba(0,122,204,0.1);
-    border: 1px solid rgba(0,122,204,0.2);
-    border-radius: 4px;
-    padding: 0.15em 0.5em;
-    font-size: 0.75rem;
-    color: var(--accent-light);
-    margin: 2px 3px 2px 0;
-    font-family: var(--font-mono);
-}
-
-.item-chip.free-chip {
-    background: rgba(78,201,176,0.1);
-    border-color: rgba(78,201,176,0.25);
-    color: var(--success);
-}
-
-/* ── RIGHT column: vertical graphical tracker ── */
+/* RIGHT: vertical tracker */
 .track-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
     padding: 1.5rem 1rem;
     border-left: 1px solid var(--border-color);
     gap: 0;
 }
 
-/* Each step in the tracker */
-.tracker-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    width: 100%;
-}
-
-/* The connecting vertical line between steps */
+.tracker-step { display: flex; flex-direction: column; align-items: center; position: relative; width: 100%; }
 .tracker-step:not(:last-child)::after {
-    content: "";
-    width: 2px;
-    height: 28px;
-    background: var(--border-color);
-    margin: 2px 0;
+    content: ""; width: 2px; height: 28px;
+    background: var(--border-color); margin: 2px 0;
     transition: background 0.4s ease;
 }
+.tracker-step.done:not(:last-child)::after { background: var(--accent); }
 
-/* Active connecting line — blue when the step above is done */
-.tracker-step.done:not(:last-child)::after {
-    background: var(--accent);
-}
-
-/* The circle dot for each step */
 .tracker-dot {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
+    width: 28px; height: 28px; border-radius: 50%;
     border: 2px solid var(--border-color);
     background: var(--bg-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    transition: all 0.3s ease;
-    position: relative;
-    z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; transition: all 0.3s ease; position: relative; z-index: 1;
 }
 
-/* Done step dot — filled accent */
+/* Done: filled accent — with checkmark for Delivered (handled in JS) */
 .tracker-step.done .tracker-dot {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: var(--accent); border-color: var(--accent); color: #fff;
 }
 
-/* Current (active) step dot — pulsing accent ring */
+/* Final "Delivered" step when done: green glow */
+.tracker-step.done.step-delivered .tracker-dot {
+    background: var(--success, #28a745);
+    border-color: var(--success, #28a745);
+    box-shadow: 0 0 0 5px rgba(40,167,69,0.25);
+}
+
+/* Active: pulsing ring */
 .tracker-step.active .tracker-dot {
-    background: var(--bg-elevated);
-    border-color: var(--accent);
+    background: var(--bg-elevated); border-color: var(--accent);
     color: var(--accent);
     box-shadow: 0 0 0 4px rgba(0,122,204,0.2);
     animation: pulseDot 1.5s infinite;
 }
-
 @keyframes pulseDot {
     0%   { box-shadow: 0 0 0 0   rgba(0,122,204,0.4); }
-    70%  { box-shadow: 0 0 0 8px rgba(0,122,204,0);   }
-    100% { box-shadow: 0 0 0 0   rgba(0,122,204,0);   }
+    70%  { box-shadow: 0 0 0 8px rgba(0,122,204,0); }
+    100% { box-shadow: 0 0 0 0   rgba(0,122,204,0); }
 }
 
-/* Step label under each dot */
 .tracker-label {
-    font-size: 0.62rem;
-    text-align: center;
-    color: var(--text-muted);
-    margin-top: 3px;
-    max-width: 70px;
-    line-height: 1.2;
+    font-size: 0.60rem; text-align: center;
+    color: var(--text-muted); margin-top: 3px; max-width: 70px;
 }
 
-.tracker-step.done   .tracker-label { color: var(--accent-light); }
-.tracker-step.active .tracker-label { color: var(--text-bright);  font-weight: 600; }
+/* Card footer actions */
+.order-track-footer {
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-color);
+    padding: 0.6rem 1rem;
+    display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+}
 </style>
 
 <script>
-/*
- * ════════════════════════════════════════════════════════════════
- *  USER ORDERS — CLIENT-SIDE CONTROLLER  (Session 5)
- *  ────────────────────────────────────────────────────────────
- *  Fetches the user's orders via POST /api/get_user_orders,
- *  then builds a card per order using buildOrderCard().
- *
- *  The three-column layout is:
- *    LEFT:   status art (emoji/icon changes per status)
- *    MIDDLE: order ID, slot, boy info, items, total, timestamp
- *    RIGHT:  vertical graphical tracker (3 steps)
- * ════════════════════════════════════════════════════════════════
- */
+/* ════════════════════════════════════════════════════════════════════════
+   USER ORDERS CONTROLLER — Session 6 Refactor
+   ════════════════════════════════════════════════════════════════════════ */
 
-/* ──────────────────────────────────────────────────────────────
-   SECTION 1: STATUS META — icons, art, colours per status
-   ──────────────────────────────────────────────────────────────
-   statusMeta maps the DB status string to visual properties.
-   Keys must match models.h Order.status values exactly.
-*/
+/* ─── Status metadata ──────────────────────────────────────────────── */
 const STATUS_META = {
     "Order Placed": {
-        art:      "📋",                /* Clipboard — order is recorded */
-        label:    "Order Placed",
-        dotClass: "active",            /* Pulsing on first step */
-        slotIndex: 0,                  /* Which tracker step is active (0-based) */
-        badgeStyle: "color:var(--warning); background:rgba(206,145,120,0.15); border:1px solid rgba(206,145,120,0.3);"
+        art: "🛒", label: "Order Placed", slotIndex: 0,
+        badgeStyle: "color:#9cdcfe; background:rgba(0,122,204,0.15); border:1px solid rgba(0,122,204,0.3);"
     },
     "Out for Delivery": {
-        art:      "🛵",               /* Delivery scooter */
-        label:    "On the Way",
-        dotClass: "active",
-        slotIndex: 1,
-        badgeStyle: "color:var(--accent-light); background:rgba(0,122,204,0.15); border:1px solid rgba(0,122,204,0.3);"
+        art: "🛵", label: "Out for Delivery", slotIndex: 1,
+        badgeStyle: "color:#ffc107; background:rgba(255,193,7,0.15); border:1px solid rgba(255,193,7,0.3);"
     },
     "Delivered": {
-        art:      "✅",               /* Checkmark — complete */
-        label:    "Delivered",
-        dotClass: "done",
-        slotIndex: 2,
-        badgeStyle: "color:var(--success); background:rgba(78,201,176,0.15); border:1px solid rgba(78,201,176,0.3);"
+        art: "✅", label: "Delivered", slotIndex: 2,
+        badgeStyle: "color:#28a745; background:rgba(40,167,69,0.15); border:1px solid rgba(40,167,69,0.3);"
     },
     "Cancelled": {
-        art:      "❌",
-        label:    "Cancelled",
-        dotClass: "",
-        slotIndex: -1,
-        badgeStyle: "color:var(--danger); background:rgba(244,71,71,0.15); border:1px solid rgba(244,71,71,0.3);"
+        art: "❌", label: "Cancelled", slotIndex: -1,
+        badgeStyle: "color:#dc3545; background:rgba(220,53,69,0.15); border:1px solid rgba(220,53,69,0.3);"
     }
 };
 
-/* ──────────────────────────────────────────────────────────────
-   SECTION 2: TRACKER STEP BUILDER
-   ──────────────────────────────────────────────────────────────
-   Three tracker steps (always shown):
-     0: Order Placed
-     1: Out for Delivery
-     2: Delivered
-
-   Logic per step (given current activeIndex):
-     step < activeIndex  → "done"   (check icon)
-     step === activeIndex → "active" (pulsing dot)
-     step > activeIndex  → ""       (empty/grey dot)
-*/
 const TRACKER_STEPS = [
-    { icon: "bi-receipt",       label: "Order\nPlaced"     },
-    { icon: "bi-bicycle",       label: "Out for\nDelivery" },
-    { icon: "bi-house-check",   label: "Delivered"         }
+    { icon: "bi-receipt",     label: "Order\nPlaced"     },
+    { icon: "bi-bicycle",     label: "Out for\nDelivery" },
+    { icon: "bi-house-check", label: "Delivered"          }
 ];
 
+/* ─── Pending cancel state ────────────────────────────────────────── */
+let _pendingUserCancelId = null;
+
+{% raw %}
+/* ─── TRACKER BUILDER ────────────────────────────────────────────── */
 function buildTracker(activeIndex) {
-    /*
-     * Renders the right column: 3 dots connected by vertical lines.
-     * Each dot gets a CSS class: done / active / (nothing).
-     */
     return TRACKER_STEPS.map((step, i) => {
         let stepClass = "";
-        if (i < activeIndex)  stepClass = "done";
+        if (i < activeIndex)       stepClass = "done";
         else if (i === activeIndex) stepClass = "active";
 
-        /* Icon inside the dot: checkmark if done, step icon if active/pending */
-        const iconClass = stepClass === "done"
-            ? "bi-check-lg"
-            : step.icon;
+        /* The final "Delivered" step (i===2) gets a special green glow when done */
+        const isDeliveredDone = (i === 2 && stepClass === "done");
+        if (isDeliveredDone) stepClass += " step-delivered";
+
+        /* Icon: checkmark ✔ if done, step's own icon if active/pending */
+        const iconClass = stepClass.includes("done") ? "bi-check-lg" : step.icon;
 
         return `
             <div class="tracker-step ${stepClass}">
@@ -351,114 +329,222 @@ function buildTracker(activeIndex) {
     }).join("");
 }
 
-/* ──────────────────────────────────────────────────────────────
-   SECTION 3: ITEMS STRING PARSER → chip HTML
-   ──────────────────────────────────────────────────────────────
-   DB format: "V1001:500:40.00,VF101:50:0.00"
-   veg_id : qty_g : price_at_order
-*/
-function parseItemsToChips(itemsString) {
-    if (!itemsString) return "<span class='text-muted'>—</span>";
-
+/* ─── ITEMS PARSER ──────────────────────────────────────────────── */
+function parseItemsInvoice(itemsString) {
+    if (!itemsString) return [];
     return itemsString.split(",").filter(Boolean).map(entry => {
-        const [vid, qty, price] = entry.split(":");
-        const isFree = parseFloat(price || "0") === 0;
-        const chipClass = isFree ? "item-chip free-chip" : "item-chip";
-        const label = isFree
-            ? `${vid} · ${qty}g (🎁 Free)`
-            : `${vid} · ${qty}g · ₹${parseFloat(price).toFixed(2)}`;
-        return `<span class="${chipClass}">${label}</span>`;
-    }).join("");
+        const parts = entry.trim().split(":");
+        let id, name, qty, price;
+        if (parts.length >= 4) {
+            [id, name, qty, price] = parts;
+        } else if (parts.length === 3) {
+            [id, qty, price] = parts;
+            name = id;
+        } else return null;
+        const qtyNum   = parseInt(qty) || 0;
+        const priceNum = parseFloat(price) || 0;
+        const isFree   = priceNum === 0;
+        const qtyLabel = qtyNum >= 1000 ? `${(qtyNum/1000).toFixed(2)} kg` : `${qtyNum} g`;
+        const amount   = isFree ? 0 : (qtyNum / 1000) * priceNum;
+        return { id, name: name || id, qty: qtyLabel, priceNum, amount, isFree };
+    }).filter(Boolean);
 }
 
-/* ──────────────────────────────────────────────────────────────
-   SECTION 4: BUILD SINGLE ORDER CARD
-   ──────────────────────────────────────────────────────────────
-   order = {
-     order_id, user_id, total_amount, delivery_slot,
-     delivery_boy_id, status, timestamp, items_string,
-     boy_name, boy_phone  (enriched by Flask)
-   }
-*/
+/* ─── VIEW ITEMS MODAL ────────────────────────────────────────────── */
+function openUserItemsModal(orderId, itemsString, total) {
+    const items = parseItemsInvoice(itemsString);
+    let rows = items.map((it, idx) => `
+        <tr style="${idx % 2 === 0 ? "" : "opacity:0.85;"}">
+            <td class="text-bright">
+                ${it.name}
+                ${it.isFree ? `<span class="badge badge-status-delivered ms-1" style="font-size:0.65rem;">FREE</span>` : ""}
+            </td>
+            <td class="text-muted text-end" style="font-family:var(--font-mono);">
+                ${it.isFree ? "—" : `₹${it.priceNum.toFixed(2)}/kg`}
+            </td>
+            <td class="text-end" style="font-family:var(--font-mono);">${it.qty}</td>
+            <td class="text-end"
+                style="color:${it.isFree ? "var(--success)" : "var(--text-bright)"}; font-family:var(--font-mono);">
+                ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}
+            </td>
+        </tr>
+    `).join("");
+
+    if (!rows) rows = `<tr><td colspan="4" class="text-center text-muted py-3">No items.</td></tr>`;
+
+    document.getElementById("userItemsModalLabel").innerHTML =
+        `<i class="bi bi-receipt me-2" style="color:var(--accent);"></i>Items — ${orderId}`;
+
+    document.getElementById("userItemsModalBody").innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-borderless" style="margin-bottom:0;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border-color);">
+                        <th class="text-muted" style="font-size:0.74rem; text-transform:uppercase; letter-spacing:0.05em; width:40%;">Product</th>
+                        <th class="text-muted text-end" style="font-size:0.74rem; text-transform:uppercase; width:20%;">Rate</th>
+                        <th class="text-muted text-end" style="font-size:0.74rem; text-transform:uppercase; width:15%;">Qty</th>
+                        <th class="text-muted text-end" style="font-size:0.74rem; text-transform:uppercase; width:25%;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+                <tfoot>
+                    <tr style="border-top:2px solid var(--border-color);">
+                        <td colspan="3" class="text-end text-muted" style="font-size:0.85rem; padding-top:10px;">Grand Total</td>
+                        <td class="text-end" style="color:var(--accent); font-weight:700; font-family:var(--font-mono); padding-top:10px;">
+                            ₹${parseFloat(total).toFixed(2)}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    `;
+
+    new bootstrap.Modal(document.getElementById("userItemsModal")).show();
+}
+
+/* ─── CANCEL FLOW ───────────────────────────────────────────────────── */
+function initiateCancelOrder(orderId) {
+    _pendingUserCancelId = orderId;
+
+    const proceed = confirm(
+        `⚠ Cancel Order ${orderId}?\n\n` +
+        `A cancellation fee of ₹50 will be deducted from your paid amount.\n` +
+        `Refund will be processed within 2–3 working days.\n\n` +
+        `Proceed?`
+    );
+    if (!proceed) { _pendingUserCancelId = null; return; }
+
+    /* Show OTP modal */
+    const otpInput = document.getElementById("userOtpInput");
+    const otpError = document.getElementById("userOtpError");
+    otpInput.value = "";
+    otpError.style.display = "none";
+    new bootstrap.Modal(document.getElementById("userOtpModal")).show();
+}
+
+async function confirmUserCancelWithOtp() {
+    const otp      = document.getElementById("userOtpInput").value.trim();
+    const otpError = document.getElementById("userOtpError");
+
+    if (otp !== "0000") { otpError.style.display = "block"; return; }
+    otpError.style.display = "none";
+
+    const orderId = _pendingUserCancelId;
+    if (!orderId) return;
+
+    bootstrap.Modal.getInstance(document.getElementById("userOtpModal"))?.hide();
+
+    try {
+        const res  = await fetch("/api/cancel_order", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            /* Update card: swap status art + badge + hide cancel btn */
+            const cardEl = document.getElementById(`user-card-${orderId}`);
+            if (cardEl) {
+                const artEl = cardEl.querySelector(".status-art");
+                const labelEl = cardEl.querySelector(".status-label");
+                if (artEl)   artEl.textContent  = "❌";
+                if (labelEl) labelEl.textContent = "Cancelled";
+
+                const badge = cardEl.querySelector(".order-status-badge");
+                if (badge) {
+                    badge.textContent = "Cancelled";
+                    badge.setAttribute("style",
+                        "color:#dc3545; background:rgba(220,53,69,0.15); border:1px solid rgba(220,53,69,0.3);");
+                }
+
+                const cancelBtn = cardEl.querySelector(".btn-user-cancel");
+                if (cancelBtn) cancelBtn.style.display = "none";
+
+                const trackerEl = cardEl.querySelector(".track-right");
+                if (trackerEl) trackerEl.innerHTML =
+                    `<span style="color:var(--danger); font-size:0.8rem; text-align:center;">
+                        <i class="bi bi-x-circle mb-1" style="font-size:1.4rem;"></i><br>Cancelled
+                     </span>`;
+            }
+        } else {
+            alert(`Cancel failed: ${data.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Network error.");
+    }
+
+    _pendingUserCancelId = null;
+}
+
+/* ─── BUILD ORDER CARD ────────────────────────────────────────────────── */
 function buildOrderCard(order) {
     const meta        = STATUS_META[order.status] || STATUS_META["Order Placed"];
     const activeIndex = meta.slotIndex;
 
-    /* Slot badge colour class (reuse from admin_orders pattern) */
     const slotColors = {
-        "Morning":   "color:#4EC9B0; background:rgba(78,201,176,0.12); border:1px solid rgba(78,201,176,0.25);",
-        "Afternoon": "color:#1F8AD2; background:rgba(0,122,204,0.12);  border:1px solid rgba(0,122,204,0.25);",
-        "Evening":   "color:#CE9178; background:rgba(206,145,120,0.12);border:1px solid rgba(206,145,120,0.25);"
+        "Morning":   "color:#4EC9B0; background:rgba(78,201,176,0.12);  border:1px solid rgba(78,201,176,0.25);",
+        "Afternoon": "color:#1F8AD2; background:rgba(0,122,204,0.12);   border:1px solid rgba(0,122,204,0.25);",
+        "Evening":   "color:#CE9178; background:rgba(206,145,120,0.12); border:1px solid rgba(206,145,120,0.25);"
     };
     const slotStyle = slotColors[order.delivery_slot] || slotColors["Evening"];
 
+    /* Cancel visible ONLY for "Order Placed" */
+    const canCancel = order.status === "Order Placed";
+
     const card = document.createElement("div");
     card.className = "order-track-card fade-in";
+    card.id        = `user-card-${order.order_id}`;
 
     card.innerHTML = `
-        {# ── Card Header ── #}
+        <!-- Card Header -->
         <div class="order-track-header">
             <span>
                 <strong class="text-bright"
-                        style="font-family:var(--font-mono);">
-                    ${order.order_id}
-                </strong>
-                <span class="badge ms-2" style="${meta.badgeStyle}">
-                    ${meta.label}
-                </span>
+                        style="font-family:var(--font-mono);">${order.order_id}</strong>
+                <span class="badge ms-2 order-status-badge"
+                      style="${meta.badgeStyle}">${meta.label}</span>
             </span>
             <div class="d-flex gap-2 align-items-center flex-wrap">
                 <span class="badge" style="${slotStyle}">
                     <i class="bi bi-clock me-1"></i>${order.delivery_slot}
                 </span>
-                <span style="font-size:0.78rem; color:var(--text-muted);
-                             font-family:var(--font-mono);">
-                    ${order.timestamp}
+                <span style="font-size:0.78rem; color:var(--text-muted); font-family:var(--font-mono);">
+                    ${order.timestamp || ""}
                 </span>
             </div>
         </div>
 
-        {# ── Three-Column Body ── #}
+        <!-- Three-Column Body -->
         <div class="order-track-body">
 
-            {# ── LEFT: Status Art ── #}
+            <!-- LEFT: Status Art -->
             <div class="track-left">
                 <span class="status-art">${meta.art}</span>
                 <span class="status-label">${meta.label}</span>
             </div>
 
-            {# ── MIDDLE: Order Details ── #}
+            <!-- MIDDLE: Details -->
             <div class="track-middle">
 
-                {# Delivery Boy #}
+                <!-- Delivery Agent (actual name + phone) -->
                 <div class="detail-row">
                     <i class="bi bi-bicycle detail-icon"></i>
                     <div>
                         <div class="detail-label">Delivery Agent</div>
                         <div class="detail-value">
-                            ${order.boy_name || order.delivery_boy_id}
+                            ${order.boy_name || order.delivery_boy_id || "Unassigned"}
                             ${order.boy_phone
-                                ? `<span class="text-muted ms-1"
-                                         style="font-size:0.8rem;">
-                                       ${order.boy_phone}
+                                ? `<span class="text-muted ms-1" style="font-size:0.82rem;">
+                                       📞 ${order.boy_phone}
                                    </span>`
                                 : ""}
                         </div>
                     </div>
                 </div>
 
-                {# Items #}
-                <div class="detail-row">
-                    <i class="bi bi-bag detail-icon"></i>
-                    <div>
-                        <div class="detail-label">Items Ordered</div>
-                        <div style="margin-top:3px;">
-                            ${parseItemsToChips(order.items_string)}
-                        </div>
-                    </div>
-                </div>
-
-                {# Grand Total #}
+                <!-- Grand Total -->
                 <div class="detail-row">
                     <i class="bi bi-currency-rupee detail-icon"></i>
                     <div>
@@ -471,34 +557,48 @@ function buildOrderCard(order) {
                 </div>
 
             </div>
-            {# end track-middle #}
+            <!-- end track-middle -->
 
-            {# ── RIGHT: Vertical Tracker ── #}
+            <!-- RIGHT: Vertical Tracker -->
             <div class="track-right">
                 ${buildTracker(activeIndex)}
             </div>
 
         </div>
-        {# end order-track-body #}
+        <!-- end order-track-body -->
+
+        <!-- Footer actions -->
+        <div class="order-track-footer">
+            <!-- View Items button -->
+            <button class="btn btn-sm btn-action"
+                    style="background:var(--bg-elevated); color:var(--text-bright); border:1px solid var(--border-color);"
+                    onclick="openUserItemsModal(
+                        '${order.order_id}',
+                        '${(order.items_string || "").replace(/'/g, "\\'")}',
+                        '${order.total_amount}')">
+                <i class="bi bi-list-ul me-1"></i>View Items
+            </button>
+
+            <!-- Cancel — shown ONLY for "Order Placed" -->
+            ${canCancel ? `
+            <button class="btn btn-sm btn-user-cancel"
+                    style="background:var(--danger); color:#fff; border:none; border-radius:4px; padding:0.25rem 0.75rem; font-size:0.8rem;"
+                    onclick="initiateCancelOrder('${order.order_id}')">
+                <i class="bi bi-x-circle me-1"></i>Cancel Order
+            </button>` : ""}
+        </div>
     `;
 
     return card;
 }
 
-/* ──────────────────────────────────────────────────────────────
-   SECTION 5: FETCH USER ORDERS + RENDER
-   ──────────────────────────────────────────────────────────────
-   Flask route: POST /api/get_user_orders
-   Flask reads user_id from session, calls:
-     ./order get_orders <user_id>
-   Returns: { status, orders: [ {...}, ... ] }
-*/
+/* ─── LOAD USER ORDERS ────────────────────────────────────────────────── */
 async function loadUserOrders() {
     try {
         const res  = await fetch("/api/get_user_orders", {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
-            body:    "{}"   /* Server reads user_id from session */
+            body:    "{}"
         });
         const data = await res.json();
 
@@ -511,26 +611,27 @@ async function loadUserOrders() {
                     <span style="font-size:3rem;">📦</span>
                     <p class="text-muted mt-3">
                         You haven't placed any orders yet.
-                        <a href="/user_home">Browse products →</a>
+                        <a href="/shop">Browse products →</a>
                     </p>
                 </div>`;
             return;
         }
 
-        /* Render newest orders first (reverse chronological) */
-        [...data.orders].reverse().forEach(order => {
-            container.appendChild(buildOrderCard(order));
-        });
+        /* Newest first */
+        [...data.orders].reverse().forEach(order =>
+            container.appendChild(buildOrderCard(order))
+        );
 
     } catch (err) {
-        console.error("Failed to load user orders:", err);
+        console.error("loadUserOrders error:", err);
         document.getElementById("ordersContainer").innerHTML = `
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-circle me-2"></i>
-                Could not load orders. Please refresh the page.
+                Could not load orders. Please refresh.
             </div>`;
     }
 }
+{% endraw %}
 
 /* ── Init ── */
 document.addEventListener("DOMContentLoaded", loadUserOrders);

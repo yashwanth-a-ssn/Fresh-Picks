@@ -416,6 +416,7 @@
    (already loaded by base.html) — guarantees no load-order issues.
    ══════════════════════════════════════════════════════════════ #}
 {% block extra_scripts %}
+
 <script>
 /* ════════════════════════════════════════════════════════════════
    FRESH PICKS — Admin Inventory JS
@@ -674,4 +675,5 @@ function toggleInvCat(headerEl) {
 }
 
 </script>
+<script src="{{ url_for('static', filename='js/ui-helpers.js') }}"></script>
 {% endblock %}
