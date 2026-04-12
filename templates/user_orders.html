@@ -420,67 +420,6 @@ function parseItemsInvoice(itemsString) {
 }
 
 /* ────────────────────────────────────────────────────────────────────
-   openUserItemsModal(orderId, itemsString, total)
-   Table structure mirrors the Invoice Preview exactly:
-   PRODUCT | RATE | QTY | AMOUNT
-   ────────────────────────────────────────────────────────────────────  */
-function openUserItemsModal(orderId, itemsString, total) {
-    const items = parseItemsInvoice(itemsString);
-
-    const rows = items.length > 0
-        ? items.map(it => `
-            <tr>
-                <td>
-                    ${it.name}
-                    ${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : ""}
-                </td>
-                <td class="text-end" style="color:var(--text-muted); font-family:var(--font-mono);">
-                    ${it.isFree ? "&mdash;" : `₹${it.priceNum.toFixed(2)}/kg`}
-                </td>
-                <td class="text-end" style="font-family:var(--font-mono);">${it.qty}</td>
-                <td class="text-end"
-                    style="font-family:var(--font-mono);
-                           color:${it.isFree ? "var(--success)" : "var(--text-bright)"};">
-                    ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}
-                </td>
-            </tr>`).join("")
-        : `<tr><td colspan="4" class="text-center text-muted py-3">No items found.</td></tr>`;
-
-    /* Update modal title */
-    document.getElementById("userItemsModalLabel").innerHTML =
-        `<i class="bi bi-receipt me-2" style="color:var(--accent);"></i>Items — ${orderId}`;
-
-    /* Inject table */
-    document.getElementById("userItemsModalBody").innerHTML = `
-        <div class="table-responsive">
-            <table class="fp-invoice-table">
-                <thead>
-                    <tr>
-                        <th style="width:40%; text-align:left;">Product</th>
-                        <th style="width:20%; text-align:right;">Rate</th>
-                        <th style="width:15%; text-align:right;">Qty</th>
-                        <th style="width:25%; text-align:right;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3" class="text-end text-muted"
-                            style="font-size:0.82rem;">Grand Total</td>
-                        <td class="text-end"
-                            style="color:var(--accent); font-weight:700;
-                                   font-family:var(--font-mono);">
-                            ₹${parseFloat(total).toFixed(2)}
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>`;
-
-    new bootstrap.Modal(document.getElementById("userItemsModal")).show();
-}
-
-/* ────────────────────────────────────────────────────────────────────
    Cancel flow — visible ONLY when status === "Order Placed"
    Step 1: confirm() with ₹50 disclaimer
    Step 2: OTP modal (demo OTP: 0000)
@@ -691,7 +630,7 @@ function buildOrderCard(order) {
 
     return card;
 }
-
+{% endraw %}
 /* ────────────────────────────────────────────────────────────────────
    loadUserOrders — fetches from /api/get_user_orders and renders cards
    ────────────────────────────────────────────────────────────────────  */
@@ -811,10 +750,12 @@ function openUserItemsModal(orderId) {
     new bootstrap.Modal(document.getElementById("userItemsModal")).show();
 }
 {% endraw %}
-{% endraw %}
 
 document.addEventListener("DOMContentLoaded", loadUserOrders);
 </script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="/static/js/receipt.js"></script>
 {% endblock %}
 
 

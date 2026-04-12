@@ -230,6 +230,7 @@ function startClock() {
 /* ─── Global state for cancel flow ───────────────────────────────────── */
 let _pendingCancelOrderId = null;
 
+
 {% raw %}
 /* ─── CSS class maps ─────────────────────────────────────────────────── */
 const SLOT_CLASS = {
@@ -272,6 +273,7 @@ function parseItems(itemsString) {
         return { id, name: name || id, qty: qtyLabel, priceNum, amount, isFree };
     }).filter(Boolean);
 }
+{% endraw %}
 
 /* ─── VIEW ITEMS MODAL ─────────────────────────────────────────────── */
 {% raw %}
@@ -336,7 +338,7 @@ function openItemsModal(orderId, itemsString, total) {
 }
 {% endraw %}
 
-
+{% raw %}
 /* ─── CANCEL FLOW — Step 1: SweetAlert2-style warning ─────────────── */
 /* We use a lightweight Bootstrap Modal as SweetAlert2 may not be loaded.
    To use SweetAlert2 instead, replace the confirm() with Swal.fire(). */

@@ -1,15 +1,15 @@
-V1001|Allium|Onion|25000|40.00|Farm Fresh|7
-V1002|Allium|Small Onion|20000|50.00|Premium|10
+V1001|Allium|Onion|450000|40.00|Farm Fresh|7
+V1002|Allium|Small Onion|45000|50.00|Premium|10
 V1003|Allium|Garlic|15000|120.00|Organic|15
 V1004|Root|Potato|59500|25.00|Daily Use|10
 V1005|Fruit Vegetable|Cucumber|25000|20.00|Cooling Fresh|4
 V1006|Fruit Vegetable|Brinjal|22000|28.00|Fresh|6
 V1007|Fruit Vegetable|Capsicum|15000|60.00|Premium|5
-V1008|Fruit Vegetable|Plantain|15000|60.00|Premium|5
+V1008|Fruit Vegetable|Plantain|20000|60.00|Premium|5
 V1009|Fruit Vegetable|Tomato|40000|30.00|Fresh Stock|5
 V1010|Fruit Vegetable|Mango|16250|60.00|Seasonal|5
 V1011|Fruit Vegetable|Coconut|15000|35.00|Natural|20
-V1012|Leafy|Coriander Leaves|5550|100.00|Aromatic|3
+V1012|Leafy|Coriander Leaves|505000|100.00|Aromatic|3
 V1013|Leafy|Curry Leaves|7000|120.00|Fresh Leaves|4
 V1014|Leafy|Mint Leaves|6000|90.00|Refreshing|3
 V1015|Leafy|Spinach|9200|25.00|Iron Rich|3
