@@ -327,13 +327,12 @@
     letter-spacing: 0.01em;
 }
 .cat-section-count {
-    background: rgba(0,122,204,0.18);
-    color: var(--accent-light);
+    background: var(--accent);
+    color: #fff;
     font-size: 0.7rem;
     font-weight: 700;
     padding: 0.15em 0.6em;
     border-radius: 10px;
-    border: 1px solid rgba(0,122,204,0.3);
     min-width: 1.6rem;
     text-align: center;
 }
@@ -353,10 +352,12 @@
     opacity: 0;
     padding-top: 0;
 }
+
 .cat-grid-wrap.expanded {
     max-height: 9999px;
     opacity: 1;
     padding-top: 0.75rem;
+    padding-bottom: 1.25rem;
 }
 
 /* ── Fixed card dimensions (desktop) ────────────────────── */
@@ -398,8 +399,8 @@
 
     /* Fixed image height — prevents ballooning with col width */
     .card-img-wrap {
-        aspect-ratio: unset !important;
-        height: 130px !important;
+        aspect-ratio: 1 / 1 !important;
+        height: unset !important;
     }
 
     /* Scale everything inside the card body down */
@@ -423,7 +424,9 @@
         flex: 0 0 50% !important;
         max-width: 50% !important;
     }
-    .card-img-wrap { height: 110px !important; }
+    .card-img-wrap {
+        aspect-ratio: 1 / 1 !important;
+        height: unset !important; }
 }
 
 </style>
@@ -743,12 +746,16 @@ function buildCategorySidebar(products) {
 }
 
 /** _makePill — creates a single category pill <button>. */
+const PILL_TAG_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;flex-shrink:0;margin-right:0.45rem;vertical-align:middle;"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
+const PILL_ALL_SVG = '<i class="bi bi-grid me-2" style="font-size:0.82rem;vertical-align:middle;"></i>';
+
 function _makePill(cat, icon, label, count, isActive) {
-    const btn      = document.createElement("button");
-    btn.className  = "category-pill mb-1" + (isActive ? " active" : "");
+    const btn       = document.createElement("button");
+    btn.className   = "category-pill mb-1" + (isActive ? " active" : "");
     btn.dataset.cat = cat;
-    btn.innerHTML  = `<i class="bi ${icon} me-2"></i>${escHtml(label)}`
-                   + `<span class="cat-count">${count}</span>`;
+    const iconHtml  = cat === "" ? PILL_ALL_SVG : PILL_TAG_SVG;
+    btn.innerHTML   = iconHtml + escHtml(label)
+                    + `<span class="cat-count">${count}</span>`;
     return btn;
 }
 
@@ -815,7 +822,7 @@ function renderProducts(products) {
     /* ── Step 2: Render one collapsible section per category ── */
     categoryNames.forEach((catName, catIndex) => {
         const catProducts  = groups[catName];
-        const isFirst      = catIndex === 0;
+        const isFirst      = true;
         const catIcon      = CAT_ICONS[catName] || "bi-tag";
         const sectionId    = "cat-section-" + catName.replace(/\s+/g, "-").toLowerCase();
         const gridId       = "cat-grid-" + catName.replace(/\s+/g, "-").toLowerCase();
@@ -832,7 +839,7 @@ function renderProducts(products) {
         header.setAttribute("aria-expanded", isFirst ? "true" : "false");
         header.setAttribute("aria-controls", gridId);
         header.innerHTML  =
-            '<svg class="cat-label-icon me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;color:var(--accent-light);flex-shrink:0;">'
+            '<svg class="cat-label-icon me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;color:var(--accent);flex-shrink:0;">'
           +   '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>'
           +   '<line x1="7" y1="7" x2="7.01" y2="7"/>'
           + '</svg>'

@@ -226,6 +226,62 @@ void cmd_update_promo_stock(const char* vf_id, int new_stock_g) {
     PRINT_SUCCESS("Promo stock updated successfully");
 }
 
+/* ═════════════════════════════════════════════════════════════
+   COMMAND: list_promo
+   PURPOSE: Print all rows from free_inventory.txt so Flask can
+            render the Promotional Freebies section in
+            admin_inventory.html.
+
+   OUTPUT FORMAT (one row per item, NO header line):
+     vf_id|name|stock_g|min_trigger_amt|free_qty_g
+     VF101|Curry Leaves|4450|500.00|50
+     VF102|Coriander Leaves|3450|500.00|50
+
+   Called by app.py:
+     run_c_binary("inventory", ["list_promo"])
+   ═════════════════════════════════════════════════════════════ */
+void cmd_list_promo(void) {
+
+    FILE* fp = fopen(FREE_INV_FILE, "r");
+    if (!fp) { PRINT_ERROR("Could not open free_inventory.txt"); return; }
+
+    /* Print SUCCESS header FIRST on stdout — bridge.py reads line 0 for status */
+    printf("SUCCESS|\n");
+
+    char line[MAX_LINE_LEN];
+    int  count = 0;
+
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\n")] = '\0';
+        if (strlen(line) == 0) continue;
+
+        FreeItem fi;
+        char* tok = strtok(line, "|");
+        if (!tok) continue;
+        strncpy(fi.vf_id, tok, MAX_ID_LEN  - 1); fi.vf_id[MAX_ID_LEN  - 1] = '\0';
+        tok = strtok(NULL, "|");
+        if (!tok) continue;
+        strncpy(fi.name,  tok, MAX_STR_LEN - 1); fi.name[MAX_STR_LEN  - 1] = '\0';
+        tok = strtok(NULL, "|");
+        if (!tok) continue;
+        fi.stock_g         = atoi(tok);
+        tok = strtok(NULL, "|");
+        if (!tok) continue;
+        fi.min_trigger_amt = atof(tok);
+        tok = strtok(NULL, "|");
+        fi.free_qty_g      = tok ? atoi(tok) : 0;
+
+        printf("%s|%s|%d|%.2f|%d\n",
+               fi.vf_id, fi.name, fi.stock_g,
+               fi.min_trigger_amt, fi.free_qty_g);
+        count++;
+    }
+    fclose(fp);
+
+    if (count == 0) {
+        PRINT_ERROR("No promo items found");
+    }
+}
 
 /* ═════════════════════════════════════════════════════════════
    MAIN — Command Dispatcher
@@ -269,6 +325,15 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         cmd_update_promo_stock(argv[2], atoi(argv[3]));
+
+    } else if (strcmp(cmd, "list_promo") == 0) {
+        /*
+         * No arguments needed — reads entire free_inventory.txt.
+         * argv: [0]            [1]
+         *     ./inventory   list_promo
+         * argc = 2
+         */
+        cmd_list_promo();
 
     } else {
         char err[MAX_STR_LEN];
