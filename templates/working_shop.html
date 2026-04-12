@@ -250,6 +250,70 @@
     }
 }
 
+/* ── Hide the category pill sidebar on narrow / vertical screens ── */
+/* The collapsible category headers in the product grid already     */
+/* provide category navigation, making the sidebar redundant there. */
+/* ── Hide entire sidebar column on screens below lg (< 992px) ── */
+@media (max-width: 991.98px) {
+    .col-12.col-lg-2 {
+        display: none !important;
+    }
+    /* Expand product area to full width when sidebar is gone */
+    .col-12.col-lg-10 {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+/* ── Small card size on vertical/narrow screens ── */
+@media (max-width: 991.98px) {
+    /* 2-column grid */
+    #productGrid .row > .col {
+        width: 33.333% !important;
+        flex: 0 0 33.333% !important;
+        max-width: 33.333% !important;
+    }
+    /* Kill the fixed min-height that was locking card size */
+    .veg-card {
+        min-height: unset !important;
+    }
+    .card-img-wrap {
+        aspect-ratio: 1 / 1;
+    }
+    .veg-card-body {
+        padding: 0.55rem 0.6rem 0.6rem !important;
+    }
+    .veg-card-body h6.text-bright {
+        font-size: 0.82rem !important;
+        min-height: unset !important;
+    }
+    .qty-btn {
+        font-size: 0.68rem !important;
+        padding: 0.2rem 0.1rem !important;
+    }
+    .custom-gram-input {
+        font-size: 0.72rem !important;
+        padding: 0.25rem 0.45rem !important;
+    }
+    .validity-chip {
+        font-size: 0.62rem !important;
+    }
+    #productGrid .btn.btn-primary {
+        font-size: 0.75rem !important;
+        padding: 0.4rem !important;
+    }
+}
+
+/* ── Single column on very small phones (< 480px) ── */
+@media (max-width: 479px) {
+    #productGrid .row > .col {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
 /* Toast */
 #cartToast {
     position: fixed;
@@ -327,13 +391,13 @@
     letter-spacing: 0.01em;
 }
 .cat-section-count {
-    background: rgba(0,122,204,0.18);
-    color: var(--accent-light);
+    background: var(--accent);          /* solid blue fill */
+    color: #fff;
     font-size: 0.7rem;
     font-weight: 700;
     padding: 0.15em 0.6em;
     border-radius: 10px;
-    border: 1px solid rgba(0,122,204,0.3);
+    border: none;
     min-width: 1.6rem;
     text-align: center;
 }
@@ -357,73 +421,64 @@
     max-height: 9999px;
     opacity: 1;
     padding-top: 0.75rem;
+    padding-bottom: 1.5rem;   /* ← ADD THIS LINE only */
+}
+/* ── Mobile card sizing: match FHD desktop proportions ──── */
+/* On vertical/narrow screens Bootstrap col-12 makes cards   */
+/* stretch full width and look oversized. Force 2 cols and    */
+/* constrain image height to match the desktop card feel.     */
+@media (max-width: 991.98px) {
+    /* Force 2 columns on all mobile/tablet vertical screens */
+    #productGrid .row {
+        --bs-columns: 2;
+    }
+    #productGrid .row > .col {
+        width: 50% !important;
+        flex: 0 0 50% !important;
+        max-width: 50% !important;
+    }
+    /* Tighten image height so the card doesn't feel giant */
+    .card-img-wrap {
+        aspect-ratio: 4 / 3;
+    }
+    /* Slightly smaller body text so everything fits cleanly */
+    .veg-card-body {
+        padding: 0.7rem 0.75rem 0.75rem;
+    }
+    .veg-card {
+        min-height: unset;
+    }
 }
 
-/* ── Fixed card dimensions (desktop) ────────────────────── */
+/* On very small phones (< 480px) drop to single column */
+@media (max-width: 479px) {
+    #productGrid .row > .col {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+
+
+/* ── Fixed card dimensions ──────────────────────────────── */
+/* Override Bootstrap col sizing so every card is uniform    */
+#productGrid .col {
+    /* Let Bootstrap handle column widths, but ensure uniform card height */
+}
 .veg-card {
     min-height: 520px;
 }
 .veg-card-body {
     min-height: 0;
 }
+/* Product name: clamp to 2 lines so card height stays consistent */
 .veg-card-body h6.text-bright {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
     min-height: 2.6rem;
-}
-
-/* ── Responsive: hide sidebar + 3-col small cards on narrow screens ── */
-@media (max-width: 991.98px) {
-
-    /* Hide entire sidebar column */
-    .col-12.col-lg-2  { display: none !important; }
-    .col-12.col-lg-10 {
-        width: 100% !important;
-        flex: 0 0 100% !important;
-        max-width: 100% !important;
-    }
-
-    /* 3 columns — overrides Bootstrap's row-cols-* on the inner row */
-    #productGrid .row > .col {
-        width: 33.333% !important;
-        flex: 0 0 33.333% !important;
-        max-width: 33.333% !important;
-    }
-
-    /* Unlock the 520px desktop height lock */
-    .veg-card { min-height: unset !important; }
-    .veg-card-body h6.text-bright { min-height: unset !important; }
-
-    /* Fixed image height — prevents ballooning with col width */
-    .card-img-wrap {
-        aspect-ratio: unset !important;
-        height: 130px !important;
-    }
-
-    /* Scale everything inside the card body down */
-    .veg-card-body       { padding: 0.5rem 0.55rem 0.55rem !important; }
-    .veg-card-body h6.text-bright { font-size: 0.78rem !important; }
-    .validity-chip       { font-size: 0.58rem !important; padding: 0.1em 0.4em !important; }
-    .qty-btn             { font-size: 0.62rem !important; padding: 0.15rem 0.05rem !important; }
-    .custom-gram-input   { font-size: 0.65rem !important; padding: 0.2rem 0.35rem !important; }
-    [id^="qtyDisplay-"]  { font-size: 0.65rem !important; }
-    #productGrid .btn.btn-primary {
-        font-size: 0.7rem !important;
-        padding: 0.35rem 0.25rem !important;
-    }
-    #productGrid .row { --bs-gutter-x: 0.5rem; --bs-gutter-y: 0.5rem; }
-}
-
-/* ── 2 cols on very small phones ── */
-@media (max-width: 479px) {
-    #productGrid .row > .col {
-        width: 50% !important;
-        flex: 0 0 50% !important;
-        max-width: 50% !important;
-    }
-    .card-img-wrap { height: 110px !important; }
 }
 
 </style>
@@ -815,14 +870,14 @@ function renderProducts(products) {
     /* ── Step 2: Render one collapsible section per category ── */
     categoryNames.forEach((catName, catIndex) => {
         const catProducts  = groups[catName];
-        const isFirst      = catIndex === 0;
+        const isFirst      = true;
         const catIcon      = CAT_ICONS[catName] || "bi-tag";
         const sectionId    = "cat-section-" + catName.replace(/\s+/g, "-").toLowerCase();
         const gridId       = "cat-grid-" + catName.replace(/\s+/g, "-").toLowerCase();
 
         /* ── Section wrapper ── */
         const section = document.createElement("div");
-        section.className = "cat-section mb-1";
+        section.className = "cat-section mb-3";
 
         /* ── Collapsible header ── */
         const header = document.createElement("button");
@@ -832,7 +887,7 @@ function renderProducts(products) {
         header.setAttribute("aria-expanded", isFirst ? "true" : "false");
         header.setAttribute("aria-controls", gridId);
         header.innerHTML  =
-            '<svg class="cat-label-icon me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;color:var(--accent-light);flex-shrink:0;">'
+              '<svg class="cat-label-icon me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;color:var(--accent);flex-shrink:0;">'
           +   '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>'
           +   '<line x1="7" y1="7" x2="7.01" y2="7"/>'
           + '</svg>'
