@@ -176,6 +176,17 @@ def admin_dash():
     if session.get("role") != "admin": return redirect("/login/admin")
     return render_template("admin_dash.html", username=session.get("username"), admin_name=session.get("admin_name", "Admin"))
 
+@app.route("/api/get_admin_info", methods=["POST"])
+def api_get_admin_info():
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    return jsonify({
+        "status":   "SUCCESS",
+        "user_id":  session.get("user_id",    "—"),
+        "username": session.get("username",   "—"),
+        "name":     session.get("admin_name", "—")
+    })
+
 @app.route("/profile")
 def profile():
     if session.get("role") != "user": return redirect("/login/user")

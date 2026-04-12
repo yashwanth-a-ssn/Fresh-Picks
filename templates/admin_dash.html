@@ -295,20 +295,24 @@
 
 {% block extra_scripts %}
 <script>
-    /*
-     * Admin Dashboard JS — unchanged from v2.
-     * Reads localStorage set at login and populates the info card.
-     */
-    (function loadAdminInfo() {
-        const username = localStorage.getItem("username") || "Admin";
-        const userId   = localStorage.getItem("user_id")  || "—";
-
-        document.getElementById("adminUsernameInfo").textContent = username;
-        document.getElementById("adminIdDisplay").textContent    = userId;
-
-        /* These are placeholder values until a get_admin_profile API is built */
+    (async function loadAdminInfo() {
         document.getElementById("adminNameDisplay").textContent  = "CodeCrafters";
         document.getElementById("adminEmailDisplay").textContent = "codecrafters@gmail.com";
+
+        try {
+            const res    = await fetch("/api/get_admin_info", {
+                method: "POST", headers: { "Content-Type": "application/json" }, body: "{}"
+            });
+            const result = await res.json();
+
+            if (result.status === "SUCCESS") {
+                document.getElementById("adminUsernameInfo").textContent = result.username || "—";
+                document.getElementById("adminIdDisplay").textContent    = result.user_id  || "—";
+                document.getElementById("adminNameDisplay").textContent  = result.name     || "CodeCrafters";
+            }
+        } catch (err) {
+            console.warn("Could not load admin info:", err);
+        }
     })();
 </script>
 {% endblock %}

@@ -236,27 +236,6 @@
 
 {% block extra_scripts %}
 <script>
-    /*
-     * USER HOME JAVASCRIPT (v2)
-     * ==========================
-     * Reads basic info from localStorage (username, user_id),
-     * then calls /api/get_profile to fetch live data (full_name, email).
-     */
-
-    /* Step 1: Display data from localStorage immediately (fast) */
-    (function loadLocalInfo() {
-        const username = localStorage.getItem("username") || "User";
-        const userId   = localStorage.getItem("user_id")  || "—";
-
-        document.getElementById("userDisplay").textContent     = username;
-        document.getElementById("summaryUsername").textContent = username;
-        document.getElementById("summaryUserId").textContent   = userId;
-    })();
-
-    /*
-     * Step 2: Fetch live profile data from the API (to get full_name + email).
-     * This runs after the page loads and fills in the remaining fields.
-     */
     (async function loadLiveProfile() {
         try {
             const response = await fetch("/api/get_profile", {
