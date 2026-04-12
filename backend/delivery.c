@@ -495,6 +495,75 @@ void cmd_list_all_orders(void) {
     free(orders);
 }
 
+/* ─── Slot priority helper (Morning first) ────────────────────────────── */
+static int get_slot_priority(const char* slot) {
+    if (strcmp(slot, "Morning")   == 0) return 1;
+    if (strcmp(slot, "Afternoon") == 0) return 2;
+    return 3; /* Evening or unknown */
+}
+
+/* ─── qsort comparator: slot ASC, then timestamp ASC ─────────────────── */
+static int compare_orders_priority(const void* a, const void* b) {
+    const Order* oa = (const Order*)a;
+    const Order* ob = (const Order*)b;
+    if (oa->slot_priority != ob->slot_priority)
+        return oa->slot_priority - ob->slot_priority;
+    return strcmp(oa->timestamp, ob->timestamp);
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+   COMMAND: list_all_orders_sorted
+   PURPOSE: Dump ALL orders sorted by slot priority (Morning first),
+            then by timestamp ASC as tiebreaker.
+            Includes ALL statuses (Delivered, Cancelled included).
+            Enriched with boy_name + boy_phone via C-side JOIN.
+
+   OUTPUT:
+     SUCCESS|<count>
+     order_id|user_id|total|slot|boy_id|status|timestamp|items|boy_name|boy_phone
+     ...
+   ═════════════════════════════════════════════════════════════════════ */
+void cmd_list_all_orders_sorted(void) {
+    DeliveryBoy boys[MAX_DELIVERY_BOYS];
+    int boy_count = load_delivery_boys_local(boys, MAX_DELIVERY_BOYS);
+
+    Order* orders = NULL;
+    int count = load_all_orders(&orders);
+
+    if (orders == NULL) {
+        printf("SUCCESS|0\n");
+        return;
+    }
+
+    /* Stamp slot_priority on each order before sorting */
+    for (int i = 0; i < count; i++)
+        orders[i].slot_priority = get_slot_priority(orders[i].delivery_slot);
+
+    /* Sort: primary = slot_priority ASC, secondary = timestamp ASC */
+    qsort(orders, count, sizeof(Order), compare_orders_priority);
+
+    printf("SUCCESS|%d\n", count);
+
+    for (int i = 0; i < count; i++) {
+        char boy_name[MAX_STR_LEN]  = "Unknown";
+        char boy_phone[MAX_STR_LEN] = "N/A";
+        find_boy(boys, boy_count, orders[i].delivery_boy_id, boy_name, boy_phone);
+
+        printf("%s|%s|%.2f|%s|%s|%s|%s|%s|%s|%s\n",
+            orders[i].order_id,
+            orders[i].user_id,
+            orders[i].total_amount,
+            orders[i].delivery_slot,
+            orders[i].delivery_boy_id,
+            orders[i].status,
+            orders[i].timestamp,
+            orders[i].items_string,
+            boy_name,
+            boy_phone
+        );
+    }
+    free(orders);
+}
 
 /* ═════════════════════════════════════════════════════════════════════
    MAIN — Command Dispatcher
@@ -547,6 +616,10 @@ int main(int argc, char* argv[]) {
     /* ── list_all_orders ── */
     } else if (strcmp(cmd, "list_all_orders") == 0) {
         cmd_list_all_orders();
+
+    /* ── list_all_orders_sorted ── */
+    } else if (strcmp(cmd, "list_all_orders_sorted") == 0) {
+        cmd_list_all_orders_sorted();
 
     } else {
         char err[MAX_STR_LEN];

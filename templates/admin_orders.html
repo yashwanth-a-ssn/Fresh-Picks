@@ -496,13 +496,8 @@ function buildOrderCard(order) {
                         <div class="order-timestamp">${order.timestamp || "—"}</div>
                     </div>
 
-                </div>
-            </div>
-
-            <!-- Card Body — Row 2: Action buttons -->
-            <div class="card-footer"
-                 style="background:transparent; border-top:1px solid var(--border-color);">
-                <div class="action-row d-flex flex-wrap gap-2 pt-1">
+            <!-- Action Buttons — inline under details, no separator -->
+                <div class="action-row d-flex flex-wrap gap-2 mt-2">
 
                     <!-- View Items -->
                     <button class="btn btn-sm btn-action btn-dispatch"

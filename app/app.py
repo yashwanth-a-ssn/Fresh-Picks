@@ -496,7 +496,7 @@ def api_get_admin_orders():
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
 
-    result = run_c_binary("delivery", ["list_all_orders"])
+    result = run_c_binary("delivery", ["list_all_orders_sorted"])
 
     if result["status"] != "SUCCESS":
         return jsonify({"status": "SUCCESS", "orders": [],
