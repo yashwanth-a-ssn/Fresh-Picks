@@ -337,7 +337,9 @@ const STATUS_META = {
         badgeStyle: "color:#ffc107; background:rgba(255,193,7,0.15); border:1px solid rgba(255,193,7,0.3);"
     },
     "Delivered": {
-        art: "✅", label: "Delivered", slotIndex: 2,
+        art: "✅", label: "Delivered", slotIndex: 3,   /* 3 = past the last real index (2),
+                                                           so i < activeIndex is TRUE for ALL
+                                                           three steps → all three go "done" */
         badgeStyle: "color:#28a745; background:rgba(40,167,69,0.15); border:1px solid rgba(40,167,69,0.3);"
     },
     "Cancelled": {
@@ -368,15 +370,18 @@ function buildTracker(activeIndex) {
         let stepClass = "";
         if      (i < activeIndex)  stepClass = "done";
         else if (i === activeIndex) stepClass = "active";
+        /* else: no class = pending */
 
-        /* Final "Delivered" step (index 2) — add green-glow class */
+        /*  The terminal "Delivered" dot (index 2) when fully done
+            gets the green-glow class (CSS: .tracker-step.done.step-delivered). */
         if (i === 2 && stepClass === "done") {
             stepClass += " step-delivered";
         }
 
-        /* Icon logic:
-           - done  → checkmark (bi-check-lg)  ← THE FIX
-           - active / pending → step's own icon */
+        /*  Icon rule:
+              done   → bi-check-lg  (checkmark for all completed nodes)
+              active → step's own icon (e.g. bi-bicycle while in transit)
+              pending → step's own icon (greyed out via CSS)              */
         const iconClass = stepClass.includes("done") ? "bi-check-lg" : step.icon;
 
         return `
@@ -388,7 +393,6 @@ function buildTracker(activeIndex) {
             </div>`;
     }).join("");
 }
-
 /* ────────────────────────────────────────────────────────────────────
    parseItemsInvoice(itemsString)
    Handles:
@@ -513,7 +517,7 @@ async function confirmUserCancelWithOtp() {
    }
    ────────────────────────────────────────────────────────────────────  */
 function buildOrderCard(order) {
-    const meta       = STATUS_META[order.status] || STATUS_META["Order Placed"];
+    const meta        = STATUS_META[order.status] || STATUS_META["Order Placed"];
     const activeIndex = meta.slotIndex;
 
     const slotColors = {
@@ -524,7 +528,6 @@ function buildOrderCard(order) {
     const slotStyle  = slotColors[order.delivery_slot] || slotColors["Evening"];
     const canCancel  = order.status === "Order Placed";
 
-    /* Delivery agent display: show name+phone if available, else ID */
     const agentDisplay = order.boy_name && order.boy_name !== "Unknown"
         ? `${order.boy_name}${order.boy_phone && order.boy_phone !== "N/A"
             ? `<span class="text-muted ms-2" style="font-size:0.80rem;">📞 ${order.boy_phone}</span>`
@@ -564,10 +567,10 @@ function buildOrderCard(order) {
                 <span class="status-label">${meta.label}</span>
             </div>
 
-            <!-- MIDDLE: Details -->
+            <!-- MIDDLE: Details + Action Buttons -->
             <div class="track-middle">
 
-                <!-- Delivery Agent: actual name + phone -->
+                <!-- Delivery Agent -->
                 <div class="detail-row">
                     <i class="bi bi-bicycle detail-icon"></i>
                     <div>
@@ -589,47 +592,52 @@ function buildOrderCard(order) {
                     </div>
                 </div>
 
+                <!-- ── Action Buttons — flex-row, directly below Grand Total ── -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:14px;">
+
+                    <!-- View Items -->
+                    <button class="btn btn-sm btn-action"
+                            style="background:var(--bg-elevated); color:var(--text-bright);
+                                   border:1px solid var(--border-color);"
+                            onclick="openUserItemsModal('${order.order_id}')">
+                        <i class="bi bi-list-ul me-1"></i>View Items
+                    </button>
+
+                    <!-- Download Receipt -->
+                    <button class="btn btn-sm btn-action"
+                            style="background:var(--accent); color:#fff; border:none;"
+                            onclick="downloadOrderReceipt('${order.order_id}')">
+                        <i class="bi bi-download me-1"></i>Receipt
+                    </button>
+
+                    <!-- Cancel — ONLY for "Order Placed" -->
+                    ${canCancel ? `
+                    <button class="btn btn-sm btn-user-cancel"
+                            style="background:var(--danger); color:#fff; border:none;
+                                   border-radius:4px; padding:0.25rem 0.75rem;
+                                   font-size:0.8rem;"
+                            onclick="initiateCancelOrder('${order.order_id}')">
+                        <i class="bi bi-x-circle me-1"></i>Cancel Order
+                    </button>` : ""}
+
+                </div>
+                <!-- ── End Action Buttons ── -->
+
             </div>
 
-            <!-- RIGHT: Vertical Tracker — checkmark on done nodes -->
+            <!-- RIGHT: Vertical Tracker -->
             <div class="track-right">
                 ${buildTracker(activeIndex)}
             </div>
 
         </div>
 
-        <!-- Footer actions -->
-        <div class="order-track-footer">
-
-            <!-- View Items -->
-            <button class="btn btn-sm btn-action"
-                    style="background:var(--bg-elevated); color:var(--text-bright);
-                           border:1px solid var(--border-color);"
-                    onclick="openUserItemsModal('${order.order_id}')">
-                <i class="bi bi-list-ul me-1"></i>View Items
-            </button>
-
-            <!-- Download Receipt -->
-            <button class="btn btn-sm btn-action"
-                    style="background:var(--accent); color:#fff; border:none;"
-                    onclick="downloadOrderReceipt('${order.order_id}')">
-                <i class="bi bi-download me-1"></i>Receipt
-            </button>
-
-            <!-- Cancel — ONLY for "Order Placed" -->
-            ${canCancel ? `
-            <button class="btn btn-sm btn-user-cancel"
-                    style="background:var(--danger); color:#fff; border:none;
-                           border-radius:4px; padding:0.25rem 0.75rem;
-                           font-size:0.8rem;"
-                    onclick="initiateCancelOrder('${order.order_id}')">
-                <i class="bi bi-x-circle me-1"></i>Cancel Order
-            </button>` : ""}
-
-        </div>`;
+        <!-- Footer — kept for CSS spacing; buttons moved to .track-middle above -->
+        <div class="order-track-footer" style="display:none;"></div>`;
 
     return card;
 }
+
 {% endraw %}
 /* ────────────────────────────────────────────────────────────────────
    loadUserOrders — fetches from /api/get_user_orders and renders cards

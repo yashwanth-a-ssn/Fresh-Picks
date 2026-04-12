@@ -1,2 +1,2 @@
-VF101|Curry Leaves|4900|500.00|50
-VF102|Coriander Leaves|3900|500.00|50
+VF101|Curry Leaves|4850|500.00|50
+VF102|Coriander Leaves|3850|500.00|50

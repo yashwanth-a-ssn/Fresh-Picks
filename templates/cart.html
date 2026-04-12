@@ -1167,9 +1167,9 @@ function downloadReceiptAsPDF() {
         return;
     }
 
-    /* Build items_string in 4-part format from in-memory cartItems.
-       cartItems still holds the full item objects at this point.
-       Format: veg_id:name:qty_g:price_per_1000g  (comma-separated) */
+    /*  Build items_string in canonical 4-part format from in-memory cartItems.
+        cartItems is still live at this point (single-page state machine).
+        Format: veg_id:name:qty_g:price_per_1000g  (comma-separated)        */
     const itemsString = cartItems.map(item => {
         const safeName = (item.name || item.veg_id).replace(/[:,]/g, " ");
         return `${item.veg_id}:${safeName}:${item.qty_g}:${item.price_per_1000g || 0}`;
@@ -1177,22 +1177,27 @@ function downloadReceiptAsPDF() {
 
     const dateStr = new Date().toISOString().slice(0, 10);
 
-    generateStandardReceiptPDF({
+    /*  currentOrderData — full shape required by generateStandardReceiptPDF.
+        userAddress is the raw 4-part comma-separated string from the profile
+        ("door,street,area,pincode"). receipt.js will split and render it.    */
+    const currentOrderData = {
         orderId:      checkoutResult.order_id,
-        userId:       _profile.username || "Customer",
+        userId:       _profile.username   || "Customer",
         fullName:     _customerDisplay(),
-        userPhone:    _profile.phone   || "",
-        userEmail:    _profile.email   || "",
-        userAddress:  _profile.address || "",
+        userPhone:    _profile.phone      || "",
+        userEmail:    _profile.email      || "",
+        userAddress:  _profile.address    || "",   /* raw: "door,street,area,pin" */
         date:         dateStr,
         timestamp:    checkoutResult.timestamp || dateStr,
         status:       "Order Placed",
-        deliverySlot: checkoutResult.slot || "",
+        deliverySlot: checkoutResult.slot      || "",
         total:        parseFloat(checkoutResult.total) || 0,
         itemsString:  itemsString,
         boyName:      checkoutResult.boy_name  || "",
         boyPhone:     checkoutResult.boy_phone || ""
-    });
+    };
+
+    generateStandardReceiptPDF(currentOrderData);
 }
 {% endraw %}
 

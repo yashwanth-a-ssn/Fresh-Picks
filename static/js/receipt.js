@@ -1,48 +1,52 @@
 /**
  * receipt.js — Fresh Picks: Centralized PDF Receipt Generator
  * ============================================================
- * Loaded by both admin_orders.html and user_orders.html via:
+ * Loaded by both cart.html and user_orders.html via:
  *   <script src="/static/js/receipt.js"></script>
  *
  * PUBLIC API:
  *   generateStandardReceiptPDF(orderData)  → Promise<void>
  *
- * WHY THIS APPROACH (programmatic HTML, not DOM clone)?
- *   html2canvas rasterises the live DOM by spawning an off-screen
- *   iframe and re-painting it. Several mechanisms break this process:
+ * LAYOUT (pixel-perfect replica of the UI screenshot, light theme):
+ *   ┌─────────────────────────────────────────┐
+ *   │ 🧺 Fresh Picks          ORDER RECEIPT   │  ← two-col header table
+ *   │ 123 Grocery Ave...       ┌──────────┐   │
+ *   │ GSTIN | FSSAI            │  ORD112  │   │
+ *   │ 📞 +91...                └──────────┘   │
+ *   │                         12 Apr 2026...  │
+ *   ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤  ← dashed separator
+ *   │ BILL TO   │ DELIVERY SLOT │ STATUS      │  ← 3-col meta row
+ *   │ Name      │ Afternoon     │ ✓ PAID      │
+ *   ├─────────────────────────────────────────┤
+ *   │ CONTACT                                 │
+ *   │ 📞 6382717541                           │
+ *   │ ✉ yashwanth@...                         │
+ *   │ No 11 - Flat No 11                      │  ← 4 lines, one per part
+ *   │ Elumalai Street                         │
+ *   │ West Tambaram                           │
+ *   │ 600045                                  │
+ *   ├─────────────────────────────────────────┤
+ *   │ ║ DELIVERY PARTNER   (left accent bar)  │  ← box-shadow inset fix
+ *   │ ║ 🛵 Ramesh  📞 9876543210              │
+ *   ├─────────────────────────────────────────┤
+ *   │  #  │ ITEM           │ RATE  │ QTY │ ₹  │  ← items table
+ *   │  1  │ Coriander...   │ ₹.../kg│1kg │100 │
+ *   ├─────────────────────────────────────────┤
+ *   │ Subtotal                       ₹100.00  │
+ *   │ Delivery Charges                  FREE  │
+ *   │ Total Paid                    ₹100.00   │  ← bold blue
+ *   ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
+ *   │    Thank you for shopping with FreshPicks│
+ *   └─────────────────────────────────────────┘
  *
- *   1. CSS Custom Properties (var(--accent) etc.)
- *      html2canvas's iframe inherits NONE of the parent document's
- *      :root CSS variables. Every var(--x) call resolves to the
- *      *initial value* (empty string / 0), producing transparent
- *      backgrounds and invisible text — the "blank PDF" symptom.
- *
- *   2. Dark themes & transparent backgrounds
- *      When html2canvas's background is not explicitly set, it defaults
- *      to rgba(0,0,0,0) — transparent. The browser then composites this
- *      over the PDF page's white, creating the "black PDF" symptom.
- *
- *   3. Deep DOM trees & Bootstrap utility classes
- *      Bootstrap classes like `d-flex`, `gap-2`, `text-muted` rely on
- *      the Bootstrap stylesheet. The cloned node INSIDE html2canvas's
- *      iframe has no stylesheet at all. Layout collapses to block-level
- *      stacking, fragmenting content across pages.
- *
- *   4. display:flex inside html2canvas
- *      html2canvas has historically poor support for complex flex
- *      nesting. The totals row (justify-content:flex-end) causes
- *      amounts to vanish or misalign. Fixed here by using <table>
- *      for all structured layouts — html2canvas renders tables reliably.
- *
- *   THE FIX: We never touch the live DOM.
- *   We programmatically BUILD a self-contained <div> string using
- *   ONLY strict inline hex styles, and use <table> for all layouts.
- *   No CSS variables. No Bootstrap. No external images. One flat,
- *   predictable, A4-width div → clean PDF every single time.
- *
- * FILENAME CONVENTION:
- *   <orderId>_<userId>_<date>.pdf
- *   e.g. ORD107_U1003_2025-04-08.pdf
+ * THEME:        Light (#ffffff). Brand accent: #007acc.
+ * ALL STYLES:   Hardcoded inline hex — zero CSS variables.
+ * ALL LAYOUTS:  <table> — never display:flex (html2canvas compat).
+ * LEFT BORDER:  box-shadow inset on delivery partner card (not border-left
+ *               which html2canvas clips at the canvas edge).
+ * ADDRESS:      "door,street,area,pincode" split into 4 separate lines.
+ * SCALE:        3 (high-res capture).
+ * FILENAME:     ${orderId}_${userId}_${date}.pdf
  *
  * DEPENDENCY: html2pdf.js must be loaded BEFORE this file.
  *   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -51,390 +55,471 @@
  * Team: CodeCrafters | Project: Fresh Picks | SDP-1
  */
 
-/* ──────────────────────────────────────────────────────────────────────
-   SECTION 1: COLOUR PALETTE
-   All values are strict hex codes. Absolutely no CSS variables.
-   ────────────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 1: COLOUR PALETTE  (light / print-friendly)
+   Every token is a literal hex. No CSS variables anywhere.
+   ══════════════════════════════════════════════════════════════════════ */
 const RECEIPT_COLORS = {
-    bg:          "#1e1e1e",   /* VS Code dark background                */
-    bgElevated:  "#252526",   /* Card / elevated surface                 */
-    bgSection:   "#2d2d2d",   /* Section separator rows                  */
-    bgHeader:    "#007acc",   /* Table header — primary blue             */
-    border:      "#3e3e42",   /* Subtle border lines                     */
-    accent:      "#007acc",   /* Primary blue (FreshPicks brand)         */
-    accentLight: "#1a9eff",   /* Lighter blue for totals                 */
-    success:     "#28a745",   /* Green — delivered / free items          */
-    warning:     "#ffc107",   /* Amber — out for delivery                */
-    danger:      "#dc3545",   /* Red — cancelled                         */
-    text:        "#d4d4d4",   /* Primary text                            */
-    textBright:  "#ffffff",   /* Headings / labels                       */
-    textMuted:   "#858585",   /* Secondary / meta text                   */
-    mono:        "Consolas, 'Courier New', monospace",
-    sans:        "'Segoe UI', Arial, system-ui, sans-serif"
+    bg:           "#ffffff",
+    bgAlt:        "#f5f9fd",
+    bgMeta:       "#f0f6fc",
+    bgHeader:     "#007acc",
+    bgAgent:      "#f0f6fc",
+    border:       "#cde0f0",
+    borderDash:   "#b8d4e8",
+    borderAccent: "#007acc",
+    text:         "#1a1a2e",
+    textMuted:    "#6b8faa",
+    textLabel:    "#4a6fa5",
+    textBright:   "#0a1628",
+    textAccent:   "#007acc",
+    textOnBlue:   "#ffffff",
+    success:      "#166534",
+    successBg:    "#dcfce7",
+    successBorder:"#86efac",
+    warning:      "#92400e",
+    warningBg:    "#fef3c7",
+    warningBorder:"#fcd34d",
+    danger:       "#b91c1c",
+    dangerBg:     "#fee2e2",
+    dangerBorder: "#fca5a5",
+    paidGreen:    "#166534",
+    paidBg:       "#dcfce7",
+    paidBorder:   "#86efac",
+    phonePink:    "#e83e8c",
+    mono:         "Consolas, 'Courier New', monospace",
+    sans:         "'Segoe UI', Arial, system-ui, sans-serif"
 };
 
-/* ──────────────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════════════════════
    SECTION 2: ITEM STRING PARSER
-   Handles both 3-part (legacy) and 4-part (current) formats.
-
-   3-part (legacy, stored before this fix):  veg_id:qty_g:price_per_1000g
-   4-part (current, stored after this fix):  veg_id:name:qty_g:price_per_1000g
-   ────────────────────────────────────────────────────────────────────── */
+   4-part (current): veg_id:name:qty_g:price_per_1000g
+   3-part (legacy):  veg_id:qty_g:price_per_1000g
+   ══════════════════════════════════════════════════════════════════════ */
 function _parseItems(itemsString) {
-    if (!itemsString || itemsString.trim() === "") return [];
-    return itemsString.split(",").filter(Boolean).map(entry => {
-        const parts = entry.trim().split(":");
-        let id, name, qty, price;
-
+    if (!itemsString || !itemsString.trim()) return [];
+    return itemsString.split(",").filter(Boolean).map(function(entry) {
+        var parts = entry.trim().split(":");
+        var id, name, qty, price;
         if (parts.length >= 4) {
-            /* 4-part: veg_id:name:qty_g:price */
-            [id, name, qty, price] = parts;
+            id = parts[0]; name = parts[1]; qty = parts[2]; price = parts[3];
         } else if (parts.length === 3) {
-            /* 3-part legacy: veg_id:qty_g:price — name falls back to id */
-            [id, qty, price] = parts;
-            name = id;
+            id = parts[0]; qty = parts[1]; price = parts[2]; name = id;
         } else {
             return null;
         }
-
-        const qtyNum   = parseInt(qty)   || 0;
-        const priceNum = parseFloat(price) || 0;
-        const isFree   = priceNum === 0;
-
-        /* Display quantity: ≥1000g → kg, else grams */
-        const qtyLabel = qtyNum >= 1000
-            ? `${(qtyNum / 1000).toFixed(2)} kg`
-            : `${qtyNum} g`;
-
-        const amount = isFree ? 0 : (qtyNum / 1000) * priceNum;
-
-        return {
-            id,
-            name:    name || id,
-            qty:     qtyLabel,
-            price:   priceNum,
-            amount,
-            isFree
-        };
+        var qtyNum   = parseInt(qty)    || 0;
+        var priceNum = parseFloat(price) || 0;
+        var isFree   = priceNum === 0;
+        var qtyLabel = qtyNum >= 1000
+            ? (qtyNum / 1000).toFixed(2) + " kg"
+            : qtyNum + " g";
+        var amount = isFree ? 0 : (qtyNum / 1000) * priceNum;
+        return { id: id, name: name || id, qty: qtyLabel, price: priceNum, amount: amount, isFree: isFree };
     }).filter(Boolean);
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   SECTION 3: STATUS → DISPLAY LABEL + HEX COLOR
-   ────────────────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 3: STATUS / SLOT BADGE STYLES (light-theme print-safe)
+   ══════════════════════════════════════════════════════════════════════ */
 function _statusStyle(status) {
-    const map = {
-        "Order Placed":     { bg: "#1a3a5c", color: "#9cdcfe", label: "Order Placed"     },
-        "Out for Delivery": { bg: "#3a2e00", color: "#ffc107", label: "Out for Delivery" },
-        "Delivered":        { bg: "#1a3a1a", color: "#28a745", label: "Delivered"         },
-        "Cancelled":        { bg: "#3a1a1a", color: "#dc3545", label: "Cancelled"         },
+    var C = RECEIPT_COLORS;
+    var map = {
+        "Order Placed":     { bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd", label: "PAID"             },
+        "Out for Delivery": { bg: C.warningBg, color: C.warning, border: C.warningBorder, label: "OUT FOR DELIVERY" },
+        "Delivered":        { bg: C.paidBg,  color: C.paidGreen,  border: C.paidBorder,  label: "DELIVERED"  },
+        "Cancelled":        { bg: C.dangerBg, color: C.danger,    border: C.dangerBorder, label: "CANCELLED"  }
     };
     return map[status] || map["Order Placed"];
 }
 
 function _slotStyle(slot) {
-    const map = {
-        "Morning":   { bg: "#1a3a1a", color: "#90ee90" },
-        "Afternoon": { bg: "#3a2e00", color: "#ffd700" },
-        "Evening":   { bg: "#1a1a4a", color: "#9cdcfe" },
+    var map = {
+        "Morning":   { bg: "#dcfce7", color: "#166534", border: "#86efac" },
+        "Afternoon": { bg: "#fef3c7", color: "#92400e", border: "#fcd34d" },
+        "Evening":   { bg: "#dbeafe", color: "#1e40af", border: "#93c5fd" }
     };
     return map[slot] || map["Evening"];
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   SECTION 4: PROGRAMMATIC HTML BUILDER
-   Constructs a complete, self-contained receipt <div>.
-   EVERY style is a strict inline hex code.
-   ALL layouts use <table> — never display:flex — for html2canvas compat.
-   ────────────────────────────────────────────────────────────────────── */
-function _buildReceiptHTML(orderData) {
-    const C   = RECEIPT_COLORS;
-    const ss  = _statusStyle(orderData.status || "Order Placed");
-    const sl  = _slotStyle(orderData.deliverySlot || "Morning");
-    const items = _parseItems(orderData.itemsString || "");
-
-    /* ── Computed totals ── */
-    const subtotal = items.reduce((acc, it) => acc + it.amount, 0);
-    const total    = parseFloat(orderData.total || subtotal);
-
-    const dateStr = (orderData.date || new Date().toISOString().slice(0, 10));
-
-    /* ── Customer display — prefer fullName over userId ── */
-    const customerName = orderData.fullName || orderData.userId || "Customer";
-
-    /* ── User contact block ── */
-    const hasContact = orderData.userPhone || orderData.userEmail || orderData.userAddress;
-    const contactBlock = hasContact ? `
-        <tr>
-            <td style="padding:7px 14px; font-size:10px; color:${C.textMuted};
-                       text-transform:uppercase; letter-spacing:0.06em;
-                       border-bottom:1px solid ${C.border};
-                       background:${C.bgElevated}; width:30%; white-space:nowrap;">CONTACT</td>
-            <td style="padding:7px 14px; border-bottom:1px solid ${C.border};
-                       background:${C.bgElevated}; font-size:11px; color:${C.text};">
-                ${orderData.userPhone  ? `&#128222; ${orderData.userPhone}<br>` : ""}
-                ${orderData.userEmail  ? `&#9993; ${orderData.userEmail}<br>` : ""}
-                ${orderData.userAddress ? `<span style="color:${C.textMuted};">${orderData.userAddress.replace(/,/g, ", ")}</span>` : ""}
-            </td>
-        </tr>` : "";
-
-    /* ── Invoice table rows ── */
-    const tableRows = items.length > 0
-        ? items.map((it, idx) => `
-        <tr style="background:${idx % 2 === 0 ? C.bgElevated : C.bg};">
-            <td style="padding:8px 10px; color:${C.text}; font-size:12px;
-                       border-bottom:1px solid ${C.border};">
-                ${it.name}${it.isFree
-                    ? `&nbsp;<span style="color:${C.success}; font-size:10px;
-                                         font-weight:700;">FREE</span>`
-                    : ""}
-            </td>
-            <td style="padding:8px 10px; text-align:right; font-size:12px;
-                       color:${C.textMuted}; border-bottom:1px solid ${C.border};">
-                ${it.isFree ? "&mdash;" : `&#8377;${it.price.toFixed(2)}/kg`}
-            </td>
-            <td style="padding:8px 10px; text-align:right; font-size:12px;
-                       color:${C.text}; border-bottom:1px solid ${C.border};">
-                ${it.qty}
-            </td>
-            <td style="padding:8px 10px; text-align:right; font-size:12px;
-                       font-weight:${it.isFree ? "700" : "400"};
-                       color:${it.isFree ? C.success : C.textBright};
-                       border-bottom:1px solid ${C.border};">
-                ${it.isFree ? "&#8377;0.00" : `&#8377;${it.amount.toFixed(2)}`}
-            </td>
-        </tr>`).join("")
-        : `<tr><td colspan="4"
-                  style="padding:14px; text-align:center;
-                         color:${C.textMuted}; font-size:12px;"
-              >&mdash; No items &mdash;</td></tr>`;
-
-    /* ── Meta table: Order ID / Customer / Slot / Status / Timestamp ── */
-    const metaRows = [
-        ["ORDER ID",      `<span style="font-family:${C.mono}; font-size:14px;
-                                        color:${C.accentLight}; font-weight:700;">
-                              ${orderData.orderId || "&mdash;"}
-                           </span>`],
-        ["BILL TO",       `<span style="font-size:13px; color:${C.textBright};
-                                        font-weight:600;">
-                              ${customerName}
-                           </span>`],
-        ["DELIVERY SLOT", `<span style="background:${sl.bg}; color:${sl.color};
-                                        border-radius:10px; padding:2px 10px;
-                                        font-size:12px; font-weight:600;">
-                              ${orderData.deliverySlot || "&mdash;"}
-                           </span>`],
-        ["STATUS",        `<span style="background:${ss.bg}; color:${ss.color};
-                                        border-radius:10px; padding:2px 10px;
-                                        font-size:12px; font-weight:600;">
-                              ${ss.label}
-                           </span>`],
-        ["PLACED AT",     `<span style="font-size:12px; color:${C.textMuted};
-                                        font-family:${C.mono};">
-                              ${orderData.timestamp || "&mdash;"}
-                           </span>`],
-    ].map(([label, value]) => `
-        <tr>
-            <td style="padding:7px 14px; font-size:10px; color:${C.textMuted};
-                       text-transform:uppercase; letter-spacing:0.06em;
-                       white-space:nowrap; border-bottom:1px solid ${C.border};
-                       background:${C.bgElevated}; width:30%;">${label}</td>
-            <td style="padding:7px 14px; border-bottom:1px solid ${C.border};
-                       background:${C.bgElevated};">${value}</td>
-        </tr>`).join("") + contactBlock;
-
-    /* ── Delivery agent block (optional) ── */
-    const agentBlock = orderData.boyName ? `
-    <div style="margin-bottom:20px; padding:12px 16px;
-                background:${C.bgSection}; border-radius:6px;
-                border-left:4px solid ${C.accent};">
-        <div style="font-size:10px; color:${C.textMuted};
-                    text-transform:uppercase; letter-spacing:0.06em;
-                    margin-bottom:4px;">Delivery Agent</div>
-        <div style="font-size:13px; color:${C.textBright}; font-weight:500;">
-            ${orderData.boyName}
-            ${orderData.boyPhone
-                ? `<span style="color:${C.textMuted}; font-size:11px;
-                                margin-left:10px;">${orderData.boyPhone}</span>`
-                : ""}
-        </div>
-    </div>` : "";
-
-    return `
-<div style="
-    background-color:${C.bg};
-    color:${C.text};
-    font-family:${C.sans};
-    font-size:13px;
-    line-height:1.55;
-    padding:24px 28px;
-    box-sizing:border-box;
-    width:794px;
-">
-
-    <!-- ══ HEADER ══ -->
-    <div style="text-align:center; margin-bottom:20px; padding-bottom:16px;
-                border-bottom:2px solid ${C.accent};">
-        <div style="font-size:26px; margin-bottom:6px;">&#x1F96C;</div>
-        <div style="color:${C.accent}; font-size:20px; font-weight:700;
-                    margin:0 0 4px; font-family:${C.sans};">
-            CodeCrafters Fresh Picks
-        </div>
-        <div style="color:${C.textMuted}; font-size:11px; margin:0;">
-            123 Grocery Ave, Market City, Chennai &ndash; 600045
-        </div>
-        <div style="color:${C.textMuted}; font-size:11px; margin:2px 0 0;">
-            GSTIN: 22AAAAA0000A1Z5 &nbsp;|&nbsp; FSSAI: 10020042004971
-        </div>
-        <div style="color:${C.textMuted}; font-size:11px; margin:2px 0 0;">
-            +91 98765 43210 &nbsp;|&nbsp; support@freshpicks.in
-        </div>
-        <div style="margin-top:10px;">
-            <span style="background:${C.bgElevated}; color:${C.accentLight};
-                         border:1px solid ${C.border}; border-radius:4px;
-                         padding:3px 12px; font-size:13px; font-weight:700;
-                         font-family:${C.mono};">
-                ORDER RECEIPT &nbsp;&mdash;&nbsp; ${orderData.orderId || ""}
-            </span>
-        </div>
-        <div style="color:${C.textMuted}; font-size:11px; margin-top:6px;">
-            ${dateStr}
-        </div>
-    </div>
-
-    <!-- ══ ORDER META TABLE ══ -->
-    <div style="margin-bottom:20px;">
-        <table style="width:100%; border-collapse:collapse;
-                      border:1px solid ${C.border}; border-radius:6px;
-                      overflow:hidden;">
-            ${metaRows}
-        </table>
-    </div>
-
-    <!-- ══ DELIVERY AGENT ══ -->
-    ${agentBlock}
-
-    <!-- ══ INVOICE TABLE ══ -->
-    <div style="margin-bottom:20px;">
-        <div style="font-size:10px; color:${C.textMuted}; text-transform:uppercase;
-                    letter-spacing:0.06em; margin-bottom:8px;">Items In This Order</div>
-        <table style="width:100%; border-collapse:collapse;
-                      border:1px solid ${C.border}; overflow:hidden;">
-            <thead>
-                <tr style="background:${C.bgHeader};">
-                    <th style="padding:10px; text-align:left; font-size:11px;
-                               color:#ffffff; font-weight:600; width:40%;
-                               border-bottom:1px solid ${C.border};">PRODUCT</th>
-                    <th style="padding:10px; text-align:right; font-size:11px;
-                               color:#ffffff; font-weight:600; width:20%;
-                               border-bottom:1px solid ${C.border};">RATE</th>
-                    <th style="padding:10px; text-align:right; font-size:11px;
-                               color:#ffffff; font-weight:600; width:15%;
-                               border-bottom:1px solid ${C.border};">QTY</th>
-                    <th style="padding:10px; text-align:right; font-size:11px;
-                               color:#ffffff; font-weight:600; width:25%;
-                               border-bottom:1px solid ${C.border};">AMOUNT</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${tableRows}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- ══ TOTALS — uses <table> not display:flex (html2canvas compat) ══ -->
-    <div style="margin-bottom:24px; text-align:right;">
-        <table style="margin-left:auto; border-collapse:collapse;
-                      border:1px solid ${C.border}; min-width:260px;">
-            <tr>
-                <td style="padding:8px 16px; background:${C.bgElevated};
-                           color:${C.textMuted}; font-size:12px;
-                           border-bottom:1px solid ${C.border};">Subtotal</td>
-                <td style="padding:8px 16px; background:${C.bgElevated};
-                           color:${C.text}; font-size:12px; text-align:right;
-                           border-bottom:1px solid ${C.border};">
-                    &#8377;${subtotal.toFixed(2)}</td>
-            </tr>
-            <tr>
-                <td style="padding:8px 16px; background:${C.bgElevated};
-                           color:${C.textMuted}; font-size:12px;
-                           border-bottom:1px solid ${C.border};">Delivery Charges</td>
-                <td style="padding:8px 16px; background:${C.bgElevated};
-                           color:${C.success}; font-size:12px;
-                           font-weight:600; text-align:right;
-                           border-bottom:1px solid ${C.border};">FREE</td>
-            </tr>
-            <tr>
-                <td style="padding:10px 16px; background:${C.bgSection};
-                           color:${C.textBright}; font-size:14px;
-                           font-weight:700;">Total Paid</td>
-                <td style="padding:10px 16px; background:${C.bgSection};
-                           color:${C.accentLight}; font-size:16px;
-                           font-weight:700; text-align:right;">
-                    &#8377;${total.toFixed(2)}</td>
-            </tr>
-        </table>
-    </div>
-
-    <!-- ══ FOOTER ══ -->
-    <div style="text-align:center; padding-top:14px;
-                border-top:1px dashed ${C.border};
-                color:${C.textMuted}; font-size:10px; line-height:1.7;">
-        <div>Thank you for shopping with
-            <span style="color:${C.accent}; font-weight:600;">FreshPicks</span>!
-            &#x1F6D2;
-        </div>
-        <div>This is a computer-generated receipt. No signature required.</div>
-        <div style="margin-top:6px; font-family:${C.mono}; font-size:9px;
-                    color:#555555;">
-            Receipt ID: ${orderData.orderId || ""} &nbsp;&middot;&nbsp;
-            Generated: ${dateStr} &nbsp;&middot;&nbsp;
-            CodeCrafters SDP-1
-        </div>
-    </div>
-
-</div>`.trim();
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 4: ADDRESS FORMATTER
+   Splits "door,street,area,pincode" into exactly 4 separate line divs.
+   ══════════════════════════════════════════════════════════════════════ */
+function _formatAddress(addressStr) {
+    if (!addressStr || !addressStr.trim()) return "";
+    var parts = addressStr.split(",").map(function(p) { return p.trim(); }).filter(Boolean);
+    return parts.map(function(part) {
+        return '<div style="font-size:12px; color:#6b8faa; line-height:1.7; margin:0;">' + part + '</div>';
+    }).join("");
 }
 
-/* ──────────────────────────────────────────────────────────────────────
-   SECTION 5: PUBLIC API — generateStandardReceiptPDF(orderData)
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 5: TIMESTAMP FORMATTER
+   "2026-04-12 14:10:12"  →  "12 Apr 2026, 02:10 pm"
+   ══════════════════════════════════════════════════════════════════════ */
+function _formatTimestamp(ts, fallback) {
+    if (!ts) return fallback || "";
+    try {
+        var d = new Date(ts.replace(" ", "T"));
+        if (isNaN(d)) return ts;
+        var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        var day  = d.getDate();
+        var mon  = months[d.getMonth()];
+        var yr   = d.getFullYear();
+        var hr   = d.getHours();
+        var min  = ("0" + d.getMinutes()).slice(-2);
+        var ampm = hr >= 12 ? "pm" : "am";
+        hr = hr % 12 || 12;
+        return day + " " + mon + " " + yr + ", " + hr + ":" + min + " " + ampm;
+    } catch (e) {
+        return ts;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 6: HTML BUILDER  (_buildReceiptHTML)
+
+   Matches the UI screenshot structure exactly:
+     1. Two-column header (brand left, order-ID right)
+     2. Dashed separator
+     3. Three-column meta row (BILL TO | DELIVERY SLOT | STATUS)
+     4. CONTACT block (phone, email, 4-line address)
+     5. DELIVERY PARTNER card (box-shadow inset for left border)
+     6. Items table (#|ITEM|RATE|QTY|AMOUNT)
+     7. Totals rows (Subtotal / Delivery Charges / Total Paid)
+     8. Dashed footer
+   ══════════════════════════════════════════════════════════════════════ */
+function _buildReceiptHTML(orderData) {
+    var C            = RECEIPT_COLORS;
+    var ss           = _statusStyle(orderData.status || "Order Placed");
+    var sl           = _slotStyle(orderData.deliverySlot || "Morning");
+    var items        = _parseItems(orderData.itemsString || "");
+    var subtotal     = items.reduce(function(acc, it) { return acc + it.amount; }, 0);
+    var total        = parseFloat(orderData.total || subtotal);
+    var customerName = orderData.fullName || orderData.userId || "Customer";
+    var dateStr      = orderData.date || new Date().toISOString().slice(0, 10);
+    var displayTS    = _formatTimestamp(orderData.timestamp, dateStr);
+    var addressLines = _formatAddress(orderData.userAddress || "");
+
+    /* ── 1. HEADER ──────────────────────────────────────────────── */
+    var headerHTML = [
+        '<table style="width:100%; border-collapse:collapse; margin-bottom:0;">',
+        '  <tr>',
+        /* LEFT — brand */
+        '    <td style="vertical-align:top; padding:0; width:55%;">',
+        '      <table style="border-collapse:collapse; margin-bottom:6px;">',
+        '        <tr>',
+        '          <td style="padding:0 10px 0 0; vertical-align:middle; width:34px; line-height:1;">',
+        '            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="#e3b172" viewBox="0 0 16 16">',
+        '              <path d="M5.757 1.071a.5.5 0 0 1 .172.686L3.383 6h9.234L10.07 1.757a.5.5 0 1 1 .858-.514L13.783 6H15a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h1.217L5.07 1.243a.5.5 0 0 1 .686-.172zM3.394 10h9.212l-.69 3.104A2 2 0 0 1 9.96 15H6.04a2 2 0 0 1-1.956-1.896L3.394 10z"/>',
+        '            </svg>',
+        '          </td>',
+        '          <td style="padding:0; vertical-align:middle;">',
+        '            <span style="font-size:19px; font-weight:700;',
+        '                         color:#007acc; letter-spacing:-0.2px;">',
+        '              Fresh Picks',
+        '            </span>',
+        '          </td>',
+        '        </tr>',
+        '      </table>',
+        '      <div style="font-size:11px; color:#6b8faa; line-height:1.65;">',
+        '        123 Grocery Ave, Market City, Chennai &ndash; 600045',
+        '      </div>',
+        '      <div style="font-size:11px; color:#6b8faa; line-height:1.65;">',
+        '        GSTIN: 22AAAAA0000A1Z5 &nbsp;|&nbsp; FSSAI: 10020042004971',
+        '      </div>',
+        '      <div style="font-size:11px; color:#6b8faa; line-height:1.65;">',
+        '        <span style="color:#e83e8c;">&#128222;</span>',
+        '        +91 98765 43210 &nbsp;|&nbsp; support@freshpicks.in',
+        '      </div>',
+        '    </td>',
+        /* RIGHT — order ID */
+        '    <td style="vertical-align:top; text-align:right; padding:0; width:45%;">',
+        '      <div style="font-size:10px; color:#6b8faa; letter-spacing:0.1em;',
+        '                  text-transform:uppercase; margin-bottom:5px;">',
+        '        ORDER RECEIPT',
+        '      </div>',
+        '      <span style="font-family:Consolas,\'Courier New\',monospace;',
+        '                   font-size:16px; font-weight:700; color:#007acc;',
+        '                   border:2px solid #007acc; border-radius:4px;',
+        '                   padding:3px 12px; background:#f0f6fc;',
+        '                   display:inline-block; letter-spacing:0.02em;">',
+        '        ' + (orderData.orderId || ""),
+        '      </span>',
+        '      <div style="font-size:11px; color:#6b8faa; margin-top:6px;">',
+        '        ' + displayTS,
+        '      </div>',
+        '    </td>',
+        '  </tr>',
+        '</table>'
+    ].join("\n");
+
+    /* ── 2. THREE-COLUMN META ROW ────────────────────────────────── */
+    var metaRowHTML = [
+        '<table style="width:100%; border-collapse:collapse;">',
+        '  <tr>',
+        /* BILL TO */
+        '    <td style="vertical-align:top; padding:14px 20px 14px 0;',
+        '               width:38%; border-bottom:1px solid #cde0f0;">',
+        '      <div style="font-size:10px; color:#6b8faa; text-transform:uppercase;',
+        '                  letter-spacing:0.09em; font-weight:700; margin-bottom:5px;">BILL TO</div>',
+        '      <div style="font-size:14px; font-weight:700; color:#0a1628;">',
+        '        ' + customerName,
+        '      </div>',
+        '    </td>',
+        /* DELIVERY SLOT */
+        '    <td style="vertical-align:top; padding:14px 20px;',
+        '               width:32%; border-bottom:1px solid #cde0f0;',
+        '               border-left:1px solid #cde0f0;">',
+        '      <div style="font-size:10px; color:#6b8faa; text-transform:uppercase;',
+        '                  letter-spacing:0.09em; font-weight:700; margin-bottom:5px;">DELIVERY SLOT</div>',
+        '      <div style="font-size:14px; font-weight:700; color:#0a1628;">',
+        '        ' + (orderData.deliverySlot || "&mdash;"),
+        '      </div>',
+        '    </td>',
+        /* STATUS */
+        '    <td style="vertical-align:top; padding:14px 0 14px 20px;',
+        '               width:30%; border-bottom:1px solid #cde0f0;',
+        '               border-left:1px solid #cde0f0;">',
+        '      <div style="font-size:10px; color:#6b8faa; text-transform:uppercase;',
+        '                  letter-spacing:0.09em; font-weight:700; margin-bottom:5px;">STATUS</div>',
+        '      <span style="display:inline-block; background:' + ss.bg + ';',
+        '                   color:' + ss.color + '; border:1.5px solid ' + ss.border + ';',
+        '                   border-radius:5px; padding:3px 11px;',
+        '                   font-size:12px; font-weight:700;">',
+        '        &#10003; ' + ss.label,
+        '      </span>',
+        '    </td>',
+        '  </tr>',
+        '</table>'
+    ].join("\n");
+
+    /* ── 3. CONTACT BLOCK ────────────────────────────────────────── */
+    var hasContact = orderData.userPhone || orderData.userEmail || orderData.userAddress;
+    var contactHTML = "";
+    if (hasContact) {
+        contactHTML = [
+            '<div style="padding:14px 0; border-bottom:1px solid #cde0f0;">',
+            '  <div style="font-size:10px; color:#6b8faa; text-transform:uppercase;',
+            '              letter-spacing:0.09em; font-weight:700; margin-bottom:8px;">CONTACT</div>',
+            orderData.userPhone
+                ? '<div style="font-size:13px; font-weight:600; color:#e83e8c; margin-bottom:4px; line-height:1.6;">'
+                    + '<span style="color:#e83e8c;">&#128222;</span>&nbsp;' + orderData.userPhone
+                    + '</div>'
+                : "",
+            orderData.userEmail
+                ? '<div style="font-size:13px; color:#1a1a2e; margin-bottom:6px; line-height:1.6;">'
+                    + '<span style="color:#6b8faa; font-size:14px;">&#9993;</span>&nbsp;' + orderData.userEmail
+                    + '</div>'
+                : "",
+            addressLines,
+            '</div>'
+        ].join("\n");
+    }
+
+    /* ── 4. DELIVERY PARTNER card ────────────────────────────────── */
+    /* LEFT BORDER: box-shadow inset 4px avoids the html2canvas border-left
+       clipping bug. The inset shadow renders on ALL four rasterised edges. */
+    var agentHTML = "";
+    if (orderData.boyName) {
+        agentHTML = [
+            '<div style="margin:14px 0;',
+            '            padding:14px 18px;',
+            '            background:#f0f6fc;',
+            '            border-radius:6px;',
+            '            border:1px solid #cde0f0;',
+            '            box-shadow: inset 4px 0 0 0 #007acc;">',
+            '  <div style="font-size:10px; color:#6b8faa; text-transform:uppercase;',
+            '              letter-spacing:0.09em; font-weight:700; margin-bottom:8px;">',
+            '    DELIVERY PARTNER',
+            '  </div>',
+            '  <table style="border-collapse:collapse; width:100%;">',
+            '    <tr>',
+            '      <td style="font-size:22px; width:36px; vertical-align:middle;',
+            '                 padding:0 10px 0 0; line-height:1;">&#x1F6F5;</td>',
+            '      <td style="vertical-align:middle; padding:0;">',
+            '        <div style="font-size:15px; font-weight:700; color:#0a1628; line-height:1.3;">',
+            '          ' + orderData.boyName,
+            '        </div>',
+            orderData.boyPhone
+                ? '        <div style="font-size:12px; color:#e83e8c; margin-top:3px; line-height:1.5;">'
+                    + '<span style="color:#e83e8c;">&#128222;</span>&nbsp;' + orderData.boyPhone + '</div>'
+                : "",
+            '      </td>',
+            '    </tr>',
+            '  </table>',
+            '</div>'
+        ].join("\n");
+    }
+
+    /* ── 5. ITEMS TABLE ROWS ─────────────────────────────────────── */
+    var itemRows;
+    if (items.length > 0) {
+        itemRows = items.map(function(it, idx) {
+            return [
+                '<tr style="background:' + (idx % 2 === 0 ? "#ffffff" : "#f5f9fd") + ';">',
+                '  <td style="padding:9px 10px; text-align:center; font-size:12px;',
+                '             color:#6b8faa; border-bottom:1px solid #cde0f0; width:5%;">',
+                '    ' + (idx + 1),
+                '  </td>',
+                '  <td style="padding:9px 10px; font-size:12.5px; font-weight:600;',
+                '             color:#0a1628; border-bottom:1px solid #cde0f0; width:42%;">',
+                '    ' + it.name + (it.isFree
+                    ? '&nbsp;<span style="background:#dcfce7; color:#166534; font-size:10px;'
+                        + 'font-weight:700; padding:1px 6px; border-radius:8px;">FREE</span>'
+                    : ""),
+                '  </td>',
+                '  <td style="padding:9px 10px; text-align:right; font-size:12px;',
+                '             color:#6b8faa; border-bottom:1px solid #cde0f0; width:20%;">',
+                '    ' + (it.isFree ? "&mdash;" : "&#8377;" + it.price.toFixed(2) + "/kg"),
+                '  </td>',
+                '  <td style="padding:9px 10px; text-align:right; font-size:12px;',
+                '             color:#1a1a2e; border-bottom:1px solid #cde0f0; width:13%;">',
+                '    ' + it.qty,
+                '  </td>',
+                '  <td style="padding:9px 10px; text-align:right; font-size:12.5px;',
+                '             font-weight:' + (it.isFree ? "700" : "600") + ';',
+                '             color:' + (it.isFree ? "#166534" : "#007acc") + ';',
+                '             border-bottom:1px solid #cde0f0; width:20%;">',
+                '    &#8377;' + it.amount.toFixed(2),
+                '  </td>',
+                '</tr>'
+            ].join("\n");
+        }).join("\n");
+    } else {
+        itemRows = '<tr><td colspan="5" style="padding:16px; text-align:center;'
+            + 'color:#6b8faa; font-size:12px;">&mdash; No items &mdash;</td></tr>';
+    }
+
+    /* ── 6. ASSEMBLE ─────────────────────────────────────────────── */
+    return [
+        '<div style="',
+        '    background-color:#ffffff;',
+        '    color:#1a1a2e;',
+        '    font-family:\'Segoe UI\', Arial, system-ui, sans-serif;',
+        '    font-size:13px;',
+        '    line-height:1.5;',
+        '    padding:26px 30px;',
+        '    box-sizing:border-box;',
+        '    width:100%;',
+        '    border:1px solid #cde0f0;',
+        '    border-radius:8px;',
+        '">',
+
+        /* Header */
+        headerHTML,
+
+        /* Dashed separator */
+        '<div style="border-top:1.5px dashed #b8d4e8; margin:14px 0;"></div>',
+
+        /* 3-col meta */
+        metaRowHTML,
+
+        /* Contact */
+        contactHTML,
+
+        /* Delivery partner */
+        agentHTML,
+
+        /* Items table */
+        '<table style="width:100%; border-collapse:collapse; border:1px solid #cde0f0;',
+        '              margin-top:6px;">',
+        '  <thead>',
+        '    <tr style="background:#007acc;">',
+        '      <th style="padding:9px 10px; text-align:center; font-size:11px;',
+        '                 color:#ffffff; font-weight:600; width:5%;',
+        '                 border-bottom:1px solid #005fa3;">#</th>',
+        '      <th style="padding:9px 10px; text-align:left; font-size:11px;',
+        '                 color:#ffffff; font-weight:600; width:42%;',
+        '                 border-bottom:1px solid #005fa3;">ITEM</th>',
+        '      <th style="padding:9px 10px; text-align:right; font-size:11px;',
+        '                 color:#ffffff; font-weight:600; width:20%;',
+        '                 border-bottom:1px solid #005fa3;">RATE</th>',
+        '      <th style="padding:9px 10px; text-align:right; font-size:11px;',
+        '                 color:#ffffff; font-weight:600; width:13%;',
+        '                 border-bottom:1px solid #005fa3;">QTY</th>',
+        '      <th style="padding:9px 10px; text-align:right; font-size:11px;',
+        '                 color:#ffffff; font-weight:600; width:20%;',
+        '                 border-bottom:1px solid #005fa3;">AMOUNT</th>',
+        '    </tr>',
+        '  </thead>',
+        '  <tbody>',
+        itemRows,
+        '  </tbody>',
+        '</table>',
+
+        /* Totals */
+        '<div style="border-top:1px solid #cde0f0; margin-top:8px; padding-top:2px;">',
+        '<table style="width:100%; border-collapse:collapse;">',
+        '  <tr>',
+        '    <td style="padding:8px 12px; font-size:13px; color:#6b8faa;',
+        '               border-bottom:1px solid #cde0f0; width:70%;">Subtotal</td>',
+        '    <td style="padding:8px 12px; font-size:13px; color:#1a1a2e;',
+        '               text-align:right; border-bottom:1px solid #cde0f0; width:30%;">',
+        '      &#8377;' + subtotal.toFixed(2),
+        '    </td>',
+        '  </tr>',
+        '  <tr>',
+        '    <td style="padding:8px 12px; font-size:13px; color:#6b8faa;',
+        '               border-bottom:1px solid #cde0f0;">Delivery Charges</td>',
+        '    <td style="padding:8px 12px; font-size:13px; font-weight:700;',
+        '               color:#166534; text-align:right;',
+        '               border-bottom:1px solid #cde0f0;">FREE</td>',
+        '  </tr>',
+        '  <tr>',
+        '    <td style="padding:11px 12px; font-size:15px; font-weight:700;',
+        '               color:#0a1628;">Total Paid</td>',
+        '    <td style="padding:11px 12px; font-size:16px; font-weight:700;',
+        '               color:#007acc; text-align:right;">',
+        '      &#8377;' + total.toFixed(2),
+        '    </td>',
+        '  </tr>',
+        '</table>',
+        '</div>',
+
+        /* Dashed footer */
+        '<div style="border-top:1.5px dashed #b8d4e8; margin:16px 0 12px;"></div>',
+        '<div style="text-align:center; color:#6b8faa; font-size:11px; line-height:1.9;">',
+        '  <div>',
+        '    Thank you for shopping with',
+        '    <span style="color:#007acc; font-weight:600;">FreshPicks</span>!',
+        '    &#x1F6D2;',
+        '  </div>',
+        '  <div>This is a computer-generated receipt. No signature required.</div>',
+        '  <div style="margin-top:4px; font-family:Consolas,\'Courier New\',monospace;',
+        '              font-size:9.5px; color:#9eb8cc;">',
+        '    Receipt ID: ' + (orderData.orderId || "") + ' &nbsp;&middot;&nbsp;',
+        '    Generated: ' + dateStr + ' &nbsp;&middot;&nbsp;',
+        '    CodeCrafters SDP-1',
+        '  </div>',
+        '</div>',
+
+        '</div>'
+    ].join("\n");
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTION 7: PUBLIC API — generateStandardReceiptPDF(orderData)
 
    orderData shape:
    {
-     orderId:      "ORD107",
-     userId:       "U1003",              // shown as Customer if no fullName
-     fullName:     "Yashwanth Kumar",    // optional — from /api/get_profile
-     userPhone:    "9876543210",         // optional
-     userEmail:    "y@example.com",      // optional
-     userAddress:  "12,Main St,Area,600001", // optional
-     date:         "2025-04-08",
-     timestamp:    "2025-04-08 14:30:00",
-     status:       "Delivered",
+     orderId:      "ORD112",
+     userId:       "U001",
+     fullName:     "Yashwanth A",
+     userPhone:    "6382717541",
+     userEmail:    "yashwantharumugam2007@gmail.com",
+     userAddress:  "No 11 - Flat No 11,Elumalai Street,West Tambaram,600045",
+     date:         "2026-04-12",
+     timestamp:    "2026-04-12 14:10:12",
+     status:       "Out for Delivery",
      deliverySlot: "Afternoon",
      total:        100.00,
-     itemsString:  "V1001:Coriander Leaves:1000:100.00,VF101:Curry Leaves:50:0.00",
+     itemsString:  "V1001:Coriander Leaves:1000:100.00",
      boyName:      "Ramesh",
      boyPhone:     "9876543210"
    }
-
-   Usage (user_orders.html — use downloadOrderReceipt(orderId) which calls this):
-     generateStandardReceiptPDF({
-         orderId:      order.order_id,
-         userId:       order.user_id,
-         fullName:     localStorage.getItem("fp_full_name") || order.user_id,
-         userPhone:    localStorage.getItem("fp_phone")     || "",
-         userEmail:    localStorage.getItem("fp_email")     || "",
-         userAddress:  localStorage.getItem("fp_address")   || "",
-         date:         order.timestamp?.slice(0, 10),
-         timestamp:    order.timestamp,
-         status:       order.status,
-         deliverySlot: order.delivery_slot,
-         total:        order.total_amount,
-         itemsString:  order.items_string,
-         boyName:      order.boy_name,
-         boyPhone:     order.boy_phone
-     });
-   ────────────────────────────────────────────────────────────────────── */
+   ══════════════════════════════════════════════════════════════════════ */
 async function generateStandardReceiptPDF(orderData) {
 
     if (!orderData || !orderData.orderId) {
@@ -443,50 +528,45 @@ async function generateStandardReceiptPDF(orderData) {
         return;
     }
 
-    /* ── Build filename: ORDERID_USERID_DATE.pdf ── */
-    const dateStr  = (orderData.date || new Date().toISOString().slice(0, 10)).replace(/\s+/g, "");
-    const userId   = (orderData.userId || "UNKNOWN").replace(/\s+/g, "_");
-    const filename = `${orderData.orderId}_${userId}_${dateStr}.pdf`;
+    var dateStr  = (orderData.date || new Date().toISOString().slice(0, 10)).replace(/\s+/g, "");
+    var userId   = (orderData.userId || "UNKNOWN").replace(/\s+/g, "_");
+    var filename = orderData.orderId + "_" + userId + "_" + dateStr + ".pdf";
 
-    /* ── Build the receipt HTML string — all inline hex, no CSS vars ── */
-    const htmlString = _buildReceiptHTML(orderData);
+    var htmlString = _buildReceiptHTML(orderData);
 
-    /* ── Mount off-screen container ── */
-    const stage = document.createElement("div");
-    stage.style.cssText = [
-        "position:fixed",
-        "top:-99999px",
-        "left:0",
-        "width:794px",
-        "background:#1e1e1e",
+    /* Wrapper positions the receipt card off-screen.
+       position:absolute (not fixed) + left far negative avoids
+       html2canvas coordinate-offset bugs that crop the left side. */
+    var wrapper = document.createElement("div");
+    wrapper.style.cssText = [
+        "position:absolute",
+        "top:0",
+        "left:-9999px",
+        "width:210mm",
+        "background:#ffffff",
         "overflow:visible",
         "z-index:-9999",
         "pointer-events:none"
     ].join(";");
 
-    stage.innerHTML = htmlString;
-    document.body.appendChild(stage);
+    wrapper.innerHTML = htmlString;
+    document.body.appendChild(wrapper);
 
-    const receiptEl = stage.firstElementChild;
+    var receiptEl = wrapper.firstElementChild;
 
-    /* ── Flush layout: two rAF cycles ensure full paint ── */
-    await new Promise(resolve =>
-        requestAnimationFrame(() => requestAnimationFrame(resolve))
-    );
+    /* Two rAF cycles — ensures complete paint before canvas capture */
+    await new Promise(function(resolve) {
+        requestAnimationFrame(function() { requestAnimationFrame(resolve); });
+    });
 
-    /* ── html2pdf configuration ── */
-    const opt = {
-        margin:   [8, 6, 8, 6],   /* top, right, bottom, left in mm */
-        filename,
-        image:    { type: "jpeg", quality: 0.98 },
+    var opt = {
+        margin:      [10, 10, 10, 10],
+        filename:    filename,
+        image:       { type: "jpeg", quality: 0.99 },
         html2canvas: {
-            scale:           2,
+            scale:           3,
             useCORS:         true,
-            backgroundColor: "#1e1e1e",   /* canvas background = dark */
-            width:           794,
-            windowWidth:     794,
-            scrollX:         0,
-            scrollY:         0,
+            backgroundColor: "#ffffff",
             logging:         false
         },
         jsPDF: {
@@ -500,16 +580,15 @@ async function generateStandardReceiptPDF(orderData) {
         await html2pdf().set(opt).from(receiptEl).save();
     } catch (err) {
         console.error("[receipt.js] PDF generation failed:", err);
-        alert("PDF generation failed. Check browser console (F12) for details.");
+        alert("PDF generation failed. Check the browser console (F12) for details.");
     } finally {
-        /* Always clean up the off-screen node */
-        if (stage.parentNode) {
-            stage.parentNode.removeChild(stage);
+        if (wrapper.parentNode) {
+            wrapper.parentNode.removeChild(wrapper);
         }
     }
 }
 
-/* ── CommonJS export (no-op in browser; useful for Node testing) ── */
+/* ── CommonJS export (no-op in browser; for Node/Jest testing) ── */
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { generateStandardReceiptPDF, _parseItems };
 }
