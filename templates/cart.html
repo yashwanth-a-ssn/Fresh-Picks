@@ -1232,7 +1232,7 @@ function downloadReceiptAsPDF() {
     /*  Build items_string in canonical 4-part format from in-memory cartItems.
         cartItems is still live at this point (single-page state machine).
         Format: veg_id:name:qty_g:price_per_1000g  (comma-separated)        */
-    const itemsString = checkoutResult.items_string || "";
+    const itemsString = checkoutResult.items_string || checkoutResult.items || "";
 
     const dateStr = new Date().toISOString().slice(0, 10);
 

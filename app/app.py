@@ -376,7 +376,7 @@ def api_update_promo_stock():
         return jsonify({"status": "error", "message": "vf_id required"})
     result = run_c_binary("inventory", ["update_promo_stock", vf_id, str(stock_g)])
     return jsonify({
-        "status":  "success" if result["status"] == "SUCCESS" else "error",
+        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
         "message": result["data"]
     })
 
