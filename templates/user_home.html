@@ -262,21 +262,21 @@
             const response = await fetch("/api/get_profile", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({}) /* Server reads user_id from session */
+                body:    JSON.stringify({})
             });
 
             const result = await response.json();
 
             if (result.status === "SUCCESS") {
-                /* Populate Full Name, Phone, and Email from the live database */
+                /* Fix: get User ID from API, same as profile.html does */
+                document.getElementById("summaryUserId").textContent   = result.user_id  || "—";
+
                 document.getElementById("summaryFullName").textContent = result.full_name || "—";
                 document.getElementById("summaryPhone").textContent    = result.phone     || "—";
                 document.getElementById("summaryEmail").textContent    = result.email     || "—";
             }
-            /* If it fails silently, the fields just remain "—" — no error shown */
 
         } catch (err) {
-            /* Network error — silently fail, user still sees localStorage data */
             console.warn("Could not load live profile:", err);
         }
     })();
