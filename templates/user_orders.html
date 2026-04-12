@@ -737,35 +737,17 @@ function openUserItemsModal(orderId) {
 
 /* Safe receipt download — reads from Map, no inline object literals */
 function downloadOrderReceipt(orderId) {
-    const order = _orderDataMap.get(orderId);
-    if (!order) {
-        alert("Order data not found. Please refresh the page.");
+    {# const order = _orderDataMap.get(orderId); #}
+    if (!orderId) {
+        alert("No order ID provided.");
         return;
     }
-    generateStandardReceiptPDF({
-        orderId:      order.order_id,
-        userId:       order.user_id,
-        fullName:     localStorage.getItem("fp_full_name") || order.user_id,
-        userPhone:    localStorage.getItem("fp_phone")     || "",
-        userEmail:    localStorage.getItem("fp_email")     || "",
-        userAddress:  localStorage.getItem("fp_address")   || "",
-        date:         (order.timestamp || "").slice(0, 10),
-        timestamp:    order.timestamp  || "",
-        status:       order.status     || "Order Placed",
-        deliverySlot: order.delivery_slot || "",
-        total:        parseFloat(order.total_amount) || 0,
-        itemsString:  order.items_string || "",
-        boyName:      order.boy_name  || "",
-        boyPhone:     order.boy_phone || ""
-    });
+    window.location.href = `/api/download_receipt/${orderId}`;
 }
-
 {% endraw %}
 
 document.addEventListener("DOMContentLoaded", loadUserOrders);
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="/static/js/receipt.js"></script>
 {% endblock %}
 

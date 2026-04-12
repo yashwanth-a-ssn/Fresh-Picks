@@ -207,11 +207,6 @@
 }
 </style>
 
-{# html2pdf.js loaded before receipt.js #}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-        crossorigin="anonymous"></script>
-<script src="/static/js/receipt.js"></script>
-
 <script>
 /* ════════════════════════════════════════════════════════════════════════
    ADMIN ORDERS CONTROLLER — Session 6 Refactor
@@ -697,24 +692,12 @@ async function loadOrders() {
 
 /* ─── PDF RECEIPT (via centralized receipt.js) ────────────────────── */
 function downloadReceipt(orderId) {
-    const order = _adminOrderMap.get(orderId);
-    if (!order) { alert("Order data not found. Please refresh."); return; }
-    generateStandardReceiptPDF({
-        orderId:      order.order_id,
-        userId:       order.user_id,
-        fullName:     order.full_name  || order.user_id,
-        userPhone:    order.user_phone || "",
-        userEmail:    order.user_email || "",
-        userAddress:  order.user_address || "",
-        date:         (order.timestamp || "").slice(0, 10),
-        timestamp:    order.timestamp  || "",
-        status:       order.status     || "Order Placed",
-        deliverySlot: order.delivery_slot || "",
-        total:        parseFloat(order.total_amount) || 0,
-        itemsString:  order.items_string || "",
-        boyName:      order.boy_name  || "",
-        boyPhone:     order.boy_phone || ""
-    });
+    /*  const order = _adminOrderMap.get(orderId); */
+    if (!orderId) {
+        alert("No order ID provided.");
+        return;
+    }
+    window.location.href = `/api/download_receipt/${orderId}`;
 }
 
 {% endraw %}

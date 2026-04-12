@@ -1,13 +1,9 @@
 #!/bin/bash
 # =============================================================
-# build.sh - Fresh Picks: C Backend Compilation Script (v2)
+# build.sh - Fresh Picks: C Backend Compilation Script (v3)
 # =============================================================
-# This script compiles ALL C source files into executable
-# binaries that Flask will call using subprocess.
-#
-# SPRINT 2 ADDITIONS:
-#   - Compiles order.c -> order binary
-#   - Creates carts/ directory (needed by order.c for cart files)
+# SPRINT 3 ADDITIONS:
+#   - Compiles receipt.c -> receipt binary (PDF data extractor)
 #
 # HOW TO RUN:
 #   Linux / macOS:   chmod +x build.sh && ./build.sh
@@ -24,30 +20,31 @@ echo "================================================"
 cd "$(dirname "$0")"
 
 # ── 1. order binary ─────────────────────────────────────────────
-echo "[1/4] Compiling order..."
+echo "[1/5] Compiling order..."
 gcc -Wall -Wextra -o order order.c ds_utils.c -lm
-echo "      ✓ order executed successfully"
+echo "      ✓ order compiled successfully"
 
 # ── 2. auth binary ──────────────────────────────────────────────
-echo "[2/4] Compiling auth..."
+echo "[2/5] Compiling auth..."
 gcc -Wall -Wextra -o auth auth.c ds_utils.c -lm
-echo "      ✓ auth executed successfully"
+echo "      ✓ auth compiled successfully"
 
 # ── 3. inventory binary ─────────────────────────────────────────
-echo "[3/4] Compiling inventory..."
+echo "[3/5] Compiling inventory..."
 gcc -Wall -Wextra -o inventory inventory.c ds_utils.c -lm
-echo "      ✓ inventory executed successfully"
+echo "      ✓ inventory compiled successfully"
 
-# ── 4. delivery binary ─────────────────────────────────────────
-echo "[4/4] Compiling delivery..."
+# ── 4. delivery binary ──────────────────────────────────────────
+echo "[4/5] Compiling delivery..."
 gcc -Wall -Wextra -o delivery delivery.c ds_utils.c -lm
-echo "      ✓ delivery executed successfully"
+echo "      ✓ delivery compiled successfully"
 
-# ── Create the carts/ directory if it doesn't exist ────────────
-#
-# WHY: order.c stores each user's cart as a separate .txt file
-# inside the carts/ folder: carts/U1001_cart.txt
-# The -p flag means "create parent dirs too, no error if exists"
+# ── 5. receipt binary ───────────────────────────────────────────
+echo "[5/5] Compiling receipt..."
+gcc -Wall -Wextra -o receipt receipt.c -lm
+echo "      ✓ receipt compiled successfully"
+
+# ── Create the carts/ directory if it doesn't exist ─────────────
 echo ""
 echo "[Setup] Creating carts/ directory..."
 mkdir -p carts

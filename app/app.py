@@ -91,7 +91,8 @@ import ssl   # Python's built-in SSL module for HTTPS configuration.
              # ssl.SSLContext wraps our cert.pem + key.pem into a
              # configuration object that Flask/Werkzeug understands.
 import os    # Used to build file paths to cert.pem and key.pem.
-
+import tempfile
+import sys
 from datetime import datetime
 
 from flask import (
@@ -102,11 +103,14 @@ from flask import (
     session,            # Stores user session data across requests
     redirect,           # Redirects user to a different route
     url_for,            # Generates dynamic URLs for application routes
-    send_from_directory # Safely serves files from a specified folder (e.g., images, uploads, static files)
+    send_from_directory,# Safely serves files from a specified folder (e.g., images, uploads, static files)
+    send_file           # To send the receipt
 )
 
 from bridge import run_c_binary  # Our reusable C-caller function
 # Executes C backend binary and returns output
+
+from generate_receipt import generate_receipt   # our PDF engine
 
 # ─────────────────────────────────────────────────────────────
 # Flask App Setup
@@ -697,6 +701,98 @@ def api_assign_agent():
         "status":  result["status"],
         "message": result.get("data", "")
     })
+
+@app.route("/api/download_receipt/<order_id>", methods=["GET"])
+def api_download_receipt(order_id):
+    """
+    GET /api/download_receipt/<order_id>
+
+    1. Calls the `receipt` C binary with the order_id.
+    2. Parses the pipe-delimited stdout into a data dict.
+    3. Generates a PDF via generate_receipt.py.
+    4. Streams the PDF back as a file attachment.
+
+    Accessible by both logged-in users AND admins (both need receipts).
+    Only requires an active session (any role).
+    """
+    if "user_id" not in session and session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Not logged in"}), 401
+
+    # ── Step 1: Call the receipt C binary ────────────────────
+    # Handle Windows (.exe) gracefully
+    binary = "receipt"
+    if sys.platform.startswith("win"):
+        binary = "receipt.exe"
+
+    result = run_c_binary("receipt", [order_id])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({
+            "status":  "ERROR",
+            "message": result.get("data", "Could not fetch order data")
+        }), 404
+
+    # ── Step 2: Parse the pipe-delimited output ───────────────
+    #
+    # FORMAT: SUCCESS|order_id|user_id|full_name|user_phone|user_email|
+    #                 address|slot|status|timestamp|boy_name|boy_phone|
+    #                 total|items_string
+    #
+    # raw_output already has the full stdout string.
+    # The first line is the data line (starts with SUCCESS|).
+    raw = result["raw_output"].strip().split("\n")[0]
+    parts = raw.split("|")
+
+    # parts[0] = "SUCCESS", parts[1..] = the 13 data fields
+    if len(parts) < 14:
+        return jsonify({
+            "status":  "ERROR",
+            "message": f"Malformed receipt data ({len(parts)} fields)"
+        }), 500
+
+    data = {
+        "order_id":    parts[1],
+        "user_id":     parts[2],
+        "full_name":   parts[3],
+        "user_phone":  parts[4],
+        "user_email":  parts[5],
+        "address":     parts[6],
+        "slot":        parts[7],
+        "status":      parts[8],
+        "timestamp":   parts[9],
+        "boy_name":    parts[10],
+        "boy_phone":   parts[11],
+        "total":       float(parts[12]) if parts[12] else 0.0,
+        # items_string may itself contain "|" if a name ever does —
+        # join remaining parts back to be safe
+        "items_string": "|".join(parts[13:]),
+    }
+
+    # ── Step 3: Generate the PDF to a temp file ───────────────
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".pdf",
+            delete=False,
+            prefix=f"{data['order_id']}_{data['user_id']}_"
+        ) as tmp:
+            tmp_path = tmp.name
+
+        generate_receipt(data, tmp_path)
+
+    except Exception as e:
+        return jsonify({
+            "status":  "ERROR",
+            "message": f"PDF generation failed: {str(e)}"
+        }), 500
+
+    # ── Step 4: Stream the PDF back to the browser ────────────
+    filename = f"{data['order_id']}_{data['user_id']}.pdf"
+    return send_file(
+        tmp_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename
+    )
 
 # ─────────────────────────────────────────────────────────────
 # NOTE FOR BRIDGE.PY:
