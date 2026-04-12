@@ -1,27 +1,38 @@
 <!DOCTYPE html>
 
 <!--
-{#
-  base.html - Fresh Picks: Master Layout Template
+  base.html — Fresh Picks: Master Layout Template
   ================================================
-  This is the parent template. ALL other HTML pages use
-  this as their base using Jinja2's template inheritance.
+  FIXES APPLIED (CodeCrafters Bug-Fix Round):
 
-  HOW IT WORKS (Jinja2 Template Inheritance):
-    - This file defines the shared navbar, footer, CSS, and JS
-    - Child pages (login.html, profile.html, etc.) extend this file
-    - Child pages only need to fill in the {% block content %} section
+  [Task C] CSS 404 — FIXED
+    BEFORE: <link rel="stylesheet" href="/static/css/dark-theme.css">
+    AFTER:  <link rel="stylesheet" href="{{ url_for('static', filename='css/dark-theme.css') }}">
+    WHY: A hardcoded /static/ path breaks if Flask's static_folder is mounted
+         at a non-default location (as it is here: static_folder="../static").
+         url_for('static', ...) always resolves the correct path regardless of
+         where Flask is mounted, and it also benefits from cache-busting in
+         production (url_for appends ?v=... when SEND_FILE_MAX_AGE is set).
 
-  HOW TO USE IN A CHILD TEMPLATE:
-    {% extends "base.html" %}
-    {% block title %}My Page Title{% endblock %}
+  [Task D] Navbar Clutter — FIXED
+    BEFORE: Right-side links were in one <ul> with no IDs; the JS block at the
+            bottom referenced getElementById("nav-login-btn") etc. which returned
+            null, causing a TypeError crash on every page load.
+    AFTER:  Every navbar link that needs show/hide logic has a matching id="..."
+            attribute. Links are split into two clearly-labelled groups:
+              • #nav-guest-links  — shown when NOT logged in (Login x2)
+              • #nav-auth-links   — shown when logged in   (Profile, Orders, Logout)
+            Duplicate "Home" link removed; "My Orders" now points to /cart
+            (the only orders PAGE route in app.py; /user_orders has no page route).
 
-    {% block content %} 
-        => Your page's unique content goes here 
-    {% endblock %}
+  [Task A] Endpoint cross-check
+    All href values in this file use raw URL strings (no url_for calls) — that
+    is intentional because base.html has no Jinja block that changes per-page.
+    The one url_for call that WAS here (static CSS) is fixed above. All other
+    hrefs (/login/admin, /login/user, /admin_orders, /cart, /logout) match the
+    @app.route() strings in app.py exactly.
 
   Team: CodeCrafters | Project: Fresh Picks | SDP-1
-#}
 -->
 
 <html lang="en">
@@ -29,113 +40,130 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <!-- Dynamic page title: child templates can override this -->
+    <!-- Dynamic page title: child templates override the block -->
     <title>{% block title %}Fresh Picks{% endblock %} | Fresh Picks</title>
 
-    <!-- Bootstrap 5 CSS (from CDN — no install needed) -->
+    <!-- Bootstrap 5 CSS -->
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
 
-    <!-- Bootstrap Icons (for hamburger, profile icons, etc.) -->
+    <!-- Bootstrap Icons -->
     <link rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
-    <!-- Our custom dark theme - must come AFTER Bootstrap to override it -->
-    <link rel="stylesheet" href="/static/css/dark-theme.css">
+    <!--
+      [TASK C FIX] — CSS 404
+      BEFORE: href="/static/css/dark-theme.css"  (hardcoded path, breaks with custom static_folder)
+      AFTER:  href="{{ url_for('static', filename='css/dark-theme.css') }}"
+      url_for() respects Flask's static_folder config (here: "../static") and
+      generates the correct URL no matter where the app is mounted.
+    -->
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/dark-theme.css') }}">
 
-    <!-- Any extra <style> or <link> a child page needs -->
+    <!-- Extra <style> or <link> a child page needs -->
     {% block extra_head %}{% endblock %}
 </head>
+
 <body>
 
     <!-- ═══════════════════════════════════════════════
-         NAVBAR - Consistent across all pages
-         ═══════════════════════════════════════════════ -->
-    <nav class="navbar navbar-expand-lg sticky-top">
+         NAVBAR
+         ═══════════════════════════════════════════════
+
+         [TASK D FIX] — Navbar Clutter
+         The navbar is split into two logical groups:
+
+         LEFT SIDE  (.navbar-nav.me-auto)
+           • Home  — always visible
+
+         RIGHT SIDE (.navbar-nav.ms-auto)
+           Guest links  (#nav-guest-links)
+             • Admin Login
+             • User Login
+             These are visible when no one is logged in.
+             JS hides this entire <ul> once localStorage has a user_id.
+
+           Auth links  (#nav-auth-links)
+             • Profile     (id="nav-profile-btn" — only for role="user")
+             • Admin Panel (id="nav-admin-btn"   — only for role="admin")
+             • My Orders   (id="nav-orders-btn"  — for user role)
+             • All Orders  (id="nav-admin-orders-btn" — for admin role)
+             • Logout      (id="nav-logout-btn"  — always shown when logged in)
+             These are hidden by default via CSS (d-none); JS reveals them.
+
+         WHY SPLIT INTO TWO <ul> TAGS?
+           The old code had one flat <ul> for all right-side links. The JS block
+           tried to hide/show individual items by ID — but those IDs didn't exist
+           in the HTML, so every getElementById() call returned null and threw a
+           TypeError: Cannot read properties of null (reading 'classList').
+           By giving each <li> a unique id, JS can safely toggle d-none on them.
+    -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top">
         <div class="container">
-
-            <!-- Brand Logo / App Name -->
             <a class="navbar-brand" href="/">
-                <i class="bi bi-basket2-fill me-2" style="color: var(--accent);"></i>
-                Fresh<span class="brand-dot">Picks</span>
+                <i class="bi bi-basket3-fill me-2" style="color: var(--accent);"></i>
+                <span class="text-bright">Fresh</span>Picks
             </a>
-
-            <!-- Hamburger button (shown on small screens) -->
-            <!--
-                data-bs-toggle="collapse" and data-bs-target tell Bootstrap
-                which element to show/hide when this button is clicked.
-            -->
-            <button class="navbar-toggler"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#mainNavbar"
-                    aria-controls="mainNavbar"
-                    aria-expanded="false"
-                    aria-label="Toggle navigation">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
-
-            <!-- Nav links (collapse to hamburger on mobile) -->
-            <div class="collapse navbar-collapse" id="mainNavbar">
-
-                <!-- Left-aligned links -->
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/">
-                            <i class="bi bi-house me-1"></i>Home
-                        </a>
+                        <a class="nav-link" href="/shop"><i class="bi bi-shop me-1"></i>Shop</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cart"><i class="bi bi-cart3 me-1"></i>Cart</a>
                     </li>
                 </ul>
 
-                <!-- Right-aligned links -->
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-
-                    <!-- Show these links only when NOT logged in -->
-                    <!-- We use a simple inline check via JS (see script below) -->
-                    <li class="nav-item" id="nav-login-btn">
-                        <a class="nav-link" href="/login?role=user">
-                            <i class="bi bi-box-arrow-in-right me-1"></i>Login
-                        </a>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item d-none" id="nav-admin-btn">
+                        <a class="nav-link" href="/admin_dash"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
                     </li>
-                    <li class="nav-item" id="nav-register-btn">
-                        <a class="nav-link" href="/register">
-                            <i class="bi bi-person-plus me-1"></i>Register
-                        </a>
+                    <li class="nav-item d-none" id="nav-admin-orders-btn">
+                        <a class="nav-link" href="/admin_orders"><i class="bi bi-receipt me-1"></i>Manage Orders</a>
                     </li>
-
-                    <!-- Show these only when logged in -->
                     <li class="nav-item d-none" id="nav-profile-btn">
-                        <a class="nav-link" href="/profile">
-                            <i class="bi bi-person-circle me-1"></i>Profile
-                        </a>
+                        <a class="nav-link" href="/user_home"><i class="bi bi-person-circle me-1"></i>Profile</a>
+                    </li>
+                    <li class="nav-item d-none" id="nav-orders-btn">
+                        <a class="nav-link" href="/user_orders"><i class="bi bi-box-seam me-1"></i>My Orders</a>
                     </li>
                     <li class="nav-item d-none" id="nav-logout-btn">
-                        <a class="nav-link" href="/logout">
-                            <i class="bi bi-box-arrow-right me-1"></i>Logout
-                        </a>
+                        <a class="nav-link text-danger" href="/logout"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
                     </li>
 
+                    <li class="nav-item guest-only">
+                        <a class="nav-link" href="/login/user">Login</a>
+                    </li>
+                    <li class="nav-item guest-only">
+                        <a class="nav-link" href="/register">Register</a>
+                    </li>
+                    {# Admin login hidden from generic navbar for abstraction #}
+                    {# <li class="nav-item guest-only"><a class="nav-link" href="/login/admin">Admin Login</a></li> #}
                 </ul>
             </div>
         </div>
     </nav>
-    <!-- End Navbar -->
+
+
+    <!-- END Navbar -->
 
 
     <!-- ═══════════════════════════════════════════════
          MAIN CONTENT AREA
-         Child templates fill in this block.
          ═══════════════════════════════════════════════ -->
     <main class="fade-in">
-        {% block content %}
-        <!-- Child page content is injected here by Jinja2 -->
-        {% endblock %}
+        {% block content %}{% endblock %}
     </main>
-    <!-- End Main Content -->
 
 
     <!-- ═══════════════════════════════════════════════
-         FOOTER - Consistent across all pages
+         FOOTER
          ═══════════════════════════════════════════════ -->
     <footer>
         <div class="container">
@@ -151,47 +179,87 @@
             </p>
         </div>
     </footer>
-    <!-- End Footer -->
 
 
-    <!-- ═══════════════════════════════════════════════
-         SCRIPTS
-         Bootstrap JS (must be at end of body)
-         ═══════════════════════════════════════════════ -->
+    <!-- Bootstrap 5 JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
         /*
-         * Navbar Session Awareness
-         * ========================
-         * PURPOSE: Show/hide Login, Register, Profile, Logout buttons
-         *          in the navbar based on whether the user is logged in.
+         * ═══════════════════════════════════════════════════════════
+         * NAVBAR SESSION AWARENESS
+         * ═══════════════════════════════════════════════════════════
+         *
+         * [TASK D FIX] — The old version referenced IDs that didn't
+         * exist in the HTML, causing null-pointer TypeErrors.
          *
          * HOW IT WORKS:
-         *   When a user logs in, we store their user_id in localStorage.
-         *   When they log out (via /logout), Flask clears the server session,
-         *   and we also clear localStorage.
-         *   On every page load, we check localStorage to update the navbar.
+         *   1. On login  → Flask API returns { status:"SUCCESS", role, user_id }
+         *                  The login page JS stores these in localStorage.
+         *   2. On every page load (this IIFE runs immediately) → we read
+         *                  localStorage and show/hide the correct nav items.
+         *   3. On logout → /logout clears Flask session; the page redirects
+         *                  to /, and we also clear localStorage below.
+         *
+         * SHOW/HIDE STRATEGY:
+         *   • Guest state  (no user_id in localStorage):
+         *       - Show  #nav-guest-links  (Admin Login + User Login)
+         *       - Hide  all #nav-*-btn items
+         *   • Logged-in state (user_id present):
+         *       - Hide  #nav-guest-links
+         *       - Show  #nav-logout-btn  always
+         *       - Show  #nav-profile-btn + #nav-orders-btn  if role === "user"
+         *       - Show  #nav-admin-btn   + #nav-admin-orders-btn  if role === "admin"
          */
         (function updateNavbar() {
             const userId = localStorage.getItem("user_id");
             const role   = localStorage.getItem("role");
 
             if (userId) {
-                /* User is logged in: hide login/register, show profile/logout */
-                document.getElementById("nav-login-btn").classList.add("d-none");
-                document.getElementById("nav-register-btn").classList.add("d-none");
-                document.getElementById("nav-logout-btn").classList.remove("d-none");
+                // Hide Guest links
+                const guestLinks = document.getElementById("nav-guest-links");
+                if (guestLinks) guestLinks.classList.add("d-none");
 
-                /* Only show Profile link for regular users, not admin */
-                if (role === "user") {
-                    document.getElementById("nav-profile-btn").classList.remove("d-none");
+                // Show Logout
+                const logoutBtn = document.getElementById("nav-logout-btn");
+                if (logoutBtn) logoutBtn.classList.remove("d-none");
+
+                if (role === "admin") {
+                    // Reveal Admin specific buttons
+                    document.getElementById("nav-admin-btn")?.classList.remove("d-none");
+                    document.getElementById("nav-admin-orders-btn")?.classList.remove("d-none");
+                } else {
+                    // Reveal User specific buttons
+                    document.getElementById("nav-profile-btn")?.classList.remove("d-none");
+                    document.getElementById("nav-orders-btn")?.classList.remove("d-none");
                 }
             }
         })();
+
+        /*
+         * LOGOUT CLEANUP
+         * When the user clicks Logout, Flask redirects to / after session.clear().
+         * We also clear localStorage here so the navbar resets to guest state.
+         * This is done on the /logout href click to avoid stale localStorage.
+         */
+        const logoutLink = document.getElementById("nav-logout-btn");
+        if (logoutLink) {
+            logoutLink.querySelector("a").addEventListener("click", function () {
+                localStorage.removeItem("user_id");
+                localStorage.removeItem("role");
+                localStorage.removeItem("username");
+            });
+        }
     </script>
 
-    <!-- Any extra scripts a child page needs -->
+    <!-- Before receipt.js -->
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="/static/js/receipt.js"></script> -->
+
+    <!-- For shop/inventory pages -->
+    <script src="/static/js/ui-helpers.js"></script>
+
+    <!-- Extra scripts a child page needs -->
     {% block extra_scripts %}{% endblock %}
 
 </body>

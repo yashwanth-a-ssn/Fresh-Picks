@@ -24,30 +24,45 @@
    CSS CUSTOM PROPERTIES (Variables)
    Change values here to restyle everything.
    ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════
+   §1 · THEME FOUNDATION
+   ══════════════════════════════════════════════════ */
 :root {
-    --bg-primary:    #1E1E1E;   /* Main page background */
-    --bg-surface:    #252526;   /* Cards, panels, navbar */
-    --bg-elevated:   #2D2D30;   /* Input fields, hover states */
-    --border-color:  #3E3E42;   /* Borders and dividers */
-    --text-primary:  #CCCCCC;   /* Main text color */
-    --text-muted:    #858585;   /* Subtitles, hints */
-    --text-bright:   #FFFFFF;   /* Headings, important text */
-    --accent:        #007ACC;   /* Primary blue accent */
-    --accent-hover:  #005F9E;   /* Darker blue on hover */
-    --accent-light:  #1F8AD2;   /* Lighter blue for links */
-    --success:       #4EC9B0;   /* Success messages */
-    --danger:        #F44747;   /* Error messages */
-    --warning:       #CE9178;   /* Warning messages */
-    --font-main:     'Segoe UI', 'Inter', system-ui, sans-serif;
-    --font-mono:     'Consolas', 'Courier New', monospace;
-    --radius:        6px;        /* Standard border radius */
-    --radius-lg:     10px;       /* Larger border radius for cards */
-    --transition:    0.2s ease;  /* Standard transition speed */
+    /* Backgrounds */
+    --bg-main:          #1e1e1e;
+    --bg-surface:       #252526;
+    --bg-elevated:      #2d2d30;
+
+    /* Accent */
+    --accent:           #007acc;
+    --accent-hover:     #1e97e8;
+
+    /* Text */
+    --text-primary:     #ffffff;
+    --text-muted:       #858585;
+
+    /* Borders */
+    --border-color:     #3e3e42;
+
+    /* Semantic */
+    --success:          #28a745;
+    --danger:           #f44747;
+    --warning:          #cca700;
+
+    /* Typography */
+    --font-main:        'Segoe UI', 'Inter', system-ui, sans-serif;
+    --font-mono:        'Consolas', 'Courier New', monospace;
+
+    /* Shape & Motion */
+    --radius:           6px;
+    --radius-lg:        10px;
+    --transition:       0.2s ease;
 }
 
-/* ─────────────────────────────────────────────
-   RESET & BASE STYLES
-   ─────────────────────────────────────────── */
+
+/* ══════════════════════════════════════════════════
+   §2 · GLOBAL RESET & TYPOGRAPHY
+   ══════════════════════════════════════════════════ */
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
@@ -59,37 +74,29 @@ html, body {
 }
 
 body {
-    /* Main background color */
-    background-color: var(--bg-primary);
+    background-color: var(--bg-main);
     color: var(--text-primary);
     font-family: var(--font-main);
     font-size: 14px;
     line-height: 1.6;
-    /* Flex layout to push footer to bottom */
+    -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
 
-/* Main content area grows to fill space, pushing footer down */
-main {
-    flex: 1;
-    padding: 2rem 0;
-}
-
-/* ─────────────────────────────────────────────
-   TYPOGRAPHY
-   ─────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-    color: var(--text-bright);
+    color: var(--text-primary);
     font-weight: 600;
     letter-spacing: -0.02em;
 }
 
-p { color: var(--text-primary); }
+p {
+    color: var(--text-primary);
+}
 
 a {
-    color: var(--accent-light);
+    color: var(--accent-hover);
     text-decoration: none;
     transition: color var(--transition);
 }
@@ -99,9 +106,24 @@ a:hover {
     text-decoration: underline;
 }
 
-/* ─────────────────────────────────────────────
-   NAVBAR
-   ─────────────────────────────────────────── */
+hr {
+    border-color: var(--border-color);
+    opacity: 1;
+    margin: 1.5rem 0;
+}
+
+/* Scrollbar (Chromium) */
+::-webkit-scrollbar          { width: 8px; }
+::-webkit-scrollbar-track    { background: var(--bg-main); }
+::-webkit-scrollbar-thumb    { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+
+/* ══════════════════════════════════════════════════
+   §3 · LAYOUT COMPONENTS
+   ══════════════════════════════════════════════════ */
+
+/* ── Navbar ── */
 .navbar {
     background-color: var(--bg-surface) !important;
     border-bottom: 1px solid var(--border-color);
@@ -109,20 +131,17 @@ a:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* Brand logo text */
 .navbar-brand {
-    color: var(--text-bright) !important;
+    color: var(--text-primary) !important;
     font-weight: 700;
     font-size: 1.2rem;
     letter-spacing: -0.02em;
 }
 
-/* The blue dot accent in the brand */
 .navbar-brand .brand-dot {
     color: var(--accent);
 }
 
-/* Nav links */
 .navbar-nav .nav-link {
     color: var(--text-muted) !important;
     transition: color var(--transition);
@@ -135,31 +154,30 @@ a:hover {
     background-color: var(--bg-elevated);
 }
 
-/* Active nav link */
 .navbar-nav .nav-link.active {
-    color: var(--accent-light) !important;
+    color: var(--accent-hover) !important;
 }
 
-/* Hamburger menu button */
 .navbar-toggler {
     border-color: var(--border-color) !important;
     padding: 0.3rem 0.5rem;
 }
 
 .navbar-toggler-icon {
-    /* Custom hamburger using a CSS data URI */
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28204, 204, 204, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
 }
 
-/* Collapsible navbar on mobile */
 .navbar-collapse {
-    background-color: var(--bg-surface);
+    background-color: var(--bg-surface) !important;
 }
 
+/* ── Main content ── */
+main {
+    flex: 1;
+    padding: 2rem 0;
+}
 
-/* ─────────────────────────────────────────────
-   FOOTER
-   ─────────────────────────────────────────── */
+/* ── Footer ── */
 footer {
     background-color: var(--bg-surface);
     border-top: 1px solid var(--border-color);
@@ -174,13 +192,15 @@ footer a {
 }
 
 footer a:hover {
-    color: var(--accent-light);
+    color: var(--accent-hover);
 }
 
 
-/* ─────────────────────────────────────────────
-   CARDS
-   ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════
+   §4 · SHARED UI ELEMENTS
+   ══════════════════════════════════════════════════ */
+
+/* ── Cards ── */
 .card {
     background-color: var(--bg-surface) !important;
     border: 1px solid var(--border-color) !important;
@@ -197,7 +217,7 @@ footer a:hover {
 .card-header {
     background-color: var(--bg-elevated) !important;
     border-bottom: 1px solid var(--border-color) !important;
-    color: var(--text-bright) !important;
+    color: var(--text-primary) !important;
     font-weight: 600;
     padding: 1rem 1.25rem;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
@@ -208,7 +228,7 @@ footer a:hover {
 }
 
 .card-title {
-    color: var(--text-bright);
+    color: var(--text-primary);
     font-weight: 600;
     margin-bottom: 0.5rem;
 }
@@ -217,200 +237,12 @@ footer a:hover {
     color: var(--text-muted);
 }
 
-
-/* ─────────────────────────────────────────────
-   FORMS - Inputs, Labels, Textareas
-   ─────────────────────────────────────────── */
-.form-label {
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin-bottom: 0.35rem;
-}
-
-.form-control, .form-select {
-    background-color: var(--bg-elevated) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-primary) !important;
-    border-radius: var(--radius) !important;
-    padding: 0.55rem 0.85rem;
-    font-size: 0.9rem;
-    transition: border-color var(--transition), box-shadow var(--transition);
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: var(--accent) !important;
-    box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.2) !important;
-    outline: none;
-    background-color: var(--bg-elevated) !important;
-    color: var(--text-primary) !important;
-}
-
-.form-control::placeholder {
-    color: var(--text-muted) !important;
-    opacity: 0.7;
-}
-
-/* Validation feedback */
-.valid-feedback   { color: var(--success); }
-.invalid-feedback { color: var(--danger); }
-
-.form-control.is-valid   { border-color: var(--success) !important; }
-.form-control.is-invalid { border-color: var(--danger)  !important; }
-
-
-/* ─────────────────────────────────────────────
-   BUTTONS
-   ─────────────────────────────────────────── */
-.btn {
-    border-radius: var(--radius) !important;
-    font-weight: 500;
-    font-size: 0.88rem;
-    padding: 0.55rem 1.25rem;
-    transition: all var(--transition);
-    letter-spacing: 0.01em;
-}
-
-/* Primary (blue) button */
-.btn-primary {
-    background-color: var(--accent) !important;
-    border-color: var(--accent) !important;
-    color: #fff !important;
-}
-
-.btn-primary:hover {
-    background-color: var(--accent-hover) !important;
-    border-color: var(--accent-hover) !important;
-    box-shadow: 0 4px 12px rgba(0, 122, 204, 0.35);
-    transform: translateY(-1px);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-}
-
-/* Outline button */
-.btn-outline-primary {
-    color: var(--accent) !important;
-    border-color: var(--accent) !important;
-}
-
-.btn-outline-primary:hover {
-    background-color: var(--accent) !important;
-    color: #fff !important;
-}
-
-/* Secondary (muted) button */
-.btn-secondary {
-    background-color: var(--bg-elevated) !important;
-    border-color: var(--border-color) !important;
-    color: var(--text-primary) !important;
-}
-
-.btn-secondary:hover {
-    background-color: var(--border-color) !important;
-}
-
-/* Danger button */
-.btn-danger {
-    background-color: var(--danger) !important;
-    border-color: var(--danger) !important;
-}
-
-/* Full width button helper */
-.btn-full { width: 100%; }
-
-
-/* ─────────────────────────────────────────────
-   ALERTS (Success / Error messages shown to user)
-   ─────────────────────────────────────────── */
-.alert {
-    border-radius: var(--radius) !important;
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-    border: 1px solid transparent;
-}
-
-.alert-success {
-    background-color: rgba(78, 201, 176, 0.15) !important;
-    border-color: rgba(78, 201, 176, 0.4) !important;
-    color: var(--success) !important;
-}
-
-.alert-danger {
-    background-color: rgba(244, 71, 71, 0.15) !important;
-    border-color: rgba(244, 71, 71, 0.4) !important;
-    color: var(--danger) !important;
-}
-
-.alert-info {
-    background-color: rgba(0, 122, 204, 0.15) !important;
-    border-color: rgba(0, 122, 204, 0.4) !important;
-    color: var(--accent-light) !important;
-}
-
-.alert-warning {
-    background-color: rgba(206, 145, 120, 0.15) !important;
-    border-color: rgba(206, 145, 120, 0.4) !important;
-    color: var(--warning) !important;
-}
-
-
-/* ─────────────────────────────────────────────
-   BADGES
-   ─────────────────────────────────────────── */
-.badge {
-    font-weight: 500;
-    font-size: 0.72rem;
-    padding: 0.3em 0.65em;
-    border-radius: 4px;
-}
-
-.badge.bg-primary { background-color: var(--accent) !important; }
-.badge.bg-success { background-color: var(--success) !important; color: #1E1E1E !important; }
-.badge.bg-danger  { background-color: var(--danger) !important; }
-
-
-/* ─────────────────────────────────────────────
-   DIVIDERS
-   ─────────────────────────────────────────── */
-hr {
-    border-color: var(--border-color);
-    opacity: 1;
-    margin: 1.5rem 0;
-}
-
-
-/* ─────────────────────────────────────────────
-   PAGE-SPECIFIC: Landing Page Hero
-   ─────────────────────────────────────────── */
-.hero-section {
-    text-align: center;
-    padding: 4rem 1rem 2rem;
-}
-
-.hero-section h1 {
-    font-size: 2.8rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--text-bright) 0%, var(--accent-light) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 1rem;
-}
-
-.hero-section p {
-    color: var(--text-muted);
-    font-size: 1.1rem;
-    max-width: 500px;
-    margin: 0 auto 2.5rem;
-}
-
-/* Portal cards on landing page */
+/* ── Portal card (landing page) ── */
 .portal-card {
     cursor: pointer;
     border: 2px solid var(--border-color) !important;
-    transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition) !important;
+    transition: border-color var(--transition), transform var(--transition),
+                box-shadow var(--transition) !important;
     text-align: center;
     padding: 2rem 1.5rem !important;
 }
@@ -432,12 +264,573 @@ hr {
     margin-bottom: 0.5rem;
 }
 
+/* ── Inventory card ── */
+.inv-card {
+    background-color: var(--bg-surface);
+    border: 1.5px solid var(--accent) !important;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: box-shadow var(--transition), transform var(--transition);
+    animation: fadeIn 0.35s ease;
+    height: 100%;
+}
 
-/* ─────────────────────────────────────────────
-   PAGE-SPECIFIC: Auth Forms (Login / Register)
-   ─────────────────────────────────────────── */
+.inv-card:hover {
+    box-shadow: 0 8px 28px rgba(0, 122, 204, 0.2);
+    transform: translateY(-2px);
+}
+
+.inv-card-wrap {
+    position: relative;
+    height: 100%;
+}
+
+.inv-card-body {
+    padding: 0.85rem;
+}
+
+.inv-item-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.inv-item-category {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 0.15rem;
+}
+
+.inv-id-badge {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
+
+/* ── Buttons ── */
+.btn {
+    border-radius: var(--radius) !important;
+    font-weight: 500;
+    font-size: 0.88rem;
+    padding: 0.55rem 1.25rem;
+    transition: all var(--transition);
+    letter-spacing: 0.01em;
+}
+
+.btn-primary {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-primary:hover {
+    background-color: var(--accent-hover) !important;
+    border-color: var(--accent-hover) !important;
+    box-shadow: 0 4px 12px rgba(0, 122, 204, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Neutralise Bootstrap 5's default focus-visible ring for all button variants */
+.btn:focus-visible {
+    box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.45) !important;
+    outline: none !important;
+}
+
+.btn-outline-primary {
+    color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--accent) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary {
+    background-color: var(--bg-elevated) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover {
+    background-color: var(--border-color) !important;
+}
+
+.btn-danger {
+    background-color: var(--danger) !important;
+    border-color: var(--danger) !important;
+}
+
+.btn-full {
+    width: 100%;
+}
+
+/* ── Action buttons (Orders page) ── */
+.btn-action {
+    font-size: 0.82rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius);
+    font-weight: 500;
+    transition: opacity var(--transition), transform var(--transition),
+                box-shadow var(--transition);
+    border: none;
+    cursor: pointer;
+}
+
+.btn-action:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.btn-dispatch {
+    background-color: var(--accent);
+    color: var(--text-primary);
+}
+
+.btn-dispatch:not(:disabled):hover {
+    background-color: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 122, 204, 0.35);
+}
+
+.btn-deliver {
+    background-color: var(--success);
+    color: var(--bg-main);
+}
+
+.btn-deliver:not(:disabled):hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(40, 167, 69, 0.35);
+}
+
+.btn-pdf {
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color) !important;
+}
+
+.btn-pdf:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+/* ── Refill button (Inventory) ── */
+.btn-refill {
+    width: 100%;
+    font-size: 0.82rem;
+    padding: 0.35rem;
+    background: rgba(0, 122, 204, 0.12);
+    border: 1px solid var(--accent);
+    color: var(--accent-hover);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-weight: 600;
+}
+
+.btn-refill:hover {
+    background: var(--accent);
+    color: var(--text-primary);
+    box-shadow: 0 3px 10px rgba(0, 122, 204, 0.35);
+}
+
+/* ── Badges ── */
+.badge {
+    font-weight: 500;
+    font-size: 0.72rem;
+    padding: 0.3em 0.65em;
+    border-radius: 4px;
+}
+
+.badge.bg-primary { background-color: var(--accent) !important; }
+.badge.bg-success { background-color: var(--success) !important; color: var(--bg-main) !important; }
+.badge.bg-danger  { background-color: var(--danger) !important; }
+
+/* Promo overlay badge */
+.promo-badge {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: rgba(0, 122, 204, 0.15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+    text-transform: uppercase;
+    z-index: 1;
+}
+
+/* Monospace ID pill */
+.id-badge {
+    display: inline-block;
+    background-color: rgba(0, 122, 204, 0.15);
+    color: var(--accent-hover);
+    border: 1px solid rgba(0, 122, 204, 0.3);
+    border-radius: 4px;
+    padding: 0.2em 0.6em;
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+}
+
+/* ── Alerts ── */
+.alert {
+    border-radius: var(--radius) !important;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    border: 1px solid transparent;
+}
+
+.alert-success {
+    background-color: rgba(40, 167, 69, 0.15) !important;
+    border-color: rgba(40, 167, 69, 0.4) !important;
+    color: var(--success) !important;
+}
+
+.alert-danger {
+    background-color: rgba(244, 71, 71, 0.15) !important;
+    border-color: rgba(244, 71, 71, 0.4) !important;
+    color: var(--danger) !important;
+}
+
+.alert-info {
+    background-color: rgba(0, 122, 204, 0.15) !important;
+    border-color: rgba(0, 122, 204, 0.4) !important;
+    color: var(--accent-hover) !important;
+}
+
+.alert-warning {
+    background-color: rgba(204, 167, 0, 0.15) !important;
+    border-color: rgba(204, 167, 0, 0.4) !important;
+    color: var(--warning) !important;
+}
+
+/* ── Forms ── */
+.form-label {
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+}
+
+.form-control, .form-select {
+    background-color: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius) !important;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.9rem;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.2) !important;
+    outline: none;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted) !important;
+    opacity: 0.7;
+}
+
+.valid-feedback   { color: var(--success); }
+.invalid-feedback { color: var(--danger); }
+
+.form-control.is-valid   { border-color: var(--success) !important; }
+.form-control.is-invalid { border-color: var(--danger) !important; }
+
+/* Prevent Bootstrap's light disabled background from bleeding through */
+.form-control:disabled,
+.form-control[readonly],
+.form-select:disabled {
+    background-color: var(--bg-elevated) !important;
+    color: var(--text-muted) !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
+/* Compact card-level input */
+.field-input {
+    flex: 1;
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius) !important;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.55rem;
+    transition: border-color var(--transition);
+    min-width: 0;
+}
+
+.field-input:focus {
+    border-color: var(--accent) !important;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2) !important;
+}
+
+.field-input[readonly] {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* OTP input */
+.otp-field {
+    font-family: var(--font-mono) !important;
+    letter-spacing: 0.3em;
+    font-size: 1.2rem !important;
+    text-align: center;
+}
+
+/* Field layout row */
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.field-row label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    width: 52px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.field-unit {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+
+/* ══════════════════════════════════════════════════
+   §5 · THE IMAGE ENGINE
+   ══════════════════════════════════════════════════ */
+
+/*
+ * .card-img-wrap — shared 1:1 aspect-ratio image container.
+ * Used by both shop product cards and inventory cards.
+ * Apply .card-img-wrap to the wrapper; place <img> inside.
+ */
+.card-img-wrap {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background-color: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Alias — Inventory templates reference this name directly */
+.inv-card-img-wrap {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background-color: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inv-card-img-wrap img,
+.inv-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/*
+ * .inv-img-placeholder — emoji fallback shown when
+ * product image is absent or fails to load.
+ */
+.inv-img-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, var(--bg-elevated), var(--bg-surface));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: var(--text-muted);
+}
+
+/* Cart item thumbnail (fixed-size variant) */
+.cart-item-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cart-item-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.cart-item-emoji {
+    font-size: 1.5rem;
+}
+
+
+/* ══════════════════════════════════════════════════
+   §6 · PROGRESS & INDICATORS
+   ══════════════════════════════════════════════════ */
+
+/* ── Shared bar primitives ── */
+.bar-track {
+    height: 6px;
+    background-color: var(--bg-elevated);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background-color: var(--accent);
+    transition: width 0.4s ease, background-color 0.3s ease;
+}
+
+.bar-fill.low-stock {
+    background-color: var(--danger);
+}
+
+/* ── Inventory stock bar ── */
+.stock-bar-wrap {
+    padding: 0.5rem 0.85rem 0.4rem;
+    background: var(--bg-surface);
+}
+
+.stock-bar-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.25rem;
+}
+
+/* Legacy aliases — keep for Jinja2 template compatibility */
+.stock-bar-track { height: 6px; background-color: var(--bg-elevated); border-radius: 3px; overflow: hidden; }
+.stock-bar-fill  { height: 100%; border-radius: 3px; background-color: var(--accent); transition: width 0.4s ease, background-color 0.3s ease; }
+.stock-bar-fill.low-stock { background-color: var(--danger); }
+
+/* ── Cart minimum-order progress bar ── */
+.cart-progress-labels {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.cart-progress-track {
+    height: 6px;
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.cart-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    background-color: var(--accent);
+    transition: width 0.4s ease, background-color 0.4s ease;
+}
+
+/* ── JIT Banner ── */
+.jit-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.1rem;
+    background: rgba(0, 122, 204, 0.1);
+    border: 1px solid var(--accent);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.jit-banner-icon {
+    color: var(--accent);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+/* ── Clock badge ── */
+.clock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.75rem;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+
+/* ══════════════════════════════════════════════════
+   §7a · LANDING PAGE & AUTH
+   ══════════════════════════════════════════════════ */
+.hero-section {
+    text-align: center;
+    padding: 4rem 1rem 2rem;
+}
+
+.hero-section h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-hover) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1rem;
+}
+
+.hero-section p {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    max-width: 500px;
+    margin: 0 auto 2.5rem;
+}
+
 .auth-wrapper {
-    min-height: calc(100vh - 140px); /* Account for navbar + footer */
+    min-height: calc(100vh - 140px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -468,18 +861,10 @@ hr {
     font-size: 0.875rem;
 }
 
-/* OTP input styling */
-.otp-field {
-    font-family: var(--font-mono) !important;
-    letter-spacing: 0.3em;
-    font-size: 1.2rem !important;
-    text-align: center;
-}
 
-
-/* ─────────────────────────────────────────────
-   PAGE-SPECIFIC: Dashboard / Profile
-   ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════
+   §7b · DASHBOARD & PROFILE
+   ══════════════════════════════════════════════════ */
 .welcome-banner {
     background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
     border: 1px solid var(--border-color);
@@ -499,7 +884,6 @@ hr {
     margin: 0;
 }
 
-/* Profile info display */
 .profile-field {
     display: flex;
     flex-direction: column;
@@ -520,41 +904,1005 @@ hr {
 }
 
 .profile-field-value {
-    color: var(--text-bright);
+    color: var(--text-primary);
     font-size: 0.95rem;
 }
 
-/* ID badge pill */
-.id-badge {
-    display: inline-block;
-    background-color: rgba(0, 122, 204, 0.15);
-    color: var(--accent-light);
+
+/* ══════════════════════════════════════════════════
+   §7c · ADMIN NAVIGATION
+   ══════════════════════════════════════════════════ */
+.admin-quick-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.admin-nav-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    text-decoration: none;
+    transition: color var(--transition), background-color var(--transition),
+                border-color var(--transition);
+}
+
+.admin-nav-link:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-elevated);
+    border-color: var(--accent);
+    text-decoration: none;
+}
+
+.admin-nav-link.active {
+    color: var(--accent-hover);
+    border-color: var(--accent);
+    background-color: rgba(0, 122, 204, 0.1);
+}
+
+.admin-nav-logout {
+    margin-left: auto;
+}
+
+.admin-nav-logout:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+    background-color: rgba(244, 71, 71, 0.1);
+}
+
+/* Section header used across admin pages */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.section-header .count-pill {
+    background: rgba(0, 122, 204, 0.15);
     border: 1px solid rgba(0, 122, 204, 0.3);
-    border-radius: 4px;
-    padding: 0.2em 0.6em;
+    color: var(--accent-hover);
+    font-size: 0.72rem;
+    padding: 0.15em 0.55em;
+    border-radius: 10px;
     font-family: var(--font-mono);
-    font-size: 0.85em;
+}
+
+.section-header .section-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: auto;
 }
 
 
-/* ─────────────────────────────────────────────
-   UTILITY CLASSES
-   ─────────────────────────────────────────── */
-.text-accent   { color: var(--accent-light) !important; }
+/* ══════════════════════════════════════════════════
+   §7d · SHOP / CART
+   ══════════════════════════════════════════════════ */
+
+/* ── Category pills ── */
+.step-pill {
+    padding: 0.35rem 0.9rem;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+    transition: background var(--transition), color var(--transition),
+                border-color var(--transition);
+    user-select: none;
+}
+
+.step-pill.active {
+    background: rgba(0, 122, 204, 0.18);
+    color: var(--accent-hover);
+    border-color: var(--accent);
+}
+
+.step-pill.done {
+    background: rgba(40, 167, 69, 0.12);
+    color: var(--success);
+    border-color: var(--success);
+}
+
+.step-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border-color);
+    min-width: 12px;
+    transition: background var(--transition);
+}
+
+.step-line.done {
+    background: var(--success);
+}
+
+.cart-step-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+/* ── Cart page header ── */
+.cart-page-header {
+    margin-bottom: 1.5rem;
+}
+
+.cart-header-sub {
+    font-size: 0.78rem;
+    margin-top: 0.15rem;
+}
+
+/* ── Toast notifications (VS Code style) ── */
+.cart-toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 1080;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-width: 380px;
+    width: calc(100vw - 3rem);
+}
+
+.cart-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius);
+    border-left: 3px solid transparent;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    opacity: 0;
+    transform: translateX(24px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.cart-toast--visible {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.cart-toast--success { border-left-color: var(--success); }
+.cart-toast--danger  { border-left-color: var(--danger); }
+.cart-toast--warning { border-left-color: var(--warning); }
+.cart-toast--info    { border-left-color: var(--accent); }
+
+.cart-toast-icon {
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+    font-size: 1rem;
+}
+
+.cart-toast--success .cart-toast-icon { color: var(--success); }
+.cart-toast--danger  .cart-toast-icon { color: var(--danger); }
+.cart-toast--warning .cart-toast-icon { color: var(--warning); }
+.cart-toast--info    .cart-toast-icon { color: var(--accent-hover); }
+
+.cart-toast-msg {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.cart-toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    margin-left: auto;
+    transition: color var(--transition);
+}
+
+.cart-toast-close:hover {
+    color: var(--text-primary);
+}
+
+/* ── Cart item rows ── */
+.cart-item-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+    transition: background var(--transition);
+}
+
+.cart-item-row--last {
+    border-bottom: none;
+}
+
+.cart-item-row:hover {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.cart-item-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.cart-item-detail {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    margin-top: 0.15rem;
+}
+
+.cart-item-total {
+    text-align: right;
+    flex-shrink: 0;
+    color: var(--accent-hover);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.cart-free-badge {
+    background: rgba(40, 167, 69, 0.18);
+    border: 1px solid rgba(40, 167, 69, 0.4);
+    color: var(--success);
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.15em 0.5em;
+    border-radius: 4px;
+}
+
+.cart-remove-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: var(--radius);
+    flex-shrink: 0;
+    font-size: 1rem;
+    transition: color var(--transition), background var(--transition);
+    line-height: 1;
+}
+
+.cart-remove-btn:hover {
+    color: var(--danger);
+    background: rgba(244, 71, 71, 0.08);
+}
+
+/* ── Order summary sidebar ── */
+.cart-summary-sticky {
+    position: sticky;
+    top: 80px;
+}
+
+.cart-grand-total {
+    font-size: 1.3rem !important;
+    font-weight: 700 !important;
+    color: var(--accent-hover) !important;
+}
+
+.cart-freebie-progress-box {
+    background: rgba(40, 167, 69, 0.07);
+    border: 1px dashed rgba(40, 167, 69, 0.3);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.85rem;
+    font-size: 0.78rem;
+    margin-bottom: 1rem;
+}
+
+.cart-freebie-banner {
+    background: rgba(40, 167, 69, 0.12);
+    border: 1px solid rgba(40, 167, 69, 0.4);
+    color: var(--success);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+}
+
+.cart-min-warn {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--danger);
+    margin-top: 0.5rem;
+}
+
+/* ── Slot selection cards ── */
+.slot-card {
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    color: var(--text-primary);   /* ← anchors title text to white; badges style sub-elements only */
+    transition: border-color var(--transition), background var(--transition),
+                box-shadow var(--transition);
+}
+
+.slot-card:hover {
+    border-color: var(--accent);
+    background: rgba(0, 122, 204, 0.05);
+}
+
+.slot-card--selected {
+    border-color: var(--success) !important;
+    background: rgba(40, 167, 69, 0.07) !important;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15);
+}
+
+.slot-emoji {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.slot-time {
+    font-size: 0.8rem;
+}
+
+/* ── Slot time-of-day badges ── */
+/* .slot-morning {
+    background: rgba(40, 167, 69, 0.15);
+    color: var(--success);
+    border: 1px solid rgba(40, 167, 69, 0.35);
+}
+
+.slot-afternoon {
+    background: rgba(0, 122, 204, 0.15);
+    color: var(--accent-hover);
+    border: 1px solid rgba(0, 122, 204, 0.35);
+}
+
+.slot-evening {
+    background: rgba(204, 167, 0, 0.15);
+    color: var(--warning);
+    border: 1px solid rgba(204, 167, 0, 0.35);
+} */
+
+/* ── Slot time-of-day badges ── */
+/* color is intentionally NOT set here — slot titles inherit        */
+/* var(--text-primary) from .slot-card. Status colors are           */
+/* applied only to sub-elements (e.g. .slot-time .text-success).   */
+.slot-morning {
+    background: rgba(40, 167, 69, 0.15);
+    border: 1px solid rgba(40, 167, 69, 0.35);
+}
+
+.slot-afternoon {
+    background: rgba(0, 122, 204, 0.15);
+    border: 1px solid rgba(0, 122, 204, 0.35);
+}
+
+.slot-evening {
+    background: rgba(204, 167, 0, 0.15);
+    border: 1px solid rgba(204, 167, 0, 0.35);
+}
+
+/* ── Invoice preview (State 3) ── */
+.cart-shop-block {
+    background: var(--bg-elevated);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    border-left: 3px solid var(--accent);
+    color: var(--text-primary);        /* base text white for all children */
+}
+
+/* Shop name heading inside the invoice block */
+.cart-shop-block .text-bright {
+    color: var(--accent) !important;   /* "CodeCrafters Fresh Picks" → blue */
+}
+
+.cart-unconfirmed-badge {
+    background: var(--bg-elevated) !important;
+    color: var(--warning) !important;
+    border: 1px solid var(--border-color);
+}
+
+/* .cart-section-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+} */
+
+.cart-section-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);   /* ← was --text-muted; section labels need full contrast */
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.75rem;
+}
+
+.cart-table-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.4rem 0;
+    border-bottom: 2px solid var(--border-color);
+    font-size: 0.72rem;
+    color: var(--text-primary);        /* ← was --text-muted; headers must be white */
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.cart-prev-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    color: var(--text-primary);        /* ← forces all item row text to white */
+}
+
+.cart-prev-item-row:last-child {
+    border-bottom: none;
+}
+
+.cart-freebie-preview-box {
+    background: rgba(40, 167, 69, 0.07);
+    border: 1px dashed rgba(40, 167, 69, 0.4);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.82rem;
+}
+
+.cart-total-row {
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+}
+
+.cart-grand-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding-top: 0.5rem;
+    border-top: 2px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.cart-confirm-btn {
+    background: var(--success) !important;
+    border-color: var(--success) !important;
+    color: var(--bg-main) !important;
+    font-weight: 600;
+}
+
+.cart-confirm-btn:hover {
+    filter: brightness(0.88);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+/* ── Cart loading spinner ── */
+.cart-loading-state {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.cart-spinner-ring {
+    width: 2.2rem;
+    height: 2.2rem;
+    border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin: 0 auto;
+}
+
+/* Fix for Shop Name in Invoice Preview */
+.cart-shop-block .text-bright, 
+.cart-shop-block h4,
+.rcpt-brand {
+    color: var(--text-primary) !important;
+}
+
+/* ── Receipt (print area) ── */
+/*
+ * Hard-coded light colors intentionally kept here.
+ * These elements render as a white PDF receipt.
+ * Do NOT replace with CSS variables — must remain
+ * white-on-light inside the PDF export.
+ */
+.cart-success-header {
+    padding: 2rem 0 1rem;
+}
+
+.cart-success-icon {
+    width: 72px;
+    height: 72px;
+    background: rgba(40, 167, 69, 0.15);
+    border: 2px solid var(--success);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+    font-size: 1.8rem;
+    color: var(--success);
+}
+
+.cart-email-notice {
+    background: rgba(0, 122, 204, 0.12) !important;
+    border: 1px solid rgba(0, 122, 204, 0.4) !important;
+    color: var(--accent-hover) !important;
+}
+
+.cart-receipt-print {
+    background: #ffffff;
+    color: #1a1a1a;
+    border-radius: var(--radius-lg);
+    padding: 2rem;
+    border: 1px solid #ddd;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 0.9rem;
+}
+
+.rcpt-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.rcpt-brand {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent);              /* ← was hardcoded #007acc; now uses token */
+}
+
+.rcpt-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);          /* ← was #555 */
+    margin-top: 0.25rem;
+    line-height: 1.55;
+}
+
+.rcpt-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);          /* ← was #888 */
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.25rem;
+}
+
+.rcpt-order-chip {
+    font-family: monospace;
+    font-size: 0.85rem;
+    color: #007acc;
+    background: #eef6ff;
+    border: 1px solid #b8d9f8;
+    padding: 0.25em 0.6em;
+    border-radius: 4px;
+    margin-top: 0.25rem;
+    display: inline-block;
+}
+
+.rcpt-datetime {
+    font-size: 0.75rem;
+    color: #555;
+    margin-top: 0.3rem;
+}
+
+.rcpt-value {
+    color: var(--text-primary);        /* ← was #1a1a1a */
+    font-size: 0.9rem;
+}
+
+.rcpt-divider-dashed {
+    border-top: 2px dashed #ddd;
+    margin-bottom: 1.25rem;
+}
+
+.rcpt-meta-grid {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.rcpt-meta-grid > div {
+    flex: 1;
+    min-width: 130px;
+}
+
+.rcpt-paid-badge {
+    display: inline-block;
+    font-weight: 700;
+    color: #1b7a5a;
+    background: #e6f9f4;
+    border-radius: 4px;
+    padding: 0.15em 0.5em;
+    font-size: 0.85rem;
+}
+
+.rcpt-delivery-row {
+    background: #f5f5f5;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.rcpt-moto {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.rcpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);        /* ← root override: all cells default white */
+}
+
+.rcpt-thead-row {
+    border-bottom: 2px solid var(--border-color);
+}
+
+.rcpt-thead-row th {
+    padding: 0.4rem 0.5rem;
+    color: var(--text-primary);        /* ← was #555 */
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.07em;
+}
+
+.rcpt-item-row {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.rcpt-td-num  { padding: 0.45rem 0.5rem; color: var(--text-muted); }
+.rcpt-td-name { padding: 0.45rem 0.5rem; color: var(--text-primary); font-weight: 500; }
+.rcpt-td-qty  { padding: 0.45rem 0.5rem; text-align: center; color: var(--text-primary); }
+.rcpt-td-amt  { padding: 0.45rem 0.5rem; text-align: right;  font-weight: 600; }
+
+/* New column: rate/price per kg */
+.rcpt-td-rate { padding: 0.45rem 0.5rem; text-align: right; color: var(--text-muted); font-size: 0.8rem; }
+
+.rcpt-totals {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.75rem;
+}
+
+.rcpt-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    margin-bottom: 0.3rem;
+    color: var(--text-primary);        /* ← was #555 */
+}
+
+.rcpt-free {
+    color: var(--success);             /* ← was hardcoded #1b7a5a */
+    font-weight: 600;
+}
+
+.rcpt-grand-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.05rem;
+    font-weight: 700;
+    border-top: 2px solid var(--border-color);
+    padding-top: 0.5rem;
+    margin-top: 0.4rem;
+    color: var(--text-primary);        /* ← was #1a1a1a */
+}
+
+.rcpt-grand-row span:last-child {
+    color: var(--accent);              /* ← was hardcoded #007acc */
+}
+
+.rcpt-footer {
+    border-top: 1px dashed var(--border-color);
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);          /* ← was #888 */
+    line-height: 1.6;
+}
+
+.cart-receipt-print,
+.cart-receipt-print p,
+.cart-receipt-print h1,
+.cart-receipt-print h2,
+.cart-receipt-print h3,
+.cart-receipt-print h4,
+.cart-receipt-print h5,
+.cart-receipt-print h6 {
+    color: #1a1a1a;
+}
+
+/* ── Receipt: fence Bootstrap .table overrides from polluting the PDF ── */
+.cart-receipt-print .table,
+.cart-receipt-print .table th,
+.cart-receipt-print .table td {
+    color: #1a1a1a !important;
+    background-color: #ffffff !important;
+    border-color: #dee2e6 !important;
+}
+
+.cart-receipt-print .table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: #f8f9fa !important;
+    color: #1a1a1a !important;
+}
+
+/* ── Empty cart state ── */
+.cart-empty-state {
+    text-align: center;
+    padding: 4rem 1rem;
+}
+
+.cart-empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+
+/* ══════════════════════════════════════════════════
+   §7e · INVENTORY
+   ══════════════════════════════════════════════════ */
+
+/* Validity quick-select buttons */
+.validity-btns {
+    display: flex;
+    gap: 0.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.validity-btn {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 0.25rem 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.validity-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent-hover);
+}
+
+.validity-btn.active {
+    background: rgba(0, 122, 204, 0.15);
+    border-color: var(--accent);
+    color: var(--accent-hover);
+    font-weight: 600;
+}
+
+/* Saving indicator dot */
+.saving-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 0.8s infinite alternate;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+}
+
+/* Empty state */
+.empty-state {
+    padding: 3rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.75rem;
+    opacity: 0.5;
+}
+
+/* ── fp-toast — Admin/Inventory toast alias (maps to cart-toast system) ── */
+#toastContainer {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.fp-toast {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.7rem 1rem;
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-left: 3px solid var(--border-color); /* must come AFTER the shorthand */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    animation: slideInRight 0.25s ease;
+    min-width: 240px;
+}
+
+.fp-toast.success {
+    border-left: 3px solid var(--success);
+    color: var(--success);
+}
+
+.fp-toast.error {
+    border-left: 3px solid var(--danger);
+    color: var(--danger);
+}
+
+/* ══════════════════════════════════════════════════
+   §7f · ORDERS & ORDER TRACKER
+   ══════════════════════════════════════════════════ */
+
+/* ── Status header tints ── */
+.card-header.status-placed {
+    border-left: 4px solid var(--accent) !important;
+    background-color: rgba(0, 122, 204, 0.07) !important;
+}
+
+.card-header.status-out-delivery {
+    border-left: 4px solid var(--warning) !important;
+    background-color: rgba(204, 167, 0, 0.07) !important;
+}
+
+.card-header.status-delivered {
+    border-left: 4px solid var(--success) !important;
+    background-color: rgba(40, 167, 69, 0.07) !important;
+}
+
+/* ── Status dot ── */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.status-placed       .status-dot { background: var(--accent); }
+.status-out-delivery .status-dot { background: var(--warning); }
+.status-delivered    .status-dot { background: var(--success); }
+
+/* ── Status pill badges ── */
+.badge-status-placed,
+.badge-status-out-delivery,
+.badge-status-delivered {
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.25em 0.6em;
+    border-radius: 4px;
+}
+
+.badge-status-placed {
+    background: rgba(0, 122, 204, 0.2);
+    color: var(--accent-hover);
+    border: 1px solid rgba(0, 122, 204, 0.4);
+}
+
+.badge-status-out-delivery {
+    background: rgba(204, 167, 0, 0.2);
+    color: var(--warning);
+    border: 1px solid rgba(204, 167, 0, 0.4);
+}
+
+.badge-status-delivered {
+    background: rgba(40, 167, 69, 0.2);
+    color: var(--success);
+    border: 1px solid rgba(40, 167, 69, 0.4);
+}
+
+/* ── Order items list ── */
+.items-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 0.15rem 0.5rem;
+}
+
+.item-free {
+    color: var(--success);
+    font-weight: 500;
+}
+
+.item-price {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+/* ── Order totals & timestamp ── */
+.order-total {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--success);
+}
+
+.order-timestamp {
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+}
+
+/* ── Action row ── */
+.action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* ── Order card fade-out animation ── */
+.order-card {
+    transition: opacity 5s ease, transform 5s ease;
+}
+
+.order-card.fading-out {
+    opacity: 0 !important;
+    transform: scale(0.97) !important;
+}
+
+
+/* ══════════════════════════════════════════════════
+   §8 · UTILITIES & ANIMATIONS
+   ══════════════════════════════════════════════════ */
+.text-accent   { color: var(--accent-hover) !important; }
 .text-success  { color: var(--success) !important; }
 .text-danger   { color: var(--danger) !important; }
 .text-muted    { color: var(--text-muted) !important; }
-.text-bright   { color: var(--text-bright) !important; }
 .bg-surface    { background-color: var(--bg-surface) !important; }
 .bg-elevated   { background-color: var(--bg-elevated) !important; }
 .border-accent { border-color: var(--accent) !important; }
 
-/* Loading spinner */
 .spinner-sm {
     width: 1rem;
     height: 1rem;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: var(--text-primary);
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     display: inline-block;
@@ -562,13 +1910,12 @@ hr {
     vertical-align: middle;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-/* Fade-in animation for pages */
 .fade-in {
     animation: fadeIn 0.4s ease;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 @keyframes fadeIn {
@@ -576,10 +1923,20 @@ hr {
     to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes pulse {
+    from { opacity: 0.3; transform: scale(0.8); }
+    to   { opacity: 1;   transform: scale(1.1); }
+}
 
-/* ─────────────────────────────────────────────
-   BOOTSTRAP OVERRIDES - make Bootstrap match theme
-   ─────────────────────────────────────────── */
+@keyframes slideInRight {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+
+/* ══════════════════════════════════════════════════
+   §9 · BOOTSTRAP OVERRIDES
+   ══════════════════════════════════════════════════ */
 .list-group-item {
     background-color: var(--bg-surface) !important;
     border-color: var(--border-color) !important;
@@ -605,12 +1962,1591 @@ hr {
 }
 
 .table-striped > tbody > tr:nth-of-type(odd) > * {
-    background-color: rgba(255,255,255,0.03) !important;
+    background-color: rgba(255, 255, 255, 0.03) !important;
     color: var(--text-primary) !important;
 }
 
-/* Scrollbar styling (Chrome/Edge) */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════
+   §10 · RESPONSIVE TWEAKS
+   ══════════════════════════════════════════════════ */
+@media (max-width: 576px) {
+
+    .cart-toast-container {
+        right: 1rem;
+        bottom: 1rem;
+        width: calc(100vw - 2rem);
+    }
+
+    .rcpt-meta-grid {
+        gap: 1rem;
+    }
+
+    .rcpt-header-row {
+        flex-direction: column;
+    }
+
+    .cart-receipt-print {
+        padding: 1.25rem;
+    }
+
+    .step-pill {
+        padding: 0.3rem 0.6rem;
+        font-size: 0.72rem;
+    }
+
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FRESHPICKS — Invoice Preview & Receipt Dark Theme Overrides
+   Session Fix: contrast, brand color, table columns
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── State 3: Invoice Preview ─────────────────────────────── */
+
+/* Force the whole invoice card onto the dark surface */
+#invoicePreviewState .card,
+#invoicePreviewState .card-body {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Shop name → accent blue */
+.cart-shop-block .fw-bold {
+    color: var(--accent) !important;
+}
+
+/* Shop sub-text (address, GSTIN) → muted */
+.cart-shop-block .text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Table column headers: muted tone */
+.cart-table-header span {
+    color: var(--text-muted) !important;
+    font-weight: 600;
+}
+
+/* Item rows: root color white so all children default to it */
+.cart-prev-item-row {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--border-color) !important;
+}
+
+/* Section label ("Items in this Order") */
+.cart-section-label {
+    color: var(--text-muted) !important;   /* intentionally muted — it's a label */
+}
+
+/* ── State 5: Receipt ──────────────────────────────────────── */
+
+/* Dark background — no white override */
+.cart-receipt-print {
+    background: var(--bg-surface) !important;
+    color: var(--text-primary) !important;
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+}
+
+/* Remove the old rule that forced white bg on all child elements */
+.cart-receipt-print,
+.cart-receipt-print p,
+.cart-receipt-print h1,
+.cart-receipt-print h2,
+.cart-receipt-print h3,
+.cart-receipt-print h4,
+.cart-receipt-print h5,
+.cart-receipt-print h6 {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+}
+
+/* Brand name → accent blue */
+.rcpt-brand {
+    color: var(--accent) !important;
+}
+
+/* Sub-text (address line) */
+.rcpt-sub {
+    color: var(--text-muted) !important;
+}
+
+/* Meta labels ("Bill To", "Delivery Slot") → muted */
+.rcpt-label {
+    color: var(--text-muted) !important;
+}
+
+/* Meta values (customer name, slot value) → white */
+.rcpt-value {
+    color: var(--text-primary) !important;
+}
+
+/* PAID badge → success green */
+.rcpt-paid-badge {
+    background: rgba(40, 167, 69, 0.15) !important;
+    color: var(--success) !important;
+    border: 1px solid rgba(40, 167, 69, 0.35) !important;
+}
+
+/* Delivery row background */
+.rcpt-delivery-row {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+/* Divider */
+.rcpt-divider-dashed {
+    border-top-color: var(--border-color) !important;
+}
+
+/* ── Receipt table ─────────────────────────────────────────── */
+
+/* Root: all cells default to white */
+.rcpt-table {
+    color: var(--text-primary) !important;
+}
+
+/* Column headers → muted */
+.rcpt-thead-row {
+    border-bottom-color: var(--border-color) !important;
+}
+.rcpt-thead-row th {
+    color: var(--text-muted) !important;
+}
+
+/* Row dividers */
+.rcpt-item-row {
+    border-bottom-color: var(--border-color) !important;
+}
+
+/* Row number column */
+.rcpt-td-num {
+    color: var(--text-muted) !important;
+}
+
+/* Product name → strictly white */
+.rcpt-td-name {
+    color: var(--text-primary) !important;
+}
+
+/* Rate column → muted (it's supplementary info) */
+.rcpt-td-rate {
+    padding: 0.45rem 0.5rem;
+    text-align: right;
+    color: var(--text-muted) !important;
+    font-size: 0.8rem;
+}
+
+/* Qty column → white */
+.rcpt-td-qty {
+    color: var(--text-primary) !important;
+    text-align: right !important;
+}
+
+/* Amount column — color set inline per row (free=success, paid=accent-hover) */
+.rcpt-td-amt {
+    text-align: right;
+    font-weight: 600;
+}
+
+/* FREE badge on free items */
+.rcpt-free-badge {
+    background: rgba(40, 167, 69, 0.15) !important;
+    color: var(--success) !important;
+    border: 1px solid rgba(40, 167, 69, 0.3) !important;
+}
+
+/* ── Receipt totals ────────────────────────────────────────── */
+.rcpt-totals {
+    border-top-color: var(--border-color) !important;
+}
+
+.rcpt-total-row {
+    color: var(--text-primary) !important;
+}
+
+.rcpt-free {
+    color: var(--success) !important;
+}
+
+.rcpt-grand-row {
+    border-top-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Total Paid amount → accent-hover (bright blue) */
+.rcpt-grand-row span:last-child {
+    color: var(--accent-hover) !important;
+}
+
+/* Order ID chip */
+.rcpt-order-chip {
+    background: rgba(0, 122, 204, 0.15) !important;
+    color: var(--accent-light) !important;
+    border-color: rgba(0, 122, 204, 0.35) !important;
+}
+
+.rcpt-datetime {
+    color: var(--text-muted) !important;
+}
+
+/* Receipt footer */
+.rcpt-footer {
+    border-top-color: var(--border-color) !important;
+    color: var(--text-muted) !important;
+}
+
+/* Override Bootstrap .table pollution inside receipt */
+.cart-receipt-print .table,
+.cart-receipt-print .table th,
+.cart-receipt-print .table td {
+    color: var(--text-primary) !important;
+    background-color: transparent !important;
+    border-color: var(--border-color) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   PDF PRINT OVERRIDES — .is-printing
+   Applied ONLY to the off-screen clone used by downloadReceiptAsPDF.
+   All values are hardcoded hex — no CSS variable references —
+   because html2canvas cannot resolve custom properties on a detached
+   cloned node positioned off-screen.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Root container ──────────────────────────────────────────── */
+.is-printing {
+    background:   #1e1e1e !important;
+    color:        #ffffff !important;
+    font-family:  "Segoe UI", system-ui, -apple-system, sans-serif !important;
+}
+
+/* ── Brand name ("CodeCrafters Fresh Picks") ─────────────────── */
+.is-printing .rcpt-brand {
+    color:       #007acc !important;   /* var(--accent)       */
+    font-size:   1.15rem !important;
+    font-weight: 700 !important;
+}
+
+/* ── Sub-text (address, GSTIN, phone) ────────────────────────── */
+.is-printing .rcpt-sub {
+    color:       #858585 !important;   /* var(--text-muted)   */
+    font-size:   0.78rem !important;
+    line-height: 1.55 !important;
+}
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.is-printing .rcpt-divider-dashed {
+    border-top: 2px dashed #3c3c3c !important;  /* var(--border-color) */
+    margin: 1rem 0 !important;
+}
+
+/* ── Meta section labels ("BILL TO", "DELIVERY SLOT", "STATUS") ─ */
+.is-printing .rcpt-label {
+    color:           #858585 !important;   /* var(--text-muted)   */
+    font-size:       0.68rem !important;
+    text-transform:  uppercase !important;
+    letter-spacing:  0.08em !important;
+    margin-bottom:   0.2rem !important;
+}
+
+/* ── Meta values (customer name, slot time) ──────────────────── */
+.is-printing .rcpt-value {
+    color:       #ffffff !important;   /* var(--text-primary) */
+    font-size:   0.88rem !important;
+}
+
+/* ── Order ID chip ───────────────────────────────────────────── */
+.is-printing .rcpt-order-chip {
+    background:  rgba(0, 122, 204, 0.18) !important;
+    color:       #9cdcfe !important;   /* var(--accent-light) */
+    border:      1px solid rgba(0, 122, 204, 0.4) !important;
+    font-family: monospace !important;
+    font-size:   0.82rem !important;
+    padding:     0.2em 0.55em !important;
+    border-radius: 4px !important;
+    display:     inline-block !important;
+}
+
+/* ── Datetime ─────────────────────────────────────────────────── */
+.is-printing .rcpt-datetime {
+    color: #858585 !important;
+}
+
+/* ── PAID badge ──────────────────────────────────────────────── */
+.is-printing .rcpt-paid-badge {
+    background:    rgba(40, 167, 69, 0.18) !important;
+    color:         #28a745 !important;   /* var(--success)    */
+    border:        1px solid rgba(40, 167, 69, 0.4) !important;
+    border-radius: 4px !important;
+    padding:       0.15em 0.55em !important;
+    font-weight:   700 !important;
+    font-size:     0.82rem !important;
+    display:       inline-block !important;
+}
+
+/* ── Delivery partner row ─────────────────────────────────────── */
+.is-printing .rcpt-delivery-row {
+    background:    #252526 !important;   /* var(--bg-elevated) */
+    border:        1px solid #3c3c3c !important;
+    border-radius: 6px !important;
+    padding:       0.75rem 1rem !important;
+    margin-bottom: 1.25rem !important;
+    display:       flex !important;
+    align-items:   center !important;
+    gap:           0.75rem !important;
+}
+
+/* ── Items table ─────────────────────────────────────────────── */
+.is-printing .rcpt-table {
+    width:           100% !important;
+    border-collapse: collapse !important;
+    table-layout:    fixed !important;   /* prevents column width jitter  */
+    font-size:       0.84rem !important;
+    color:           #ffffff !important;
+}
+
+/* Fixed column widths — prevents RATE/AMOUNT overlap */
+.is-printing .rcpt-table colgroup col:nth-child(1) { width: 2.2rem; }
+.is-printing .rcpt-table colgroup col:nth-child(2) { width: auto;   }   /* ITEM  */
+.is-printing .rcpt-table colgroup col:nth-child(3) { width: 7rem;   }   /* RATE  */
+.is-printing .rcpt-table colgroup col:nth-child(4) { width: 5rem;   }   /* QTY   */
+.is-printing .rcpt-table colgroup col:nth-child(5) { width: 6rem;   }   /* AMOUNT*/
+
+/* Table header row */
+.is-printing .rcpt-thead-row {
+    border-bottom: 2px solid #3c3c3c !important;
+}
+
+.is-printing .rcpt-thead-row th {
+    color:          #858585 !important;   /* var(--text-muted)  */
+    font-weight:    600 !important;
+    font-size:      0.7rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    padding:        0.4rem 0.5rem !important;
+    background:     #1e1e1e !important;
+}
+
+/* Item rows */
+.is-printing .rcpt-item-row {
+    border-bottom: 1px solid #3c3c3c !important;
+}
+
+/* Row number */
+.is-printing .rcpt-td-num {
+    padding: 0.45rem 0.5rem !important;
+    color:   #858585 !important;
+    width:   2.2rem !important;
+}
+
+/* Product name — strictly white */
+.is-printing .rcpt-td-name {
+    padding:     0.45rem 0.5rem !important;
+    color:       #ffffff !important;
+    font-weight: 500 !important;
+    word-break:  break-word !important;
+}
+
+/* Rate column — muted */
+.is-printing .rcpt-td-rate {
+    padding:    0.45rem 0.5rem !important;
+    text-align: right !important;
+    color:      #858585 !important;
+    font-size:  0.8rem !important;
+    white-space: nowrap !important;
+}
+
+/* Qty column — white */
+.is-printing .rcpt-td-qty {
+    padding:     0.45rem 0.5rem !important;
+    text-align:  right !important;
+    color:       #ffffff !important;
+    white-space: nowrap !important;
+}
+
+/* Amount column — color set inline per row; ensure no override */
+.is-printing .rcpt-td-amt {
+    padding:     0.45rem 0.5rem !important;
+    text-align:  right !important;
+    font-weight: 600 !important;
+    white-space: nowrap !important;
+}
+
+/* FREE item badge inside cells */
+.is-printing .rcpt-free-badge {
+    background:    rgba(40, 167, 69, 0.18) !important;
+    color:         #28a745 !important;
+    border:        1px solid rgba(40, 167, 69, 0.35) !important;
+    border-radius: 3px !important;
+    font-size:     0.66rem !important;
+    font-weight:   700 !important;
+    padding:       0.1em 0.4em !important;
+    margin-left:   0.4rem !important;
+    /* inline-block keeps it from stretching row height */
+    display:       inline-block !important;
+    vertical-align: middle !important;
+    line-height:   1.4 !important;
+}
+
+/* ── Totals block ─────────────────────────────────────────────── */
+.is-printing .rcpt-totals {
+    border-top: 1px solid #3c3c3c !important;
+    padding-top: 0.75rem !important;
+    margin-top:  0.5rem !important;
+}
+
+.is-printing .rcpt-total-row {
+    display:         flex !important;
+    justify-content: space-between !important;
+    color:           #ffffff !important;
+    font-size:       0.85rem !important;
+    margin-bottom:   0.3rem !important;
+}
+
+/* "FREE" delivery charge */
+.is-printing .rcpt-free {
+    color:       #28a745 !important;   /* var(--success)      */
+    font-weight: 600 !important;
+}
+
+/* Grand total row */
+.is-printing .rcpt-grand-row {
+    display:         flex !important;
+    justify-content: space-between !important;
+    border-top:      2px solid #3c3c3c !important;
+    padding-top:     0.5rem !important;
+    margin-top:      0.4rem !important;
+    font-size:       1.05rem !important;
+    font-weight:     700 !important;
+    color:           #ffffff !important;
+}
+
+/* Total Paid amount — bright blue */
+.is-printing .rcpt-grand-row span:last-child {
+    color: #1a9eff !important;         /* var(--accent-hover) */
+}
+
+/* ── Receipt footer ───────────────────────────────────────────── */
+.is-printing .rcpt-footer {
+    border-top:  1px dashed #3c3c3c !important;
+    margin-top:  1.5rem !important;
+    padding-top: 1rem !important;
+    text-align:  center !important;
+    font-size:   0.72rem !important;
+    color:       #858585 !important;
+    line-height: 1.6 !important;
+}
+
+/* ── Suppress Bootstrap table overrides inside the clone ──────── */
+.is-printing table,
+.is-printing th,
+.is-printing td {
+    background-color: transparent !important;
+    color: inherit !important;
+    border-color: #3c3c3c !important;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   GLASSMORPHISM PROGRESS BAR — cart.html State 1
+   ══════════════════════════════════════════════════════════════ */
+
+/* Container: glassmorphism panel */
+.cart-progress-track {
+    height: 8px;
+    background: rgba(37, 37, 38, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid #3e3e42;
+    border-radius: 99px;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Base fill — shared properties */
+.cart-progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+                background 0.4s ease,
+                box-shadow 0.4s ease;
+}
+
+/* State: danger (< ₹75) */
+.cart-progress-fill--danger {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+    box-shadow: none;
+}
+
+/* State: warning (₹75–₹99) */
+.cart-progress-fill--warning {
+    background: linear-gradient(90deg, #007acc, #1a9eff);
+    box-shadow: none;
+}
+
+/* State: success (≥ ₹100) — glow effect */
+.cart-progress-fill--success {
+    background: linear-gradient(90deg, #28a745, #34d058);
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.55),
+                0 0 20px rgba(40, 167, 69, 0.25);
+}
+
+/* Progress label text */
+.cart-progress-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    transition: color 0.3s ease;
+}
+
+.cart-progress-label--danger  { color: #e74c3c; }
+.cart-progress-label--warning { color: #1a9eff; }
+.cart-progress-label--success { color: #34d058; }
+
+/* Pulse animation on "Ready to checkout" text */
+@keyframes fp-pulse-green {
+    0%, 100% { opacity: 1;    text-shadow: none; }
+    50%       { opacity: 0.7; text-shadow: 0 0 8px rgba(52, 208, 88, 0.7); }
+}
+
+.cart-progress-pulse {
+    animation: fp-pulse-green 2s ease-in-out infinite;
+}
+
+/* Fix for Quick Action card titles and Dashboard text visibility */
+.quick-actions-card h4, 
+.quick-actions-card .action-title,
+.card-body h4,
+.card-body .text-bright {
+    color: var(--text-primary) !important;
+}
+
+/*
+ * dark-theme-additions.css — Fresh Picks: Session 6 Global UI Fixes
+ * ===================================================================
+ * APPEND the contents of this file to the end of your existing dark-theme.css
+ *
+ * Changes in this patch:
+ *   1. .btn-delivered hover fix (black hover resolved)
+ *   2. Category grouping: collapsible headers with chevron
+ *   3. Min-Order Bar: glassmorphism + accent→success fill transition
+ *   4. Cancelled order badge style
+ *
+ * Team: CodeCrafters | SDP-1
+ */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 1: .btn-delivered HOVER
+   Resolves the "black background on hover" issue caused by Bootstrap's
+   .btn:hover overriding var(--success) with #000.
+   !important guards are mandatory here — Bootstrap's specificity is high.
+   ════════════════════════════════════════════════════════════════════════ */
+.btn-delivered:hover,
+.btn-delivered:focus,
+.btn-delivered:focus-visible {
+    background-color: var(--success) !important;
+    color:            #fff           !important;
+    box-shadow:       0 0 10px rgba(40, 167, 69, 0.6) !important;
+    border-color:     var(--success) !important;
+    opacity:          0.92;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 2: CATEGORY GROUPING — Collapsible Headers
+   Used by both /shop and /admin_inventory pages.
+   Each category wraps in a .category-group.
+   The header .category-header is clickable and toggles .expanded.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container for one category */
+.category-group {
+    margin-bottom: 1.25rem;
+}
+
+/* Clickable header row */
+.category-header {
+    display:          flex;
+    align-items:      center;
+    justify-content:  space-between;
+    padding:          0.65rem 1rem;
+    background:       var(--bg-elevated);
+    border-radius:    var(--radius-md);
+    border-left:      3px solid var(--accent);
+    cursor:           pointer;
+    user-select:      none;
+    transition:       background var(--transition), box-shadow var(--transition);
+    margin-bottom:    0.5rem;
+}
+
+.category-header:hover {
+    background:  var(--bg-surface);
+    box-shadow:  0 2px 8px rgba(0,0,0,0.25);
+}
+
+.category-header .cat-title {
+    font-size:      0.88rem;
+    font-weight:    600;
+    color:          var(--text-bright);
+    letter-spacing: 0.03em;
+}
+
+.category-header .cat-count {
+    font-size:  0.72rem;
+    color:      var(--text-muted);
+    margin-left: 0.4rem;
+}
+
+/* Rotating chevron — down by default, up when expanded */
+.category-header .cat-chevron {
+    color:      var(--accent);
+    font-size:  0.85rem;
+    transition: transform 0.25s ease;
+}
+
+.category-group.expanded .category-header .cat-chevron {
+    transform: rotate(180deg);
+}
+
+/* Product rows container — hidden when collapsed */
+.category-body {
+    overflow:   hidden;
+    max-height: 0;
+    transition: max-height 0.35s ease;
+}
+
+/* When the group is expanded, auto-height via JS sets max-height */
+.category-group.expanded .category-body {
+    max-height: none;
+    /* JS sets inline max-height to scrollHeight for smooth animation */
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 3: MIN-ORDER BAR — Glassmorphism + Color Transition
+   ────────────────────────────────────────────────────────────────────────
+   IMPORTANT: Do NOT use position:sticky. The bar must flow naturally in
+   the document (inside the cart container), below the navbar.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.min-order-bar-wrapper {
+    /* No sticky. Flows with document. */
+    margin-bottom: 1rem;
+    border-radius: var(--radius-lg);
+    overflow:      hidden;
+}
+
+/* Glassmorphism container */
+.min-order-bar {
+    background:     rgba(37, 37, 38, 0.80);    /* --bg-elevated at 80% opacity */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border:         1px solid #3e3e42;          /* exact hex per spec */
+    border-radius:  var(--radius-lg);
+    padding:        0.75rem 1.1rem;
+}
+
+.min-order-bar .bar-label {
+    font-size:  0.8rem;
+    color:      var(--text-muted);
+    margin-bottom: 0.4rem;
+    display:    flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.min-order-bar .bar-label .bar-amount {
+    font-family: var(--font-mono);
+    font-size:   0.82rem;
+    color:       var(--text-bright);
+}
+
+/* Track (background) */
+.min-order-bar .bar-track {
+    height:        8px;
+    background:    var(--bg-primary);
+    border-radius: 99px;
+    overflow:      hidden;
+}
+
+/* Fill — transitions from accent (#007acc) to success (#28a745)
+   JavaScript toggles the class .reached when total >= 100           */
+.min-order-bar .bar-fill {
+    height:     100%;
+    border-radius: 99px;
+    background: var(--accent);                /* default: blue */
+    transition: width 0.4s ease, background 0.5s ease;
+    will-change: width, background;
+}
+
+.min-order-bar .bar-fill.reached {
+    background: var(--success);               /* green when ₹100 met */
+}
+
+/* Optional helper message under the bar */
+.min-order-bar .bar-msg {
+    font-size:   0.74rem;
+    color:       var(--text-muted);
+    margin-top:  0.35rem;
+    text-align:  right;
+    transition:  color 0.4s ease;
+}
+.min-order-bar .bar-msg.reached {
+    color: var(--success);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   FIX 4: "Cancelled" Badge Style
+   (Ensures admin and user order pages both have this class available)
+   ════════════════════════════════════════════════════════════════════════ */
+.badge-status-cancelled {
+    background: rgba(220, 53, 69, 0.15);
+    color:      #dc3545;
+    border:     1px solid rgba(220, 53, 69, 0.35);
+}
+
+/* Card header strip for Cancelled status */
+.status-cancelled {
+    border-bottom: 2px solid var(--danger);
+}
+.status-cancelled .status-dot {
+    background: var(--danger);
+    box-shadow: 0 0 6px rgba(220, 53, 69, 0.5);
+}
+
+
+/*
+ * shop-cart-additions.css — Fresh Picks: Missing Shop & Cart Classes
+ * ====================================================================
+ * APPEND to dark-theme.css (after dark-theme-additions.css patch).
+ *
+ * Root cause: cart.html and any shop.html render dozens of CSS classes
+ * (.veg-card, .cat-section-header, .cat-grid-wrap, .qty-btn, etc.)
+ * that exist ONLY in cart.html's JS templates. None of them were ever
+ * added to dark-theme.css, causing unstyled elements on first paint.
+ *
+ * This file is the single source of truth for all shop + cart UI classes.
+ *
+ * Sections:
+ *   §1  Product grid card  (.veg-card, .veg-card-body, .card-tag-badge, ...)
+ *   §2  Quantity controls  (.qty-btn, .custom-gram-input, .validity-chip)
+ *   §3  Category grouping  (.cat-section-header, .cat-grid-wrap, .cat-chevron)
+ *   §4  Out-of-stock overlay (.oos-overlay)
+ *   §5  Cart-specific UI  (.cart-page-header, .cart-summary-sticky, etc.)
+ *   §6  Slot cards  (.slot-card, .slot-card--selected, .slot-emoji, .slot-time)
+ *   §7  Receipt print area  (.cart-receipt-print, .rcpt-* classes)
+ *   §8  Toast notification  (.cart-toast, .cart-toast--*)
+ *   §9  Glassmorphism min-order bar  (upgrade for cart.html sidebar)
+ *
+ * Team: CodeCrafters | SDP-1
+ */
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §1  PRODUCT GRID CARD
+   ════════════════════════════════════════════════════════════════════════ */
+
+.veg-card {
+    background:    var(--bg-surface);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow:      hidden;
+    display:       flex;
+    flex-direction: column;
+    height:        100%;
+    transition:    box-shadow var(--transition), transform var(--transition),
+                   border-color var(--transition);
+}
+
+.veg-card:hover {
+    box-shadow:    0 6px 20px rgba(0,0,0,0.45);
+    transform:     translateY(-2px);
+    border-color:  var(--accent);
+}
+
+/* Image wrapper — 1:1 aspect ratio */
+.veg-card .card-img-wrap {
+    position:       relative;
+    width:          100%;
+    aspect-ratio:   1 / 1;
+    overflow:       hidden;
+    background:     var(--bg-elevated);
+    flex-shrink:    0;
+}
+
+.veg-card .card-img-wrap img {
+    width:       100%;
+    height:      100%;
+    object-fit:  cover;
+    display:     block;
+    transition:  transform 0.35s ease;
+}
+
+.veg-card:hover .card-img-wrap img {
+    transform: scale(1.05);
+}
+
+/* Tag badge overlaid on image top-right */
+.card-tag-badge {
+    position:      absolute;
+    top:           0.5rem;
+    right:         0.5rem;
+    font-size:     0.65rem;
+    font-weight:   700;
+    padding:       0.2em 0.5em;
+    border-radius: 3px;
+    color:         #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    box-shadow:    0 1px 4px rgba(0,0,0,0.4);
+    pointer-events: none;
+}
+
+/* Card body — flex column so button stays at bottom */
+.veg-card-body {
+    padding:        0.9rem;
+    display:        flex;
+    flex-direction: column;
+    flex:           1;
+}
+
+/* Placeholder when image 404s */
+.inv-img-placeholder {
+    width:          100%;
+    height:         100%;
+    display:        flex;
+    align-items:    center;
+    justify-content: center;
+    font-size:      2.5rem;
+    color:          var(--text-muted);
+    background:     var(--bg-elevated);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §2  QUANTITY CONTROLS
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Quick-select gram buttons: 250g / 500g / 1kg */
+.qty-btn {
+    flex:            1;
+    padding:         0.25rem 0;
+    font-size:       0.75rem;
+    font-weight:     600;
+    background:      var(--bg-elevated);
+    color:           var(--text-muted);
+    border:          1px solid var(--border-color);
+    border-radius:   var(--radius);
+    cursor:          pointer;
+    transition:      all var(--transition);
+    text-align:      center;
+    white-space:     nowrap;
+}
+
+.qty-btn:hover {
+    background:  rgba(0,122,204,0.12);
+    color:       var(--accent);
+    border-color: var(--accent);
+}
+
+/* Active state — set by selectQty() JS */
+.qty-btn.active,
+.qty-btn[aria-pressed="true"] {
+    background:   rgba(0,122,204,0.2);
+    color:        var(--accent-hover);
+    border-color: var(--accent);
+    box-shadow:   0 0 0 2px rgba(0,122,204,0.15);
+}
+
+/* Custom gram input */
+.custom-gram-input {
+    flex:         1;
+    padding:      0.3rem 0.5rem;
+    background:   var(--bg-elevated);
+    border:       1px solid var(--border-color);
+    border-radius: var(--radius);
+    color:        var(--text-primary);
+    font-size:    0.8rem;
+    outline:      none;
+    transition:   border-color var(--transition);
+    width:        100%;
+    min-width:    0;
+}
+
+.custom-gram-input:focus {
+    border-color: var(--accent);
+    box-shadow:   0 0 0 2px rgba(0,122,204,0.15);
+}
+
+/* Freshness validity chip */
+.validity-chip {
+    display:        inline-flex;
+    align-items:    center;
+    gap:            0.25rem;
+    font-size:      0.7rem;
+    color:          var(--text-muted);
+    background:     var(--bg-elevated);
+    border:         1px solid var(--border-color);
+    border-radius:  99px;
+    padding:        0.15em 0.6em;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §3  CATEGORY GROUPING  (cart.html's own pattern — not ui-helpers.js)
+   ──────────────────────────────────────────────────────────────────────
+   cart.html renders:
+     .cat-section-header  — clickable row with icon + title + count + chevron
+     .cat-grid-wrap       — collapsible container (max-height animated by CSS)
+     .cat-chevron.open    — chevron rotated 180°
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cat-section-header {
+    display:         flex;
+    align-items:     center;
+    gap:             0.6rem;
+    padding:         0.6rem 0.85rem;
+    margin:          0.75rem 0 0.4rem;
+    background:      var(--bg-elevated);
+    border-radius:   var(--radius-md, 8px);
+    border-left:     3px solid var(--accent);
+    cursor:          pointer;
+    user-select:     none;
+    transition:      background var(--transition), box-shadow var(--transition);
+}
+
+.cat-section-header:hover {
+    background:  var(--bg-surface);
+    box-shadow:  0 2px 8px rgba(0,0,0,0.3);
+}
+
+.cat-section-title {
+    font-size:      0.88rem;
+    font-weight:    600;
+    color:          var(--text-bright, #ffffff);
+    letter-spacing: 0.03em;
+    flex:           1;
+}
+
+.cat-section-count {
+    font-size:   0.72rem;
+    color:       var(--text-muted);
+    background:  var(--bg-surface);
+    border:      1px solid var(--border-color);
+    border-radius: 99px;
+    padding:     0.1em 0.55em;
+}
+
+/* Chevron — default pointing down, rotated up when .open */
+.cat-chevron {
+    color:      var(--accent);
+    font-size:  0.85rem;
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.cat-chevron.open {
+    transform: rotate(180deg);
+}
+
+/* Grid wrapper — collapsed by default via max-height:0.
+   CSS handles open state: .cat-grid-wrap.expanded → auto
+   (cart.html toggles .expanded via classList.toggle) */
+.cat-grid-wrap {
+    overflow:   hidden;
+    max-height: 0;
+    transition: max-height 0.38s ease;
+}
+
+/* Open state — set a large ceiling; actual content clips naturally */
+.cat-grid-wrap.expanded {
+    max-height: 9999px;
+    /* NOTE: 9999px gives a slow closing animation due to CSS limitation.
+       The cart.html code uses JS to set inline max-height = scrollHeight
+       for expand, then 0 for collapse, so the transition is instant and
+       accurate. This rule is a fallback only. */
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §4  OUT-OF-STOCK OVERLAY
+   ════════════════════════════════════════════════════════════════════════ */
+
+.oos-overlay {
+    position:    absolute;
+    inset:       0;
+    background:  rgba(30,30,30,0.72);
+    display:     flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.oos-overlay span {
+    background:    var(--danger);
+    color:         #fff;
+    font-size:     0.72rem;
+    font-weight:   700;
+    padding:       0.3em 0.8em;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §5  CART-SPECIFIC UI COMPONENTS
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Page header (title + back link) */
+.cart-page-header {
+    margin-bottom: 1.25rem;
+}
+
+.cart-header-sub {
+    font-size:  0.8rem;
+    margin-top: 0.25rem;
+}
+
+/* Sticky sidebar (order summary card) */
+.cart-summary-sticky {
+    position:  sticky;
+    top:       1rem;
+}
+
+/* Grand total value in sidebar */
+.cart-grand-total {
+    font-size:   1.2rem;
+    font-weight: 700;
+    color:       var(--accent);
+}
+
+/* Min-order warning text */
+.cart-min-warn {
+    font-size:   0.78rem;
+    color:       var(--danger);
+    margin-top:  0.35rem;
+    text-align:  center;
+}
+
+/* Freebie banner (below item list) */
+.cart-freebie-banner {
+    background:    rgba(78,201,176,0.1);
+    border:        1px solid rgba(78,201,176,0.3);
+    border-radius: var(--radius-lg);
+    padding:       0.7rem 1rem;
+    font-size:     0.85rem;
+    color:         var(--success);
+}
+
+/* Freebie progress box in sidebar */
+.cart-freebie-progress-box {
+    font-size:   0.8rem;
+    margin-top:  0.5rem;
+    padding:     0.5rem 0.75rem;
+    background:  var(--bg-elevated);
+    border-radius: var(--radius);
+    border:      1px solid var(--border-color);
+}
+
+/* Unconfirmed badge in invoice header */
+.cart-unconfirmed-badge {
+    background: rgba(204,167,0,0.18);
+    color:      var(--warning);
+    border:     1px solid rgba(204,167,0,0.35);
+    font-size:  0.72rem;
+    border-radius: 4px;
+    padding:    0.25em 0.6em;
+}
+
+/* Section label above invoice table */
+.cart-section-label {
+    font-size:      0.72rem;
+    font-weight:    600;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom:  0.4rem;
+}
+
+/* Table header row */
+.cart-table-header {
+    display:         flex;
+    font-size:       0.72rem;
+    font-weight:     600;
+    color:           var(--text-muted);
+    text-transform:  uppercase;
+    letter-spacing:  0.05em;
+    padding:         0.4rem 0.5rem;
+    border-bottom:   1px solid var(--border-color);
+}
+
+/* Total rows */
+.cart-total-row {
+    font-size:    0.88rem;
+    margin-bottom: 0.35rem;
+}
+
+.cart-grand-row {
+    font-size:    1rem;
+    font-weight:  700;
+    padding-top:  0.6rem;
+    border-top:   2px solid var(--border-color);
+    margin-top:   0.35rem;
+}
+
+/* Confirm payment button */
+.cart-confirm-btn {
+    background:   var(--accent);
+    color:        #fff;
+    border:       none;
+    font-weight:  600;
+    transition:   background var(--transition), box-shadow var(--transition);
+}
+.cart-confirm-btn:hover {
+    background:  var(--accent-hover);
+    box-shadow:  0 0 12px rgba(0,122,204,0.45);
+}
+
+/* FREE item badge in cart row */
+.cart-free-badge {
+    background:    rgba(40,167,69,0.12);
+    color:         var(--success);
+    border:        1px solid rgba(40,167,69,0.3);
+    border-radius: 3px;
+    font-size:     0.65rem;
+    font-weight:   700;
+    padding:       0.1em 0.4em;
+    vertical-align: middle;
+}
+
+/* Remove item button */
+.cart-remove-btn {
+    background:    transparent;
+    border:        none;
+    color:         var(--text-muted);
+    cursor:        pointer;
+    padding:       0.3rem 0.5rem;
+    border-radius: var(--radius);
+    font-size:     0.95rem;
+    transition:    color var(--transition), background var(--transition);
+    flex-shrink:   0;
+}
+.cart-remove-btn:hover {
+    color:       var(--danger);
+    background:  rgba(244,71,71,0.1);
+}
+
+/* Empty cart state */
+.cart-empty-state {
+    text-align:  center;
+    padding:     4rem 1rem;
+}
+.cart-empty-icon {
+    font-size: 3.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* Loading state */
+.cart-loading-state {
+    text-align:  center;
+    padding:     5rem 1rem;
+}
+.cart-spinner-ring {
+    width:        48px;
+    height:       48px;
+    border:       4px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation:    spin 0.75s linear infinite;
+    margin:       0 auto 1rem;
+}
+
+/* Success checkmark */
+.cart-success-header {
+    padding: 1rem 0;
+}
+.cart-success-icon {
+    width:           64px;
+    height:          64px;
+    background:      var(--success);
+    border-radius:   50%;
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    font-size:       1.8rem;
+    color:           #fff;
+    box-shadow:      0 0 20px rgba(40,167,69,0.45);
+}
+
+/* Email notice alert */
+.cart-email-notice {
+    background:    rgba(0,122,204,0.1);
+    border:        1px solid rgba(0,122,204,0.3);
+    color:         var(--accent-light, #9cdcfe);
+    font-size:     0.82rem;
+    border-radius: var(--radius);
+    padding:       0.6rem 1rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §6  DELIVERY SLOT CARDS
+   ════════════════════════════════════════════════════════════════════════ */
+
+.slot-card {
+    background:    var(--bg-elevated);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       0.9rem 1.1rem;
+    cursor:        pointer;
+    transition:    all var(--transition);
+}
+
+.slot-card:hover {
+    border-color: var(--accent);
+    background:   rgba(0,122,204,0.07);
+}
+
+.slot-card--selected {
+    border-color:  var(--accent)         !important;
+    background:    rgba(0,122,204,0.12)  !important;
+    box-shadow:    0 0 0 3px rgba(0,122,204,0.18);
+}
+
+.slot-emoji {
+    font-size:   1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.slot-time {
+    font-size:   0.78rem;
+    margin-top:  0.15rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §7  RECEIPT PRINT AREA
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Outer container — rendered on screen AND captured by html2pdf */
+.cart-receipt-print {
+    background:    var(--bg-surface);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       1.5rem;
+    font-size:     0.88rem;
+}
+
+/* Header: brand left, order info right */
+.rcpt-header-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     flex-start;
+    gap:             1rem;
+    margin-bottom:   0.75rem;
+}
+
+.rcpt-brand {
+    font-size:   1rem;
+    font-weight: 700;
+    color:       var(--accent);
+    margin-bottom: 0.25rem;
+}
+
+.rcpt-sub {
+    font-size:   0.76rem;
+    color:       var(--text-muted);
+    line-height: 1.55;
+}
+
+.rcpt-label {
+    font-size:      0.66rem;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display:        block;
+    margin-bottom:  2px;
+}
+
+.rcpt-value {
+    font-size:   0.88rem;
+    font-weight: 500;
+    color:       var(--text-primary);
+}
+
+.rcpt-order-chip {
+    display:         inline-block;
+    font-family:     var(--font-mono);
+    font-size:       0.85rem;
+    color:           var(--accent-light, #9cdcfe);
+    background:      rgba(0,122,204,0.15);
+    border:          1px solid rgba(0,122,204,0.35);
+    border-radius:   4px;
+    padding:         0.15em 0.5em;
+    white-space:     nowrap;
+    margin-bottom:   4px;
+}
+
+.rcpt-datetime {
+    font-size:   0.76rem;
+    color:       var(--text-muted);
+    white-space: nowrap;
+}
+
+.rcpt-divider-dashed {
+    border-top: 2px dashed var(--border-color);
+    margin:     12px 0;
+    height:     0;
+    display:    block;
+}
+
+/* 3-column meta grid: Bill To | Slot | Status */
+.rcpt-meta-grid {
+    display:             grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap:                 0.75rem;
+    margin:              12px 0;
+    padding:             10px 0;
+    border-bottom:       1px solid var(--border-color);
+}
+
+/* Paid badge */
+.rcpt-paid-badge {
+    display:         inline-block;
+    font-size:       0.82rem;
+    font-weight:     700;
+    color:           var(--success);
+    background:      rgba(40,167,69,0.15);
+    border:          1px solid rgba(40,167,69,0.35);
+    border-radius:   4px;
+    padding:         0.15em 0.55em;
+}
+
+/* Delivery partner row */
+.rcpt-delivery-row {
+    display:         flex;
+    align-items:     center;
+    gap:             0.75rem;
+    background:      var(--bg-elevated);
+    border:          1px solid var(--border-color);
+    border-radius:   var(--radius);
+    padding:         0.7rem 1rem;
+    margin:          12px 0;
+}
+
+.rcpt-moto {
+    font-size:   1.3rem;
+    flex-shrink: 0;
+}
+
+/* Invoice table */
+.rcpt-table {
+    width:          100%;
+    border-collapse: collapse;
+    table-layout:   fixed;
+    margin-top:     12px;
+    color:          var(--text-primary);
+}
+
+.rcpt-thead-row {
+    border-bottom: 2px solid var(--border-color);
+}
+
+.rcpt-thead-row th {
+    font-size:      0.68rem;
+    font-weight:    600;
+    color:          var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding:        6px 8px;
+}
+
+.rcpt-item-row {
+    border-bottom: 1px solid var(--bg-elevated);
+}
+
+.rcpt-td-num,
+.rcpt-td-name,
+.rcpt-td-rate,
+.rcpt-td-qty,
+.rcpt-td-amt {
+    padding: 7px 8px;
+}
+
+.rcpt-td-name   { font-weight: 500; word-break: break-word; }
+.rcpt-td-rate,
+.rcpt-td-qty,
+.rcpt-td-amt    { text-align: right; white-space: nowrap; }
+.rcpt-td-amt    { font-weight: 600; }
+
+/* Totals section */
+.rcpt-totals {
+    border-top:  1px solid var(--border-color);
+    padding-top: 0.6rem;
+    margin-top:  0.35rem;
+}
+
+.rcpt-total-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    font-size:       0.85rem;
+    padding:         3px 0;
+    color:           var(--text-primary);
+}
+
+.rcpt-free {
+    color:       var(--success);
+    font-weight: 600;
+}
+
+.rcpt-grand-row {
+    display:         flex;
+    justify-content: space-between;
+    align-items:     center;
+    font-size:       1rem;
+    font-weight:     700;
+    border-top:      2px solid var(--border-color);
+    padding-top:     0.5rem;
+    margin-top:      0.35rem;
+}
+
+/* Footer */
+.rcpt-footer {
+    font-size:   0.72rem;
+    color:       var(--text-muted);
+    text-align:  center;
+    border-top:  1px dashed var(--border-color);
+    padding-top: 0.75rem;
+    margin-top:  1rem;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §8  VS CODE–STYLE TOAST NOTIFICATIONS
+   ════════════════════════════════════════════════════════════════════════ */
+
+.cart-toast-container {
+    position:   fixed;
+    bottom:     1.25rem;
+    right:      1.25rem;
+    z-index:    9000;
+    display:    flex;
+    flex-direction: column-reverse;
+    gap:        0.5rem;
+    pointer-events: none;
+}
+
+.cart-toast {
+    display:       flex;
+    align-items:   center;
+    gap:           0.6rem;
+    background:    var(--bg-elevated);
+    border:        1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding:       0.7rem 1rem;
+    font-size:     0.85rem;
+    color:         var(--text-primary);
+    box-shadow:    0 4px 16px rgba(0,0,0,0.5);
+    pointer-events: all;
+    min-width:     260px;
+    max-width:     380px;
+
+    /* Enter: slide up from below */
+    opacity:   0;
+    transform: translateY(12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.cart-toast--visible {
+    opacity:   1;
+    transform: translateY(0);
+}
+
+/* Left accent border by type */
+.cart-toast--success { border-left: 3px solid var(--success); }
+.cart-toast--danger  { border-left: 3px solid var(--danger);  }
+.cart-toast--warning { border-left: 3px solid var(--warning); }
+.cart-toast--info    { border-left: 3px solid var(--accent);  }
+
+.cart-toast-icon {
+    flex-shrink: 0;
+    font-size:   1rem;
+}
+
+.cart-toast--success .cart-toast-icon { color: var(--success); }
+.cart-toast--danger  .cart-toast-icon { color: var(--danger);  }
+.cart-toast--warning .cart-toast-icon { color: var(--warning); }
+.cart-toast--info    .cart-toast-icon { color: var(--accent);  }
+
+.cart-toast-msg {
+    flex: 1;
+    line-height: 1.4;
+}
+
+.cart-toast-close {
+    background:   none;
+    border:       none;
+    color:        var(--text-muted);
+    font-size:    1.1rem;
+    cursor:       pointer;
+    padding:      0 0.15rem;
+    line-height:  1;
+    flex-shrink:  0;
+    transition:   color var(--transition);
+}
+.cart-toast-close:hover { color: var(--text-primary); }
+
+
+/* ════════════════════════════════════════════════════════════════════════
+   §9  CART SIDEBAR MIN-ORDER BAR — GLASSMORPHISM UPGRADE
+   ──────────────────────────────────────────────────────────────────────
+   cart.html's existing progress bar lives inside:
+     .cart-summary-sticky  →  .card-body  →  .mt-3.mb-3 div
+   The <style> block in cart.html already defines .cart-progress-fill
+   and .cart-progress-track. These rules UPGRADE the glassmorphism
+   wrapper (.mt-3.mb-3 inside .cart-summary-sticky) to match the spec:
+     rgba(37,37,38,0.8), blur(10px), border:#3e3e42
+   WITHOUT changing the HTML — purely CSS-based upgrade.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Target the existing div that wraps the progress bar in the sidebar */
+.cart-summary-sticky .card-body .mt-3.mb-3 {
+    background:              rgba(37, 37, 38, 0.80) !important;
+    backdrop-filter:         blur(10px)             !important;
+    -webkit-backdrop-filter: blur(10px)             !important;
+    border:                  1px solid #3e3e42      !important;
+    border-radius:           var(--radius-lg)       !important;
+    padding:                 0.75rem 1rem           !important;
+}
+
+/* ── Accent→success fill transition on the existing bar ──────── */
+/* The existing .cart-progress-fill--success already sets green.
+   We add a smooth background transition so the colour animates. */
+.cart-progress-fill {
+    transition: width 0.4s ease, background-color 0.5s ease !important;
+}
+
+/* Override the three existing fill state classes to use the same
+   green as var(--success) at the ₹100 threshold — currently the
+   cart uses var(--danger)→var(--accent)→var(--success), which is
+   correct, but we lock the transition in. No structural changes. */
+.cart-progress-fill--success {
+    background-color: var(--success) !important;  /* #28a745 green at ≥₹100 */
+}
+
+/* ── NOT sticky — cart summary sidebar is already position:sticky.
+      The progress bar inside it inherits the sticky context and flows
+      naturally within the card. No additional position rules needed. ── */
+
+/* Nuclear fix: make all Bootstrap modal close buttons white */
+.modal-content .btn-close {
+    filter: invert(1) grayscale(100%) brightness(200%);
+}
+/* Explicit white on all modal footer close buttons */
+.modal-footer .btn {
+    color: var(--text-bright, #ffffff) !important;
+}

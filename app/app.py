@@ -92,6 +92,8 @@ import ssl   # Python's built-in SSL module for HTTPS configuration.
              # configuration object that Flask/Werkzeug understands.
 import os    # Used to build file paths to cert.pem and key.pem.
 
+from datetime import datetime
+
 from flask import (
     Flask,              # Creates and initializes the web application
     render_template,    # Renders HTML templates for frontend pages
@@ -99,8 +101,10 @@ from flask import (
     jsonify,            # Converts data into JSON HTTP responses
     session,            # Stores user session data across requests
     redirect,           # Redirects user to a different route
-    url_for             # Generates dynamic URLs for application routes
+    url_for,            # Generates dynamic URLs for application routes
+    send_from_directory # Safely serves files from a specified folder (e.g., images, uploads, static files)
 )
+
 from bridge import run_c_binary  # Our reusable C-caller function
 # Executes C backend binary and returns output
 
@@ -131,109 +135,144 @@ _HERE     = os.path.dirname(os.path.abspath(__file__))
 CERT_FILE = os.path.join(_HERE, "cert.pem")  # Public certificate
 KEY_FILE  = os.path.join(_HERE, "key.pem")   # Private key — keep secret!
 
-
+# Helper Function
+def _safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 # =============================================================
 # PAGE ROUTES - These serve HTML pages
 # =============================================================
 
 @app.route("/")
 def index():
-    """
-    PURPOSE: Serve the landing page.
-    Shows two buttons: Admin Portal and User Portal.
-    """
+    # Only shows User Login & Registration (Admin abstracted)
     return render_template("index.html")
 
-
-@app.route("/login")
-def login():
-    """
-    PURPOSE: Serve the shared login page.
-    Reads the 'role' query parameter to know if it's admin or user login.
-    Example URLs:
-      /login?role=user
-      /login?role=admin
-    """
-    # request.args is a dictionary-like object in Flask that stores:
-    # Data sent via URL query parameters (GET request)
-    # request.args.get("key", default_value)
-    role = request.args.get("role", "user")  # Default to user if not specified
+@app.route("/login/<role>")
+def login_page(role):
+    # Unified Login: handles both /login/user and /login/admin
+    if role not in ["user", "admin"]:
+        return redirect("/")
+    
+    # Auto-redirect if already logged in
+    if session.get("role") == role:
+        return redirect("/admin_dash" if role == "admin" else "/user_home")
+        
     return render_template("login.html", role=role)
-
 
 @app.route("/register")
 def register():
-    """
-    PURPOSE: Serve the registration page for new users.
-    """
     return render_template("register.html")
-
 
 @app.route("/user_home")
 def user_home():
-    """
-    PURPOSE: Serve the user's home/dashboard page.
-    Requires the user to be logged in (checks session).
-    If not logged in, redirects to login page.
-    """
-    # Check if user is logged in by looking at session data
-    if "user_id" not in session or session.get("role") != "user":
-        return redirect(url_for("login", role="user"))
-
-    # Pass the username to the template so we can display "Welcome, alice!"
+    if session.get("role") != "user": return redirect("/login/user")
     return render_template("user_home.html", username=session.get("username"))
-
 
 @app.route("/admin_dash")
 def admin_dash():
-    """
-    PURPOSE: Serve the admin dashboard.
-    Requires admin login (checks session for role='admin').
-    """
+    if session.get("role") != "admin": return redirect("/login/admin")
+    return render_template("admin_dash.html", username=session.get("username"), admin_name=session.get("admin_name", "Admin"))
+
+@app.route("/api/get_admin_info", methods=["POST"])
+def api_get_admin_info():
     if session.get("role") != "admin":
-        return redirect(url_for("login", role="admin"))
-
-    return render_template(
-        "admin_dash.html",
-        username   = session.get("username"),
-        admin_name = session.get("admin_name", "Admin")  # Passed to {{ admin_name }} in template
-    )
-
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    return jsonify({
+        "status":   "SUCCESS",
+        "user_id":  session.get("user_id",    "—"),
+        "username": session.get("username",   "—"),
+        "name":     session.get("admin_name", "—")
+    })
 
 @app.route("/profile")
 def profile():
-    """
-    PURPOSE: Serve the user profile page.
-    Requires user login.
-    """
-    if "user_id" not in session or session.get("role") != "user":
-        return redirect(url_for("login", role="user"))
-
+    if session.get("role") != "user": return redirect("/login/user")
     return render_template("profile.html")
-
 
 @app.route("/security")
 def security():
-    """
-    PURPOSE: Serve the Security Center page (Module 5).
-    Accessible to any logged-in user or admin.
-    If not logged in, redirect to home.
-    """
-    if "user_id" not in session:
-        return redirect(url_for("index"))
-
+    if "user_id" not in session: return redirect("/")
     return render_template("security.html")
-
 
 @app.route("/logout")
 def logout():
-    """
-    PURPOSE: Clear the session (log out the user/admin)
-    and redirect to the landing page.
-    """
-    session.clear()  # Remove all session data
-    return redirect(url_for("index"))
+    session.clear()
+    return redirect("/")
 
+@app.route("/shop")
+def shop():
+    # Renamed from /vegetables
+    if session.get("role") != "user": return redirect("/login/user")
+    return render_template("shop.html")
+
+@app.route("/cart")
+def cart():
+    if session.get("role") != "user": return redirect("/login/user")
+    return render_template("cart.html")
+
+@app.route("/user_orders")
+def user_orders_page():
+    if session.get("role") != "user": return redirect("/login/user")
+    return render_template("user_orders.html", username=session.get("username"))
+
+@app.route("/admin_inventory")
+def admin_inventory():
+    if session.get("role") != "admin": return redirect("/login/admin")
+    
+    veg_result = run_c_binary("order", ["list_products"])
+    vegetables = []
+    if veg_result["status"] == "SUCCESS":
+        raw_lines = veg_result["raw_output"].strip().split("\n")
+        for line in raw_lines[1:]:
+            parts = line.split("|")
+            if len(parts) >= 7:
+                vegetables.append({
+                    "veg_id": parts[0], "category": parts[1], "name": parts[2],
+                    "stock_g": int(parts[3]), "price_per_1000g": float(parts[4]),
+                    "tag": parts[5], "validity_days": int(parts[6])
+                })
+
+    promo_result = run_c_binary("inventory", ["list_promo"])
+    free_items = []
+    if promo_result["status"] == "SUCCESS":
+        raw_lines = promo_result["raw_output"].strip().split("\n")
+        for line in raw_lines[1:]:
+            parts = line.split("|")
+            if len(parts) >= 5:
+                free_items.append({
+                    "vf_id": parts[0], "name": parts[1], "stock_g": int(parts[2]),
+                    "min_trigger_amt": float(parts[3]), "free_qty_g": int(parts[4])
+                })
+
+    return render_template("admin_inventory.html", vegetables=vegetables, free_items=free_items, admin_name=session.get("admin_name", "Admin"))
+
+@app.route("/admin_orders")
+def admin_orders():
+    if session.get("role") != "admin": return redirect("/login/admin")
+    
+    current_hour = datetime.now().hour
+    if   7 <= current_hour <= 10: active_slot = "Morning"
+    elif 12 <= current_hour <= 14: active_slot = "Afternoon"
+    elif 17 <= current_hour <= 19: active_slot = "Evening"
+    else: active_slot = None
+
+    jit_promoted = 0
+    if active_slot:
+        jit_result = run_c_binary("order", ["batch_promote_slot", active_slot])
+        if jit_result["status"] == "SUCCESS":
+            try: jit_promoted = int(jit_result["data"].strip())
+            except ValueError: jit_promoted = 0
+
+    return render_template("admin_orders.html", username=session.get("username"), admin_name=session.get("admin_name", "Admin"), jit_promoted=jit_promoted, jit_slot=active_slot or "")
+
+@app.route('/product_images/<filename>')
+def serve_product_image(filename):
+    # Image Bridge to /images/ root folder
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return send_from_directory(os.path.join(root_dir, "images"), filename)
 
 # =============================================================
 # API ROUTES - These return JSON, called by JavaScript fetch()
@@ -256,168 +295,428 @@ def logout():
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
-    """
-    PURPOSE: Handle login form submission.
-    Accepts JSON with: { "username": "...", "password": "...", "role": "user"/"admin" }
-    Calls the C binary to validate credentials.
-    On success, stores user info in session and returns JSON.
-    """
-    # Step 1: Read the JSON body sent by the frontend
     data = request.get_json()
-    username = data.get("username", "").strip()
-    password = data.get("password", "").strip()
-    role     = data.get("role", "user").strip()
+    username, password, role = data.get("username", "").strip(), data.get("password", "").strip(), data.get("role", "user").strip()
 
-    # Step 2: Basic validation - make sure fields aren't empty
-    if not username or not password:
-        return jsonify({"status": "ERROR", "message": "Username and password are required"})
+    if not username or not password: return jsonify({"status": "ERROR", "message": "Required fields missing"})
 
-    # Step 3: Call the correct C function based on role
-    if role == "admin":
-        result = run_c_binary("auth", ["login_admin", username, password])
-    else:
-        result = run_c_binary("auth", ["login_user", username, password])
+    if role == "admin": result = run_c_binary("auth", ["login_admin", username, password])
+    else:               result = run_c_binary("auth", ["login_user", username, password])
 
-    # Step 4: If login succeeded, save user info in session
-    
     if result["status"] == "SUCCESS":
-        session["role"]     = role
-        session["username"] = username
-
+        session["role"], session["username"] = role, username
         if role == "admin":
-            # C now returns: SUCCESS|admin_id|admin_name
-            # result["data"] is everything after "SUCCESS|", so: "admin_id|admin_name"
             admin_parts = result["data"].split("|")
-            session["user_id"]    = admin_parts[0] if len(admin_parts) > 0 else "A1001"
+            session["user_id"] = admin_parts[0] if len(admin_parts) > 0 else "A1001"
             session["admin_name"] = admin_parts[1] if len(admin_parts) > 1 else "Admin"
         else:
-            # For users, C returns: SUCCESS|user_id (unchanged)
-            session["user_id"]    = result["data"]
+            session["user_id"] = result["data"]
 
-        return jsonify({
-            "status":   "SUCCESS",
-            "message":  "Login successful",
-            "role":     role,
-            "user_id":  session["user_id"],
-            "redirect": "/admin_dash" if role == "admin" else "/user_home"
-        })
-    else:
-        return jsonify({"status": "ERROR", "message": result["data"]})
-
+        return jsonify({"status": "SUCCESS", "role": role, "redirect": "/admin_dash" if role == "admin" else "/user_home"})
+    return jsonify({"status": "ERROR", "message": result["data"]})
 
 @app.route("/api/register", methods=["POST"])
 def api_register():
-    """
-    PURPOSE: Handle user registration.
-    Accepts JSON with: { username, password, full_name, email, phone, address }
-    Calls the C binary to write the new user to users.txt.
-    C binary enforces password complexity — error is returned from C.
-    """
-    # get_json() => Extract Data from a JSON File
-    data      = request.get_json()
-    username  = data.get("username",  "").strip()
-    password  = data.get("password",  "").strip()
-    full_name = data.get("full_name", "").strip()
-    email     = data.get("email",     "").strip()
-    phone     = data.get("phone",     "").strip()
+    data = request.get_json()
+    u, p, fn, e, ph = data.get("username", ""), data.get("password", ""), data.get("full_name", ""), data.get("email", ""), data.get("phone", "")
+    address = f"{data.get('door','')},{data.get('street','')},{data.get('area','')},{data.get('pincode','')}"
 
-    # Receive the 4 address sub-fields separately from the frontend form.
-    # Each field is collected individually for clear display later.
-    door   = data.get("door",   "").strip()  # e.g. "No 11, FF2"
-    street = data.get("street", "").strip()  # e.g. "Elumalai Street"
-    area   = data.get("area",   "").strip()  # e.g. "West Tambaram"
-    pincode= data.get("pincode","").strip()  # e.g. "600045"
+    if not all([u, p, fn, e, ph, data.get('door'), data.get('street'), data.get('area'), data.get('pincode')]):
+        return jsonify({"status": "ERROR", "message": "All fields required"})
 
-    # Concatenate into a single CSV string for storage in users.txt.
-    # The pipe (|) delimiter is already used between fields, so we use
-    # a comma to separate address sub-parts within the address field.
-    # This matches the schema note: "store as csv within the address field."
-    address = f"{door},{street},{area},{pincode}"
-
-    # Validate all required fields are present
-    if not all([username, password, full_name, email, phone, door, street, area, pincode]):
-        return jsonify({"status": "ERROR", "message": "All fields are required"})
-
-    # Call the C binary — now 8 args: register + 6 user fields
-    # argv: auth register username password full_name email phone address
-    result = run_c_binary("auth", ["register", username, password,
-                                   full_name, email, phone, address])
-
-    if result["status"] == "SUCCESS":
-        return jsonify({
-            "status":  "SUCCESS",
-            "message": "Registration successful! Please log in.",
-            "user_id": result["data"]
-        })
-    else:
-        return jsonify({"status": "ERROR", "message": result["data"]})
-
+    result = run_c_binary("auth", ["register", u, p, fn, e, ph, address])
+    return jsonify({"status": result["status"], "message": "Registration successful" if result["status"] == "SUCCESS" else result["data"]})
 
 @app.route("/api/get_profile", methods=["POST"])
 def api_get_profile():
-    """
-    PURPOSE: Fetch the current user's profile data.
-    Uses user_id stored in session - no need for frontend to send it.
-    Returns profile fields as JSON including email.
-    """
-    # Security check: must be logged in
-    if "user_id" not in session:
-        return jsonify({"status": "ERROR", "message": "Not logged in"})
-
-    user_id = session["user_id"]
-    # run_c_binary(command, argument_list)
-    result  = run_c_binary("auth", ["get_profile", user_id])
-
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    result = run_c_binary("auth", ["get_profile", session["user_id"]])
     if result["status"] == "SUCCESS":
-        # Parse pipe-delimited data: id|username|full_name|email|phone|address
         parts = result["data"].split("|")
-        return jsonify({
-            "status":    "SUCCESS",
-            "user_id":   parts[0] if len(parts) > 0 else "",
-            "username":  parts[1] if len(parts) > 1 else "",
-            "full_name": parts[2] if len(parts) > 2 else "",
-            "email":     parts[3] if len(parts) > 3 else "",
-            "phone":     parts[4] if len(parts) > 4 else "",
-            "address":   parts[5] if len(parts) > 5 else ""
-        })
-    else:
-        return jsonify({"status": "ERROR", "message": result["data"]})
-
+        return jsonify({"status": "SUCCESS", "user_id": parts[0], "username": parts[1], "full_name": parts[2], "email": parts[3], "phone": parts[4], "address": parts[5]})
+    return jsonify({"status": "ERROR", "message": result["data"]})
 
 @app.route("/api/change_password", methods=["POST"])
 def api_change_password():
-    """
-    PURPOSE: Unified password change endpoint for BOTH users and admins.
-    Reads role and user_id from the server-side session (not the client).
-    Calls: ./auth change_password <role> <id> <old_pass> <new_pass>
-    Accepts JSON: { "old_password": "...", "new_password": "..." }
-    """
-    # Security check: must be logged in (any role)
-    if "user_id" not in session:
-        return jsonify({"status": "ERROR", "message": "Not authorized. Please log in."})
-
-    data         = request.get_json()
-    old_password = data.get("old_password", "").strip()
-    new_password = data.get("new_password", "").strip()
-
-    if not old_password or not new_password:
-        return jsonify({"status": "ERROR", "message": "Both passwords are required"})
-
-    # Read role and ID securely from the server session
-    role    = session.get("role")     # "user" or "admin"
-    user_id = session.get("user_id")  # "U1001" or "A1001"
-
-    # Route to the correct C function based on role.
-    # For users:  change_pass_user  <user_id>  <old> <new>
-    # For admins: change_pass_admin <admin_id> <old> <new>
-    if role == "admin":
-        result = run_c_binary("auth", ["change_pass_admin", user_id,
-                                       old_password, new_password])
-    else:
-        result = run_c_binary("auth", ["change_pass_user", user_id,
-                                       old_password, new_password])
-
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    data = request.get_json()
+    old_p, new_p = data.get("old_password", "").strip(), data.get("new_password", "").strip()
+    
+    if session.get("role") == "admin": result = run_c_binary("auth", ["change_pass_admin", session["user_id"], old_p, new_p])
+    else:                              result = run_c_binary("auth", ["change_pass_user", session["user_id"], old_p, new_p])
     return jsonify({"status": result["status"], "message": result["data"]})
+
+@app.route("/api/list_products", methods=["GET"])
+def api_list_products():
+    result = run_c_binary("order", ["list_products"])
+    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
+    
+    products = []
+    for line in result["raw_output"].strip().split("\n")[1:]:
+        parts = line.strip().split("|")
+        if len(parts) >= 7: products.append({"veg_id": parts[0], "category": parts[1], "name": parts[2], "stock_g": int(parts[3]), "price_per_1000g": float(parts[4]), "tag": parts[5], "validity_days": int(parts[6])})
+    return jsonify({"status": "SUCCESS", "products": products})
+
+@app.route("/api/update_stock", methods=["POST"])
+def api_update_stock():
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    data = request.get_json()
+    veg_id   = data.get("veg_id",   "").strip()
+    stock_g  = int(data.get("stock_g",  0))
+    price    = float(data.get("price",  0))
+    validity = int(data.get("validity", 1))
+    if not veg_id:
+        return jsonify({"status": "error", "message": "veg_id required"})
+    result = run_c_binary("inventory", [
+        "update_stock", veg_id, str(stock_g), str(price), str(validity)
+    ])
+    return jsonify({
+        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
+        "message": result["data"]
+    })
+
+@app.route("/api/update_promo_stock", methods=["POST"])
+def api_update_promo_stock():
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+    data    = request.get_json()
+    vf_id   = data.get("vf_id",   "").strip()
+    stock_g = int(data.get("stock_g", 0))
+    if not vf_id:
+        return jsonify({"status": "error", "message": "vf_id required"})
+    result = run_c_binary("inventory", ["update_promo_stock", vf_id, str(stock_g)])
+    return jsonify({
+        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
+        "message": result["data"]
+    })
+
+@app.route("/api/add_to_cart", methods=["POST"])
+def api_add_to_cart():
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    data = request.get_json()
+    result = run_c_binary("order", ["add_to_cart", session["user_id"], data.get("veg_id", "").strip(), str(int(data.get("qty_g", 0)))])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
+@app.route("/api/view_cart", methods=["POST"])
+def api_view_cart():
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    result = run_c_binary("order", ["view_cart", session["user_id"]])
+    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
+    
+    lines = result["raw_output"].strip().split("\n")
+    items = []
+    for line in lines[1:]:
+        parts = line.strip().split("|")
+        if len(parts) >= 6: items.append({"veg_id": parts[0], "name": parts[1], "qty_g": int(parts[2]), "price_per_1000g": float(parts[3]), "item_total": float(parts[4]), "is_free": int(parts[5])})
+    return jsonify({"status": "SUCCESS", "total": float(lines[0].split("|")[1]), "items": items})
+
+@app.route("/api/update_cart_qty", methods=["POST"])
+def api_update_cart_qty():
+    """
+    Called by onQtyChange debounce in cart.html.
+    Updates one item's quantity in the user's cart DLL (re-writes cart file via C).
+    Body: { "veg_id": "V1001", "qty_g": 750 }
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data   = request.get_json()
+    veg_id = data.get("veg_id", "").strip()
+    qty_g  = int(data.get("qty_g", 0))
+
+    if not veg_id or qty_g <= 0:
+        return jsonify({"status": "ERROR", "message": "Invalid veg_id or qty_g"})
+
+    # Re-uses the existing add_to_cart C command which does update_or_append
+    result = run_c_binary("order", [
+        "add_to_cart", session["user_id"], veg_id, str(qty_g)
+    ])
+    return jsonify({
+        "status":  result["status"],
+        "message": result["data"]
+    })
+
+@app.route("/api/remove_item", methods=["POST"])
+def api_remove_item():
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    result = run_c_binary("order", ["remove_item", session["user_id"], request.get_json().get("veg_id", "").strip()])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
+@app.route("/api/checkout", methods=["POST"])
+def api_checkout():
+    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    slot = request.get_json().get("delivery_slot", "").strip()
+    if slot not in ["Morning", "Afternoon", "Evening"]: return jsonify({"status": "ERROR", "message": "Invalid slot"})
+    
+    result = run_c_binary("order", ["checkout", session["user_id"], slot])
+    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
+    
+    parts = result["raw_output"].strip().split("\n")[0].split("|")
+    return jsonify({"status": "SUCCESS", "order_id": parts[1], "total": float(parts[2]), "slot": parts[3], "boy_name": parts[4], "boy_phone": parts[5], "items": parts[6] if len(parts)>6 else ""})
+
+@app.route("/api/get_user_orders", methods=["POST"])
+def api_get_user_orders():
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+    result = run_c_binary("order", ["get_orders", session["user_id"]])
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    orders = []
+    for line in result["raw_output"].strip().split("\n")[1:]:
+        parts = line.strip().split("|")
+        if len(parts) < 8:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8] if len(parts) > 8 else "Unknown",
+            "boy_phone":       parts[9] if len(parts) > 9 else "N/A",
+        })
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+@app.route("/api/admin_orders", methods=["GET"])
+def api_admin_orders():
+    if session.get("role") != "admin": return jsonify({"status": "ERROR", "message": "Admin only"})
+    result = run_c_binary("order", ["admin_orders"])
+    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
+    
+    orders = []
+    for line in result["raw_output"].strip().split("\n")[1:]:
+        parts = line.strip().split("|")
+        if len(parts) >= 8: orders.append({"order_id": parts[0], "user_id": parts[1], "total_amount": float(parts[2]), "delivery_slot": parts[3], "delivery_boy_id": parts[4], "status": parts[5], "timestamp": parts[6], "items": parts[7], "boy_name": parts[8] if len(parts)>8 else "Unknown", "boy_phone": parts[9] if len(parts)>9 else "N/A"})
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+@app.route("/api/get_admin_orders", methods=["POST"])
+def api_get_admin_orders():
+    """
+    POST /api/get_admin_orders
+    Called by admin_orders.html on page load.
+    NOW delegates to: ./delivery list_all_orders
+    (previously called ./order admin_orders which was heap-sorted + active-only)
+
+    Returns all orders, newest-first, with boy enrichment.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
+
+    result = run_c_binary("delivery", ["list_all_orders_sorted"])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "SUCCESS", "orders": [],
+                        "warning": result.get("data", "")})
+
+    orders = []
+    raw_lines = result["raw_output"].strip().split("\n")
+    for line in raw_lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 8:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
+            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
+        })
+
+    return jsonify({"status": "SUCCESS", "orders": orders})   
+
+@app.route("/api/update_order_status", methods=["POST"])
+def api_update_order_status():
+    """
+    POST /api/update_order_status
+    Body: { "order_id": "ORD107", "status": "Out for Delivery" }
+
+    Delegates to: ./delivery update_status <order_id> <status>
+
+    Valid status values (must match delivery.c string literals exactly):
+      "Order Placed" | "Out for Delivery" | "Delivered" | "Cancelled"
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
+
+    data       = request.get_json(silent=True) or {}
+    order_id   = data.get("order_id",  "").strip()
+    new_status = data.get("status",    "").strip()
+
+    VALID_STATUSES = {"Order Placed", "Out for Delivery", "Delivered", "Cancelled"}
+    if not order_id:
+        return jsonify({"status": "ERROR", "message": "order_id is required"})
+    if new_status not in VALID_STATUSES:
+        return jsonify({"status": "ERROR", "message": f"Invalid status: {new_status}"})
+
+    # ── Delegate to the NEW delivery binary ───────────────────────────
+    result = run_c_binary("delivery", ["update_status", order_id, new_status])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
+
+@app.route("/api/promote_slot_orders", methods=["POST"])
+def api_promote_slot_orders():
+    """
+    POST /api/promote_slot_orders
+    Body: { "slot": "Morning" }
+
+    Delegates to: ./delivery batch_promote_slot <slot>
+    Returns: { "status": "SUCCESS", "promoted": <int> }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+
+    slot = (request.get_json(silent=True) or {}).get("slot", "").strip()
+    if slot not in ["Morning", "Afternoon", "Evening"]:
+        return jsonify({"status": "ERROR", "message": "Invalid slot"})
+
+    result = run_c_binary("delivery", ["batch_promote_slot", slot])
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result.get("data", "")})
+
+    try:
+        promoted = int(result["data"].strip())
+    except (ValueError, AttributeError):
+        promoted = 0
+
+    return jsonify({"status": "SUCCESS", "promoted": promoted})
+
+@app.route("/api/cancel_order", methods=["POST"])
+def api_cancel_order():
+    """
+    POST /api/cancel_order
+    Body: { "order_id": "ORD107" }
+
+    Business rules enforced in delivery.c:
+      - Only "Order Placed" orders may be cancelled.
+      - ₹50 cancellation fee is surfaced in the UI disclaimer only
+        (actual refund processing is outside scope for this project).
+
+    Delegates to: ./delivery cancel_order <order_id>
+
+    Returns:
+      { "status": "SUCCESS", "message": "Order cancelled" }
+      { "status": "ERROR",   "message": "Only Order Placed orders..." }
+    """
+    # Both admin and logged-in users may cancel their own orders.
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"}), 401
+
+    data     = request.get_json(silent=True) or {}
+    order_id = data.get("order_id", "").strip()
+
+    if not order_id:
+        return jsonify({"status": "ERROR", "message": "order_id is required"})
+
+    result = run_c_binary("delivery", ["cancel_order", order_id])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
+
+@app.route("/api/get_active_orders", methods=["GET"])
+def api_get_active_orders():
+    """
+    GET /api/get_active_orders
+
+    Returns only "Order Placed" and "Out for Delivery" orders,
+    enriched with boy_name + boy_phone.
+
+    Delegates to: ./delivery get_active_orders
+
+    Returns:
+      { "status": "SUCCESS", "orders": [...] }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    result = run_c_binary("delivery", ["get_active_orders"])
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "SUCCESS", "orders": [],
+                        "warning": result.get("data", "")})
+
+    orders = []
+    raw_lines = result["raw_output"].strip().split("\n")
+    for line in raw_lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) < 8:
+            continue
+        orders.append({
+            "order_id":        parts[0],
+            "user_id":         parts[1],
+            "total_amount":    _safe_float(parts[2]),
+            "delivery_slot":   parts[3],
+            "delivery_boy_id": parts[4],
+            "status":          parts[5],
+            "timestamp":       parts[6],
+            "items_string":    parts[7],
+            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
+            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
+        })
+
+    return jsonify({"status": "SUCCESS", "orders": orders})
+
+@app.route("/api/assign_agent", methods=["POST"])
+def api_assign_agent():
+    """
+    POST /api/assign_agent
+    Body: { "order_id": "ORD107", "boy_id": "D003" }
+
+    Delegates to: ./delivery assign_agent <order_id> <boy_id>
+    Returns: { "status": "SUCCESS", "message": "Agent assigned" }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    data     = request.get_json(silent=True) or {}
+    order_id = data.get("order_id", "").strip()
+    boy_id   = data.get("boy_id",   "").strip()
+
+    if not order_id or not boy_id:
+        return jsonify({"status": "ERROR", "message": "order_id and boy_id are required"})
+
+    result = run_c_binary("delivery", ["assign_agent", order_id, boy_id])
+    return jsonify({
+        "status":  result["status"],
+        "message": result.get("data", "")
+    })
+
+# ─────────────────────────────────────────────────────────────
+# NOTE FOR BRIDGE.PY:
+# ─────────────────────────────────────────────────────────────
+# The run_c_binary() function in bridge.py must return both
+# result["data"] (the part after "SUCCESS|" or "ERROR|")
+# AND result["raw_output"] (the complete stdout string).
+#
+# If your current bridge.py does not include "raw_output",
+# add this to the return dict in run_c_binary():
+#
+#   return {
+#       "status":     parts[0],
+#       "data":       "|".join(parts[1:]),
+#       "raw_output": output   # <-- ADD THIS LINE
+#   }
+#
+# This lets Flask parse multi-line output (used by list_products,
+# view_cart, get_orders, admin_orders).
+# ─────────────────────────────────────────────────────────────
 
 
 # =============================================================
@@ -506,7 +805,10 @@ if __name__ == "__main__":
     # USE WHEN: College demo, professor review, team testing.
     # ══════════════════════════════════════════════════════════
 
-    # LAUNCH MODE
+
+    """
+    === LAUNCH MODE ===
+    """
 
     # UNCOMMENT for Version A (Local)
     # HOST = "127.0.0.1"   
@@ -551,30 +853,37 @@ if __name__ == "__main__":
         except:
             return "127.0.0.1"    
 
+    LOCAL_IP = get_local_ip()
     # ─────────────────────────────────────────────────────────
     # START-UP BANNER
     # Clearly shows which mode is active and connection details.
     # ─────────────────────────────────────────────────────────
     print()
-    print("=" * 56)
-    print("  FreshPicks - Secure Server (HTTPS)")
-    print("  Team: CodeCrafters | SDP-1")
-    print("=" * 56)
-
-    if HOST == "127.0.0.1":
-        print("  Mode :  VERSION A - Local Testing Only")
-        print(f"  URL  :  https://localhost:{PORT}")
-        print(f"  URL  :  https://127.0.0.1:{PORT}")
-        print("  Note :  Not visible to other devices on the network.")
-    else:
-        print("  Mode :  VERSION B - Demo / Wi-Fi Mode (INADDR_ANY)")
-        print(f"  Local:  https://localhost:{PORT}")
-        print(f"  Wi-Fi:  https://{get_local_ip()}:{PORT}")
-
+    print("=" * 62)
+    print("  FreshPicks  |  CodeCrafters  |  SDP-1  |  HTTPS Server")
+    print("=" * 62)
     print()
-    print("  Browser shows a warning? That is normal.")
-    print(f"  Click: Advanced -> Proceed to <address> (unsafe)")
-    print("=" * 56)
+    if HOST == "127.0.0.1":
+        print("  Mode        :  VERSION A  (Local only)")
+        print(f"  Home         :  https://localhost:{PORT}/")
+        print(f"  Admin Portal :  https://localhost:{PORT}/login/admin")
+        print(f"  User Portal  :  https://localhost:{PORT}/login/user")
+        print()
+        print("  Not visible to other devices on this network.")
+    else:
+        print("  Mode        :  VERSION B  (Wi-Fi / Demo Mode)")
+        print()
+        print(f"  Home         :  https://{LOCAL_IP}:{PORT}/")
+        print(f"  Admin Portal :  https://{LOCAL_IP}:{PORT}/login/admin")  # <-- HTTPS absolute URL
+        print(f"  User Portal  :  https://{LOCAL_IP}:{PORT}/login/user")   # <-- HTTPS absolute URL
+        print()
+        print(f"  Localhost    :  https://localhost:{PORT}/")
+        print()
+        print("  Share the Wi-Fi URLs above with teammates.")
+        print("  Each device: Advanced -> Proceed (accept self-signed cert).")
+    print()
+    print("  Browser shows 'Not private'? That is expected (self-signed cert).")
+    print("=" * 62)
     print()
 
     # ─────────────────────────────────────────────────────────

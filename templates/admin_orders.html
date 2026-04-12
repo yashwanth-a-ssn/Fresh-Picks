@@ -1,0 +1,728 @@
+{% extends "base.html" %}
+
+{#
+  admin_orders.html — Fresh Picks: Admin Order Management (Session 6 Refactor)
+  =============================================================================
+  Changes from Session 5:
+    ✔ JIT Banner removed entirely
+    ✔ Flex card layout (horizontal 2-row, no inline item pills)
+    ✔ "View Items" button → Modal with invoice table (PRODUCT|RATE|QTY|AMOUNT)
+    ✔ Cancel button: visible only on "Order Placed"; SweetAlert2 → OTP → cancel
+    ✔ Delivered fade-out: exactly 1 second
+    ✔ PDF via centralized receipt.js (no DOM clone; strict inline hex)
+    ✔ All JS template literals wrapped in {% raw %} ... {% endraw %}
+
+  Team: CodeCrafters | SDP-1
+#}
+
+{% block title %}Admin — Orders | Fresh Picks{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+    {# ── Quick Nav ── #}
+    <div class="admin-quick-nav mb-4 fade-in">
+        <a href="/admin_dash"      class="admin-nav-link">
+            <i class="bi bi-speedometer2 me-1"></i>Dashboard
+        </a>
+        <a href="/admin_inventory" class="admin-nav-link">
+            <i class="bi bi-box-seam me-1"></i>Inventory
+        </a>
+        <a href="/admin_orders"    class="admin-nav-link active">
+            <i class="bi bi-receipt me-1"></i>Orders
+        </a>
+        <a href="/logout"          class="admin-nav-link admin-nav-logout">
+            <i class="bi bi-box-arrow-right me-1"></i>Logout
+        </a>
+    </div>
+
+    {# ── Page Header ── #}
+    <div class="welcome-banner fade-in mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+                <h2>
+                    <i class="bi bi-boxes me-2" style="color:var(--accent);"></i>
+                    All Orders
+                </h2>
+                <p class="mb-0" id="statusMsg"
+                   style="color:var(--text-muted); font-size:0.85rem;">
+                    Loading orders…
+                </p>
+            </div>
+            <span class="clock-badge" id="clockBadge">
+                <i class="bi bi-clock me-1"></i>
+                <span id="clockDisplay">--:--:--</span>
+            </span>
+        </div>
+    </div>
+
+    {# ── Order Cards Container ── #}
+    <div id="ordersContainer" class="row g-3">
+        <div class="col-12 text-center py-5" id="loadingPlaceholder">
+            <span class="spinner-sm"></span>
+            <span class="text-muted ms-2">Fetching orders…</span>
+        </div>
+    </div>
+
+</div>
+
+{# ════════════════════════════════════════════════════════════════
+   VIEW ITEMS MODAL
+   Populated by JS when "View Items" is clicked.
+   Uses the standard invoice format: PRODUCT | RATE | QTY | AMOUNT
+════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="itemsModal" tabindex="-1"
+     aria-labelledby="itemsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content"
+             style="background:var(--bg-surface); border:1px solid var(--border-color);">
+            <div class="modal-header"
+                 style="border-bottom:1px solid var(--border-color);">
+                <h5 class="modal-title text-bright" id="itemsModalLabel">
+                    <i class="bi bi-receipt me-2" style="color:var(--accent);"></i>
+                    Order Items
+                </h5>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="itemsModalBody">
+                {# Populated by buildItemsTable() #}
+            </div>
+            <div class="modal-footer"
+                 style="border-top:1px solid var(--border-color);">
+                <button class="btn btn-sm btn-action btn-dispatch"
+                        data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ════════════════════════════════════════════════════════════════
+   OTP CANCELLATION MODAL
+   Shown as the second step of the cancel flow (after SweetAlert2 warn).
+════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="otpModal" tabindex="-1"
+     aria-labelledby="otpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+        <div class="modal-content"
+             style="background:var(--bg-surface); border:1px solid var(--border-color);">
+            <div class="modal-header"
+                 style="border-bottom:1px solid var(--border-color);">
+                <h5 class="modal-title text-bright" id="otpModalLabel">
+                    <i class="bi bi-shield-lock me-2" style="color:var(--danger);"></i>
+                    Confirm Cancellation
+                </h5>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted" style="font-size:0.85rem;">
+                    <strong style="color:var(--danger);">Cancellation Notice:</strong><br>
+                    A cancellation fee of <strong>₹50</strong> will be deducted from
+                    your paid amount. The remaining balance will be refunded to your
+                    original payment method within 2–3 working days. An email
+                    confirmation will be sent shortly.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label text-muted"
+                           style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">
+                        Admin Cancellation OTP
+                    </label>
+                    <input type="text" id="otpInput" class="form-control"
+                           placeholder="0000" maxlength="6"
+                           style="background:var(--bg-elevated); color:var(--text-bright);
+                                  border:1px solid var(--border-color); font-family:var(--font-mono);
+                                  letter-spacing:0.2em; font-size:1.2rem; text-align:center;">
+                    <div id="otpError" class="mt-1"
+                         style="color:var(--danger); font-size:0.78rem; display:none;">
+                        Incorrect OTP. Please try again.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer"
+                 style="border-top:1px solid var(--border-color);">
+                <button class="btn btn-sm btn-action"
+                        style="background:var(--bg-elevated);"
+                        data-bs-dismiss="modal">Back</button>
+                <button class="btn btn-sm btn-action"
+                        style="background:var(--danger); color:#fff; border:none;"
+                        id="otpConfirmBtn"
+                        onclick="confirmCancelWithOtp()">
+                    <i class="bi bi-x-circle me-1"></i>Confirm Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_scripts %}
+
+<style>
+/* ── Shared Invoice Modal Table (mirrors Invoice Preview exactly) ──
+   Used by openItemsModal() in both user_orders.html and admin_orders.html.
+   Add to base.html or to each file's <style> block. */
+.fp-invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.fp-invoice-table thead tr {
+    background: var(--accent, #007acc);
+}
+.fp-invoice-table thead th {
+    padding: 9px 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.fp-invoice-table thead th:not(:first-child) { text-align: right; }
+.fp-invoice-table tbody tr:nth-child(even) { background: var(--bg-elevated); }
+.fp-invoice-table tbody tr:nth-child(odd)  { background: var(--bg-surface);  }
+.fp-invoice-table tbody td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.85rem;
+    color: var(--text-bright);
+    vertical-align: middle;
+}
+.fp-invoice-table tbody td:not(:first-child) { text-align: right; }
+.fp-invoice-table tfoot td {
+    padding: 10px 12px;
+    border-top: 2px solid var(--border-color);
+    font-size: 0.88rem;
+}
+.fp-invoice-badge-free {
+    display: inline-block;
+    font-size: 0.62rem; font-weight: 700;
+    color: #28a745;
+    background: rgba(40,167,69,0.12);
+    border: 1px solid rgba(40,167,69,0.3);
+    border-radius: 3px;
+    padding: 1px 5px; margin-left: 5px;
+    vertical-align: middle; line-height: 1.4;
+}
+</style>
+
+{# html2pdf.js loaded before receipt.js #}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        crossorigin="anonymous"></script>
+<script src="/static/js/receipt.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   ADMIN ORDERS CONTROLLER — Session 6 Refactor
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Live Clock ──────────────────────────────────────────────────────── */
+function startClock() {
+    const tick = () => {
+        document.getElementById("clockDisplay").textContent =
+            new Date().toLocaleTimeString("en-IN", { hour12: false });
+    };
+    tick();
+    setInterval(tick, 1000);
+}
+
+/* ─── Global state for cancel flow ───────────────────────────────────── */
+let _pendingCancelOrderId = null;
+
+const _adminOrderMap = new Map();
+
+{% raw %}
+/* ─── CSS class maps ─────────────────────────────────────────────────── */
+const SLOT_CLASS = {
+    "Morning":   "slot-morning",
+    "Afternoon": "slot-afternoon",
+    "Evening":   "slot-evening"
+};
+
+const STATUS_BADGE = {
+    "Order Placed":     "badge-status-placed",
+    "Out for Delivery": "badge-status-out-delivery",
+    "Delivered":        "badge-status-delivered",
+    "Cancelled":        "badge-status-cancelled"
+};
+
+const STATUS_CSS = {
+    "Order Placed":     "status-placed",
+    "Out for Delivery": "status-out-delivery",
+    "Delivered":        "status-delivered",
+    "Cancelled":        "status-cancelled"
+};
+
+/* ─── ITEMS PARSER (4-part format) ─────────────────────────────────── */
+function parseItems(itemsString) {
+    if (!itemsString) return [];
+    return itemsString.split(",").filter(Boolean).map(entry => {
+        const parts = entry.trim().split(":");
+        let id, name, qty, price;
+        if (parts.length >= 4) {
+            [id, name, qty, price] = parts;
+        } else if (parts.length === 3) {
+            [id, qty, price] = parts;
+            name = id;
+        } else return null;
+        const qtyNum   = parseInt(qty) || 0;
+        const priceNum = parseFloat(price) || 0;
+        const isFree   = priceNum === 0;
+        const qtyLabel = qtyNum >= 1000 ? `${(qtyNum/1000).toFixed(2)} kg` : `${qtyNum} g`;
+        const amount   = isFree ? 0 : (qtyNum / 1000) * priceNum;
+        return { id, name: name || id, qty: qtyLabel, priceNum, amount, isFree };
+    }).filter(Boolean);
+}
+{% endraw %}
+
+/* ─── VIEW ITEMS MODAL ─────────────────────────────────────────────── */
+{% raw %}
+/* ─── VIEW ITEMS MODAL (FIXED) ───────────────────────────────────────
+   Exact mirror of Invoice Preview: PRODUCT | RATE | QTY | AMOUNT
+   Uses fp-invoice-table CSS class for consistent styling.
+   parseItems() is already correct in admin_orders.html — no change needed.
+   ─────────────────────────────────────────────────────────────────── */
+function openItemsModal(orderId, itemsString, total) {
+    const items = parseItems(itemsString);   /* parseItems() already in admin_orders.html */
+
+    const rows = items.length > 0
+        ? items.map(it => `
+            <tr>
+                <td>
+                    ${it.name}
+                    ${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : ""}
+                </td>
+                <td style="font-family:var(--font-mono); color:var(--text-muted);">
+                    ${it.isFree ? "&mdash;" : `₹${it.priceNum.toFixed(2)}/kg`}
+                </td>
+                <td style="font-family:var(--font-mono);">${it.qty}</td>
+                <td style="font-family:var(--font-mono);
+                           color:${it.isFree ? "var(--success)" : "var(--text-bright)"};">
+                    ${it.isFree ? "₹0.00" : `₹${it.amount.toFixed(2)}`}
+                </td>
+            </tr>`).join("")
+        : `<tr><td colspan="4"
+                  style="text-align:center; color:var(--text-muted); padding:14px;">
+               No items found.
+           </td></tr>`;
+
+    document.getElementById("itemsModalLabel").innerHTML =
+        `<i class="bi bi-receipt me-2" style="color:var(--accent);"></i>Items — ${orderId}`;
+
+    document.getElementById("itemsModalBody").innerHTML = `
+        <div class="table-responsive">
+            <table class="fp-invoice-table">
+                <thead>
+                    <tr>
+                        <th style="width:40%; text-align:left;">Product</th>
+                        <th style="width:20%;">Rate</th>
+                        <th style="width:15%;">Qty</th>
+                        <th style="width:25%;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" style="text-align:right; color:var(--text-muted);
+                                               font-size:0.82rem;">Grand Total</td>
+                        <td style="text-align:right; color:var(--accent); font-weight:700;
+                                   font-family:var(--font-mono); font-size:1rem;">
+                            ₹${parseFloat(total).toFixed(2)}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>`;
+
+    new bootstrap.Modal(document.getElementById("itemsModal")).show();
+}
+{% endraw %}
+
+{% raw %}
+/* ─── CANCEL FLOW — Step 1: SweetAlert2-style warning ─────────────── */
+/* We use a lightweight Bootstrap Modal as SweetAlert2 may not be loaded.
+   To use SweetAlert2 instead, replace the confirm() with Swal.fire(). */
+function initiateCancelOrder(orderId) {
+    _pendingCancelOrderId = orderId;
+
+    // Use native confirm as a guard (swap for Swal.fire if available)
+    const proceed = confirm(
+        `⚠ Cancel Order ${orderId}?\n\n` +
+        `A cancellation fee of ₹50 will be deducted from your paid amount.\n` +
+        `The remaining balance will be refunded within 2–3 working days.\n\n` +
+        `Proceed to enter the Admin OTP?`
+    );
+    if (!proceed) {
+        _pendingCancelOrderId = null;
+        return;
+    }
+
+    /* ─── Step 2: Show OTP modal ─── */
+    const otpInput = document.getElementById("otpInput");
+    const otpError = document.getElementById("otpError");
+    otpInput.value = "";
+    otpError.style.display = "none";
+    new bootstrap.Modal(document.getElementById("otpModal")).show();
+}
+
+async function confirmCancelWithOtp() {
+    const otp = document.getElementById("otpInput").value.trim();
+    const otpError = document.getElementById("otpError");
+
+    /* Demo OTP: 0000 — replace with a server-side OTP check in production */
+    if (otp !== "0000") {
+        otpError.style.display = "block";
+        return;
+    }
+    otpError.style.display = "none";
+
+    const orderId = _pendingCancelOrderId;
+    if (!orderId) return;
+
+    /* Close OTP modal */
+    bootstrap.Modal.getInstance(document.getElementById("otpModal"))?.hide();
+
+    try {
+        const res  = await fetch("/api/cancel_order", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            /* Update card UI to Cancelled */
+            const cardEl = document.getElementById(`card-${orderId}`);
+            if (cardEl) {
+                const header = cardEl.querySelector(".card-header");
+                if (header) {
+                    header.className = header.className.replace(
+                        /status-\w+(-\w+)?/g, "status-cancelled"
+                    );
+                }
+                /* Update badge */
+                const badge = cardEl.querySelector("[class*='badge-status-']");
+                if (badge) {
+                    badge.className = "badge rounded-pill badge-status-cancelled";
+                    badge.textContent = "Cancelled";
+                }
+                /* Hide action buttons */
+                cardEl.querySelectorAll(".btn-cancel-order").forEach(b => b.style.display = "none");
+                cardEl.querySelectorAll(".btn-dispatch, .btn-deliver").forEach(b => {
+                    b.disabled = true;
+                });
+            }
+        } else {
+            alert(`Cancel failed: ${data.message}`);
+        }
+    } catch (err) {
+        console.error("Cancel order error:", err);
+        alert("Network error while cancelling order.");
+    }
+
+    _pendingCancelOrderId = null;
+}
+
+/* ─── BUILD ORDER CARD ──────────────────────────────────────────────── */
+function buildOrderCard(order) {
+
+    const col     = document.createElement("div");
+    col.className = "col-md-6 order-card fade-in";
+    col.id        = `card-${order.order_id}`;
+
+    const slotClass   = SLOT_CLASS[order.delivery_slot]    ?? "slot-evening";
+    const statusCss   = STATUS_CSS[order.status]            ?? "status-placed";
+    const statusBadge = STATUS_BADGE[order.status]          ?? "badge-status-placed";
+    const pdfDate     = (order.timestamp || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+    const canDispatch = order.status === "Order Placed";
+    const canDeliver  = order.status === "Out for Delivery";
+    /* Cancel is STRICTLY only for "Order Placed" */
+    const canCancel   = order.status === "Order Placed";
+
+    col.innerHTML = `
+        <div class="card h-100">
+
+            <!-- Card Header -->
+            <div class="card-header d-flex justify-content-between align-items-center ${statusCss}">
+                <span class="d-flex align-items-center gap-2">
+                    <span class="status-dot"></span>
+                    <strong class="text-bright"
+                            style="font-family:var(--font-mono);">${order.order_id}</strong>
+                    <span class="badge rounded-pill ${statusBadge}">${order.status}</span>
+                </span>
+                <span class="badge rounded-pill ${slotClass}">
+                    <i class="bi bi-clock me-1"></i>${order.delivery_slot}
+                </span>
+            </div>
+
+            <!-- Card Body — Row 1: Meta info -->
+            <div class="card-body pb-2">
+                <div class="d-flex justify-content-between flex-wrap gap-3 mb-3">
+
+                    <!-- Customer -->
+                    <div>
+                        <div class="profile-field-label">Customer</div>
+                        <div class="text-bright" style="font-size:0.9rem;">
+                            <i class="bi bi-person me-1" style="color:var(--accent);"></i>
+                            ${order.user_id}
+                        </div>
+                    </div>
+
+                    <!-- Delivery Agent -->
+                    <div>
+                        <div class="profile-field-label">Delivery Agent</div>
+                        <div class="text-bright" style="font-size:0.9rem;">
+                            <i class="bi bi-bicycle me-1" style="color:var(--accent);"></i>
+                            ${order.boy_name || "Unassigned"}
+                            ${order.boy_phone
+                                ? `<small class="text-muted ms-1">(${order.boy_phone})</small>`
+                                : ""}
+                        </div>
+                    </div>
+
+                    <!-- Total -->
+                    <div>
+                        <div class="profile-field-label">Total</div>
+                        <div class="order-total">
+                            ₹${parseFloat(order.total_amount).toFixed(2)}
+                        </div>
+                    </div>
+
+                    <!-- Timestamp -->
+                    <div>
+                        <div class="profile-field-label">Placed At</div>
+                        <div class="order-timestamp">${order.timestamp || "—"}</div>
+                    </div>
+
+            <!-- Action Buttons — inline under details, no separator -->
+                <div class="action-row d-flex flex-wrap gap-2 mt-2">
+
+                    <!-- View Items -->
+                    <button class="btn btn-sm btn-action btn-dispatch"
+                            onclick="openItemsModal('${order.order_id}',
+                                                    '${(order.items_string || "").replace(/'/g, "\\'")}',
+                                                    '${order.total_amount}')">
+                        <i class="bi bi-list-ul me-1"></i>View Items
+                    </button>
+
+                    <!-- Out for Delivery -->
+                    <button class="btn btn-sm btn-action btn-dispatch"
+                            id="btn-dispatch-${order.order_id}"
+                            ${canDispatch ? "" : "disabled"}
+                            onclick="updateStatus('${order.order_id}', 'Out for Delivery', this)">
+                        <i class="bi bi-truck me-1"></i>Dispatch
+                    </button>
+
+                    <!-- Delivered -->
+                    <button class="btn btn-sm btn-action btn-deliver btn-delivered"
+                            id="btn-deliver-${order.order_id}"
+                            ${canDeliver ? "" : "disabled"}
+                            onclick="markDelivered('${order.order_id}', this)">
+                        <i class="bi bi-check-circle me-1"></i>Delivered
+                    </button>
+
+                    <!-- Cancel — STRICTLY only when "Order Placed" -->
+                    <button class="btn btn-sm btn-action btn-cancel-order"
+                            id="btn-cancel-${order.order_id}"
+                            style="background:var(--danger); color:#fff; border:none;
+                                   ${canCancel ? "" : "display:none;"}"
+                            onclick="initiateCancelOrder('${order.order_id}')">
+                        <i class="bi bi-x-circle me-1"></i>Cancel
+                    </button>
+
+                    <!-- PDF Receipt -->
+                    <button class="btn btn-sm btn-action btn-pdf"
+                            onclick="downloadReceipt('${order.order_id}')">
+                        <i class="bi bi-file-earmark-pdf me-1"></i>Receipt
+                    </button>
+
+                </div>
+            </div>
+
+        </div>`;
+
+    return col;
+}
+
+
+
+/* ─── STATUS UPDATE ─────────────────────────────────────────────────── */
+async function updateStatus(orderId, newStatus, clickedBtn) {
+    clickedBtn.disabled  = true;
+    clickedBtn.innerHTML = '<span class="spinner-sm"></span> Updating…';
+
+    try {
+        const res  = await fetch("/api/update_order_status", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId, status: newStatus })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            const cardEl = document.getElementById(`card-${orderId}`);
+            const header = cardEl?.querySelector(".card-header");
+
+            if (header) {
+                header.className = header.className.replace(
+                    /status-\w+(-\w+)?/g, STATUS_CSS[newStatus] ?? "status-out-delivery"
+                );
+            }
+            const badge = header?.querySelector("[class*='badge-status-']");
+            if (badge) {
+                badge.className   = `badge rounded-pill ${STATUS_BADGE[newStatus]}`;
+                badge.textContent = newStatus;
+            }
+
+            /* Enable Deliver button */
+            const deliverBtn = document.getElementById(`btn-deliver-${orderId}`);
+            if (deliverBtn) deliverBtn.disabled = false;
+
+            /* Hide Cancel button (order is no longer "Order Placed") */
+            const cancelBtn = document.getElementById(`btn-cancel-${orderId}`);
+            if (cancelBtn) cancelBtn.style.display = "none";
+
+            clickedBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Dispatched';
+        } else {
+            clickedBtn.disabled  = false;
+            clickedBtn.innerHTML = '<i class="bi bi-truck me-1"></i>Dispatch';
+            alert(`Error: ${data.message}`);
+        }
+    } catch (err) {
+        clickedBtn.disabled  = false;
+        clickedBtn.innerHTML = '<i class="bi bi-truck me-1"></i>Dispatch';
+        console.error(err);
+    }
+}
+
+/* ─── MARK DELIVERED (1-second fade-out per spec) ────────────────────── */
+async function markDelivered(orderId, clickedBtn) {
+    clickedBtn.disabled  = true;
+    clickedBtn.innerHTML = '<span class="spinner-sm"></span> Updating…';
+
+    try {
+        const res  = await fetch("/api/update_order_status", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ order_id: orderId, status: "Delivered" })
+        });
+        const data = await res.json();
+
+        if (data.status === "SUCCESS") {
+            clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered ✔';
+
+            const cardEl = document.getElementById(`card-${orderId}`);
+            if (cardEl) {
+                /* Exactly 1-second fade-out per spec */
+                cardEl.style.transition = "opacity 1s ease, transform 1s ease";
+                cardEl.style.opacity    = "0";
+                cardEl.style.transform  = "scale(0.97)";
+                setTimeout(() => cardEl.remove(), 1000);
+            }
+        } else {
+            clickedBtn.disabled  = false;
+            clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered';
+            alert(`Error: ${data.message}`);
+        }
+    } catch (err) {
+        clickedBtn.disabled  = false;
+        clickedBtn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Delivered';
+        console.error(err);
+    }
+}
+
+/* ─── LOAD ORDERS ────────────────────────────────────────────────────── */
+async function loadOrders() {
+    const statusMsg = document.getElementById("statusMsg");
+    const container = document.getElementById("ordersContainer");
+
+    try {
+        const res = await fetch("/api/get_admin_orders", {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    "{}"
+        });
+
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-exclamation-triangle"
+                       style="font-size:2.5rem; color:var(--danger);"></i>
+                    <p class="text-muted mt-3">
+                        API error (HTTP ${res.status}).
+                        Route <code>/api/get_admin_orders</code> may not be registered.
+                    </p>
+                </div>`;
+            document.getElementById("loadingPlaceholder")?.remove();
+            statusMsg.textContent = "Failed to load orders — API unreachable.";
+            return;
+        }
+
+        const data = await res.json();
+        document.getElementById("loadingPlaceholder")?.remove();
+
+        if (!data.orders || data.orders.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center py-5">
+                    <i class="bi bi-check-circle"
+                       style="font-size:3rem; color:var(--success);"></i>
+                    <p class="text-muted mt-3">No orders at the moment.</p>
+                </div>`;
+            statusMsg.textContent = "No orders found.";
+            return;
+        }
+
+        statusMsg.textContent =
+            `${data.orders.length} order${data.orders.length !== 1 ? "s" : ""} loaded.`;
+        data.orders.forEach(order => {
+            _adminOrderMap.set(order.order_id, order);   // ← ADD THIS
+            container.appendChild(buildOrderCard(order));
+        });
+
+
+    } catch (err) {
+        console.error("loadOrders error:", err);
+        document.getElementById("loadingPlaceholder")?.remove();
+        statusMsg.textContent = "Network error.";
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-wifi-off" style="font-size:2.5rem; color:var(--danger);"></i>
+                <p class="text-muted mt-3">${err.message}</p>
+            </div>`;
+    }
+}
+
+/* ─── PDF RECEIPT (via centralized receipt.js) ────────────────────── */
+function downloadReceipt(orderId) {
+    const order = _adminOrderMap.get(orderId);
+    if (!order) { alert("Order data not found. Please refresh."); return; }
+    generateStandardReceiptPDF({
+        orderId:      order.order_id,
+        userId:       order.user_id,
+        fullName:     order.full_name  || order.user_id,
+        userPhone:    order.user_phone || "",
+        userEmail:    order.user_email || "",
+        userAddress:  order.user_address || "",
+        date:         (order.timestamp || "").slice(0, 10),
+        timestamp:    order.timestamp  || "",
+        status:       order.status     || "Order Placed",
+        deliverySlot: order.delivery_slot || "",
+        total:        parseFloat(order.total_amount) || 0,
+        itemsString:  order.items_string || "",
+        boyName:      order.boy_name  || "",
+        boyPhone:     order.boy_phone || ""
+    });
+}
+
+{% endraw %}
+
+/* ─── PAGE INIT ─────────────────────────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", async () => {
+    startClock();
+    await loadOrders();
+});
+</script>
+{% endblock %}

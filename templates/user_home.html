@@ -37,34 +37,62 @@
     <!-- ── Navigation Cards ── -->
     <div class="row g-3 mb-4">
 
-        <!-- Browse Products Card -->
-        <div class="col-sm-6 col-lg-4">
+        <!-- Shop Card -->
+        <!-- <div class="col-sm-6 col-lg-4">
             <div class="card portal-card h-100">
                 <div class="card-body">
-                    <span class="portal-icon" style="font-size:2rem;">🥦</span>
-                    <h5 class="card-title">Browse Products</h5>
-                    <p class="card-text" style="font-size:0.85rem;">
-                        Explore fresh vegetables, fruits, and more. Coming soon!
+                <h5 class="card-title">Start Shopping</h5>
+                <p class="card-text">Browse our latest collection of fresh, farm-picked vegetables.</p>
+                <a href="/shop" class="btn btn-primary">  <i class="bi bi-basket me-2"></i>Go to Shop
+                </a>
+            </div>
+        </div> -->
+
+        <div class="col-sm-6 col-lg-4">
+            <div class="card portal-card h-100">
+                <div class="card-body text-center d-flex flex-column align-items-center justify-content-center">
+                    <span class="portal-icon" style="font-size: 2.5rem; margin-bottom: 1rem;">🛒</span>
+                    <h5 class="card-title text-bright">Start Shopping</h5>
+                    <p class="card-text text-muted" style="font-size: 0.85rem;">
+                        Browse our latest collection of fresh, farm-picked vegetables.
                     </p>
-                    <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);">
-                        Coming Soon
-                    </span>
+                    <a href="/shop" class="btn btn-primary w-100 mt-2">
+                        <i class="bi bi-basket me-2"></i>Go to Shop
+                    </a>
                 </div>
             </div>
         </div>
 
         <!-- My Orders Card -->
         <div class="col-sm-6 col-lg-4">
-            <div class="card portal-card h-100">
+            {#
+            The entire card is now clickable (onclick + role="button").
+            This mirrors the existing "My Profile" card pattern in user_home.html.
+            #}
+            <div class="card portal-card h-100"
+                onclick="window.location.href='/user_orders'"
+                role="button"
+                tabindex="0">
                 <div class="card-body">
-                    <span class="portal-icon" style="font-size:2rem;">📋</span>
+                    {# Order box icon — replaced emoji with a delivery-themed one #}
+                    <span class="portal-icon" style="font-size:2rem;">📦</span>
+
                     <h5 class="card-title">My Orders</h5>
+
                     <p class="card-text" style="font-size:0.85rem;">
-                        Track your current and past orders. Coming soon!
+                        View and track all your past and current orders.
+                        Download receipts anytime.
                     </p>
-                    <span class="badge" style="background:var(--bg-elevated);color:var(--text-muted);">
-                        Coming Soon
-                    </span>
+
+                    {#
+                    Active button — stop propagation so clicking the button
+                    doesn't double-fire the card's onclick.
+                    #}
+                    <a href="/user_orders"
+                    class="btn btn-primary btn-sm mt-2"
+                    onclick="event.stopPropagation()">
+                        <i class="bi bi-arrow-right me-1"></i>View My Orders
+                    </a>
                 </div>
             </div>
         </div>
@@ -208,47 +236,26 @@
 
 {% block extra_scripts %}
 <script>
-    /*
-     * USER HOME JAVASCRIPT (v2)
-     * ==========================
-     * Reads basic info from localStorage (username, user_id),
-     * then calls /api/get_profile to fetch live data (full_name, email).
-     */
-
-    /* Step 1: Display data from localStorage immediately (fast) */
-    (function loadLocalInfo() {
-        const username = localStorage.getItem("username") || "User";
-        const userId   = localStorage.getItem("user_id")  || "—";
-
-        document.getElementById("userDisplay").textContent     = username;
-        document.getElementById("summaryUsername").textContent = username;
-        document.getElementById("summaryUserId").textContent   = userId;
-    })();
-
-    /*
-     * Step 2: Fetch live profile data from the API (to get full_name + email).
-     * This runs after the page loads and fills in the remaining fields.
-     */
     (async function loadLiveProfile() {
         try {
             const response = await fetch("/api/get_profile", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
-                body:    JSON.stringify({}) /* Server reads user_id from session */
+                body:    JSON.stringify({})
             });
 
             const result = await response.json();
 
             if (result.status === "SUCCESS") {
-                /* Populate Full Name, Phone, and Email from the live database */
+                /* Fix: get User ID from API, same as profile.html does */
+                document.getElementById("summaryUserId").textContent   = result.user_id  || "—";
+
                 document.getElementById("summaryFullName").textContent = result.full_name || "—";
                 document.getElementById("summaryPhone").textContent    = result.phone     || "—";
                 document.getElementById("summaryEmail").textContent    = result.email     || "—";
             }
-            /* If it fails silently, the fields just remain "—" — no error shown */
 
         } catch (err) {
-            /* Network error — silently fail, user still sees localStorage data */
             console.warn("Could not load live profile:", err);
         }
     })();

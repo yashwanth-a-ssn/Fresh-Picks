@@ -98,7 +98,7 @@ def run_c_binary(executable_name, args_list):
         # Expected format: "STATUS|data" e.g. "SUCCESS|U001"
         if "|" in raw_output:
             # Split only on the FIRST '|' to allow '|' in data fields
-            parts = raw_output.split("|", 1)
+            parts  = raw_output.split("|", 1)
             status = parts[0]  # "SUCCESS" or "ERROR"
             data   = parts[1]  # Everything after the first |
         else:
@@ -108,31 +108,31 @@ def run_c_binary(executable_name, args_list):
 
         # Step 6: Return the structured result
         return {
-            "status": status,
-            "data":   data,
-            "raw":    raw_output
+            "status":     status,
+            "data":       data,
+            "raw_output": raw_output 
         }
 
     except FileNotFoundError:
         # The binary doesn't exist — forgot to compile?
         return {
-            "status": "ERROR",
-            "data":   f"Binary '{executable_name}' not found. Did you run build.sh?",
-            "raw":    ""
+            "status":     "ERROR",
+            "data":       f"Binary '{executable_name}' not found. Did you run build.sh?",
+            "raw_output": ""
         }
 
     except subprocess.TimeoutExpired:
         # The binary took too long — something is wrong
         return {
-            "status": "ERROR",
-            "data":   "Binary execution timed out",
-            "raw":    ""
+            "status":     "ERROR",
+            "data":       "Binary execution timed out",
+            "raw_output": ""
         }
 
     except Exception as e:
         # Catch-all for any other unexpected errors
         return {
-            "status": "ERROR",
-            "data":   f"Unexpected error: {str(e)}",
-            "raw":    ""
+            "status":     "ERROR",
+            "data":       f"Unexpected error: {str(e)}",
+            "raw_output": ""
         }
