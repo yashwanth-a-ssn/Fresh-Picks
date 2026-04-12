@@ -257,7 +257,7 @@ function _buildReceiptHTML(orderData) {
 
     /* ── 2. THREE-COLUMN META ROW ────────────────────────────────── */
     var metaRowHTML = [
-        '<table style="width:100%; border-collapse:collapse;">',
+        '<table style="width:100%; border-collapse:collapse; page-break-inside:avoid;">',
         '  <tr>',
         /* BILL TO */
         '    <td style="vertical-align:top; padding:14px 20px 14px 0;',
@@ -358,7 +358,7 @@ function _buildReceiptHTML(orderData) {
     if (items.length > 0) {
         itemRows = items.map(function(it, idx) {
             return [
-                '<tr style="background:' + (idx % 2 === 0 ? "#ffffff" : "#f5f9fd") + ';">',
+                '<tr style="background:' + (idx % 2 === 0 ? "#ffffff" : "#f5f9fd") + '; page-break-inside:avoid;">',
                 '  <td style="padding:9px 10px; text-align:center; font-size:12px;',
                 '             color:#6b8faa; border-bottom:1px solid #cde0f0; width:5%;">',
                 '    ' + (idx + 1),
@@ -423,7 +423,7 @@ function _buildReceiptHTML(orderData) {
         agentHTML,
 
         /* Items table */
-        '<table style="width:100%; border-collapse:collapse; border:1px solid #cde0f0;',
+        '<table style="width:100%; border-collapse:collapse; border:1px solid #cde0f0; page-break-inside:auto;',
         '              margin-top:6px;">',
         '  <thead>',
         '    <tr style="background:#007acc;">',
@@ -450,7 +450,7 @@ function _buildReceiptHTML(orderData) {
         '</table>',
 
         /* Totals */
-        '<div style="border-top:1px solid #cde0f0; margin-top:8px; padding-top:2px;">',
+        '<div class="avoid-break" style="border-top:1px solid #cde0f0; margin-top:8px; padding-top:2px;">',
         '<table style="width:100%; border-collapse:collapse;">',
         '  <tr>',
         '    <td style="padding:8px 12px; font-size:13px; color:#6b8faa;',
@@ -540,7 +540,7 @@ async function generateStandardReceiptPDF(orderData) {
     var wrapper = document.createElement("div");
     wrapper.style.cssText = [
         "position:absolute",
-        "top:0",
+        "top:-99999px",
         "left:-9999px",
         "width:210mm",
         "background:#ffffff",
@@ -560,11 +560,12 @@ async function generateStandardReceiptPDF(orderData) {
     });
 
     var opt = {
-        margin:      [10, 10, 10, 10],
+        margin:      [8, 8, 8, 8],
         filename:    filename,
         image:       { type: "jpeg", quality: 0.99 },
+        pagebreak:   { mode: "css", avoid: ".avoid-break" },
         html2canvas: {
-            scale:           3,
+            scale:           2,
             useCORS:         true,
             backgroundColor: "#ffffff",
             logging:         false

@@ -230,6 +230,7 @@ function startClock() {
 /* ─── Global state for cancel flow ───────────────────────────────────── */
 let _pendingCancelOrderId = null;
 
+const _adminOrderMap = new Map();
 
 {% raw %}
 /* ─── CSS class maps ─────────────────────────────────────────────────── */
@@ -538,7 +539,7 @@ function buildOrderCard(order) {
 
                     <!-- PDF Receipt -->
                     <button class="btn btn-sm btn-action btn-pdf"
-                            onclick="downloadReceipt(${JSON.stringify(order).replace(/</g,'\\u003c')})">
+                            onclick="downloadReceipt('${order.order_id}')">
                         <i class="bi bi-file-earmark-pdf me-1"></i>Receipt
                     </button>
 
@@ -550,21 +551,7 @@ function buildOrderCard(order) {
     return col;
 }
 
-/* ─── PDF RECEIPT (via centralized receipt.js) ────────────────────── */
-function downloadReceipt(order) {
-    generateStandardReceiptPDF({
-        orderId:      order.order_id,
-        userId:       order.user_id,
-        date:         (order.timestamp || "").slice(0, 10),
-        timestamp:    order.timestamp,
-        status:       order.status,
-        deliverySlot: order.delivery_slot,
-        total:        order.total_amount,
-        itemsString:  order.items_string,
-        boyName:      order.boy_name,
-        boyPhone:     order.boy_phone
-    });
-}
+
 
 /* ─── STATUS UPDATE ─────────────────────────────────────────────────── */
 async function updateStatus(orderId, newStatus, clickedBtn) {
@@ -695,7 +682,11 @@ async function loadOrders() {
 
         statusMsg.textContent =
             `${data.orders.length} order${data.orders.length !== 1 ? "s" : ""} loaded.`;
-        data.orders.forEach(order => container.appendChild(buildOrderCard(order)));
+        data.orders.forEach(order => {
+            _adminOrderMap.set(order.order_id, order);   // ← ADD THIS
+            container.appendChild(buildOrderCard(order));
+        });
+
 
     } catch (err) {
         console.error("loadOrders error:", err);
@@ -708,6 +699,29 @@ async function loadOrders() {
             </div>`;
     }
 }
+
+/* ─── PDF RECEIPT (via centralized receipt.js) ────────────────────── */
+function downloadReceipt(orderId) {
+    const order = _adminOrderMap.get(orderId);
+    if (!order) { alert("Order data not found. Please refresh."); return; }
+    generateStandardReceiptPDF({
+        orderId:      order.order_id,
+        userId:       order.user_id,
+        fullName:     order.full_name  || order.user_id,
+        userPhone:    order.user_phone || "",
+        userEmail:    order.user_email || "",
+        userAddress:  order.user_address || "",
+        date:         (order.timestamp || "").slice(0, 10),
+        timestamp:    order.timestamp  || "",
+        status:       order.status     || "Order Placed",
+        deliverySlot: order.delivery_slot || "",
+        total:        parseFloat(order.total_amount) || 0,
+        itemsString:  order.items_string || "",
+        boyName:      order.boy_name  || "",
+        boyPhone:     order.boy_phone || ""
+    });
+}
+
 {% endraw %}
 
 /* ─── PAGE INIT ─────────────────────────────────────────────────────── */

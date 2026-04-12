@@ -1154,52 +1154,7 @@ function renderReceipt(result) {
 }
 {% endraw %}
 
-/* ─────────────────────────────────────────────────────────────────
-   downloadReceiptAsPDF — now uses the unified receipt.js engine.
-   Builds orderData from checkoutResult + in-memory cartItems + _profile.
-   cartItems is still alive in memory when the user clicks Download
-   because cart.html is a single-page state machine — no navigation occurs.
-───────────────────────────────────────────────────────────────── */
-{% raw %}
-function downloadReceiptAsPDF() {
-    if (!checkoutResult || !checkoutResult.order_id) {
-        showToast("No order found. Please complete checkout first.", "danger");
-        return;
-    }
 
-    /*  Build items_string in canonical 4-part format from in-memory cartItems.
-        cartItems is still live at this point (single-page state machine).
-        Format: veg_id:name:qty_g:price_per_1000g  (comma-separated)        */
-    const itemsString = cartItems.map(item => {
-        const safeName = (item.name || item.veg_id).replace(/[:,]/g, " ");
-        return `${item.veg_id}:${safeName}:${item.qty_g}:${item.price_per_1000g || 0}`;
-    }).join(",");
-
-    const dateStr = new Date().toISOString().slice(0, 10);
-
-    /*  currentOrderData — full shape required by generateStandardReceiptPDF.
-        userAddress is the raw 4-part comma-separated string from the profile
-        ("door,street,area,pincode"). receipt.js will split and render it.    */
-    const currentOrderData = {
-        orderId:      checkoutResult.order_id,
-        userId:       _profile.username   || "Customer",
-        fullName:     _customerDisplay(),
-        userPhone:    _profile.phone      || "",
-        userEmail:    _profile.email      || "",
-        userAddress:  _profile.address    || "",   /* raw: "door,street,area,pin" */
-        date:         dateStr,
-        timestamp:    checkoutResult.timestamp || dateStr,
-        status:       "Order Placed",
-        deliverySlot: checkoutResult.slot      || "",
-        total:        parseFloat(checkoutResult.total) || 0,
-        itemsString:  itemsString,
-        boyName:      checkoutResult.boy_name  || "",
-        boyPhone:     checkoutResult.boy_phone || ""
-    };
-
-    generateStandardReceiptPDF(currentOrderData);
-}
-{% endraw %}
 
 /* ─────────────────────────────────────────────────────────────────
    FIX 4: CANCEL FLOW — in-page modal instead of confirm()
@@ -1260,6 +1215,50 @@ function showToast(message, type = "info", duration = 4000) {
         setTimeout(() => toast.remove(), 350);
     }, duration);
 }
+
+/* ─────────────────────────────────────────────────────────────────
+   downloadReceiptAsPDF — now uses the unified receipt.js engine.
+   Builds orderData from checkoutResult + in-memory cartItems + _profile.
+   cartItems is still alive in memory when the user clicks Download
+   because cart.html is a single-page state machine — no navigation occurs.
+───────────────────────────────────────────────────────────────── */
+{% raw %}
+function downloadReceiptAsPDF() {
+    if (!checkoutResult || !checkoutResult.order_id) {
+        showToast("No order found. Please complete checkout first.", "danger");
+        return;
+    }
+
+    /*  Build items_string in canonical 4-part format from in-memory cartItems.
+        cartItems is still live at this point (single-page state machine).
+        Format: veg_id:name:qty_g:price_per_1000g  (comma-separated)        */
+    const itemsString = checkoutResult.items_string || "";
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    /*  currentOrderData — full shape required by generateStandardReceiptPDF.
+        userAddress is the raw 4-part comma-separated string from the profile
+        ("door,street,area,pincode"). receipt.js will split and render it.    */
+    const currentOrderData = {
+        orderId:      checkoutResult.order_id,
+        userId:       _profile.username   || "Customer",
+        fullName:     _customerDisplay(),
+        userPhone:    _profile.phone      || "",
+        userEmail:    _profile.email      || "",
+        userAddress:  _profile.address    || "",   /* raw: "door,street,area,pin" */
+        date:         dateStr,
+        timestamp:    checkoutResult.timestamp || dateStr,
+        status:       "Order Placed",
+        deliverySlot: checkoutResult.slot      || "",
+        total:        parseFloat(checkoutResult.total) || 0,
+        itemsString:  itemsString,
+        boyName:      checkoutResult.boy_name  || "",
+        boyPhone:     checkoutResult.boy_phone || ""
+    };
+
+    generateStandardReceiptPDF(currentOrderData);
+}
+{% endraw %}
 
 </script>
 {% endblock %}
