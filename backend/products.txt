@@ -1,4 +1,4 @@
-V1001|Allium|Onion|450000|50.00|Farm Fresh|7
+V1001|Allium|Onion|420000|50.00|Farm Fresh|7
 V1002|Allium|Small Onion|32000|50.00|Premium|10
 V1003|Allium|Garlic|15000|120.00|Organic|15
 V1004|Root|Potato|55500|25.00|Daily Use|10
