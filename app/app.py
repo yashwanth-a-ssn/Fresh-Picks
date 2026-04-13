@@ -424,6 +424,62 @@ def api_change_password():
 # START THE SERVER — with SSL/HTTPS
 # =============================================================
 
+@app.route("/api/email_receipt", methods=["POST"])
+def email_receipt():
+    """
+    PURPOSE:
+        Receives a JSON payload from the browser containing the full
+        HTML receipt string, then passes it to the C binary (auth)
+        which uses libcurl to email it to the user.
+
+    REQUEST JSON shape:
+        {
+          "user_id":      "U001",
+          "receipt_html": "<div style='...'>...full HTML string...</div>"
+        }
+
+    HOW IT WORKS:
+        Flask → run_c_binary("auth", ["send_bill", user_id, receipt_html])
+              → C binary opens users.txt, finds user's email by user_id
+              → C binary calls libcurl → Gmail SMTPS → user's inbox
+
+    SECURITY NOTE:
+        user_id is cross-checked against the server-side session to
+        prevent one user from emailing another user's receipt.
+
+    OUTPUT JSON:
+        { "status": "SUCCESS", "message": "Bill sent successfully" }
+        { "status": "ERROR",   "message": "<reason>" }
+    """
+
+    # --- Auth guard: only logged-in users can trigger this ---------------
+    if "user_id" not in session or session.get("role") != "user":
+        return jsonify({"status": "ERROR",
+                        "message": "Not authorized. Please log in."})
+
+    # --- Parse the incoming JSON payload ----------------------------------
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "ERROR", "message": "No JSON payload received"})
+
+    receipt_html = data.get("receipt_html", "").strip()
+    # Use the user_id from the SECURE server session, not from the client.
+    # This prevents a malicious user from spoofing another user's ID.
+    user_id = session.get("user_id")
+
+    if not receipt_html:
+        return jsonify({"status": "ERROR", "message": "Empty receipt HTML"})
+
+    # --- Hand off to C binary --------------------------------------------
+    # run_c_binary builds:  ./auth send_bill U001 <receipt_html>
+    # The C binary looks up the email for U001 in users.txt and sends it.
+    result = run_c_binary("auth", ["send_bill", user_id, receipt_html])
+
+    return jsonify({
+        "status":  result["status"],
+        "message": result["data"]
+    })
+
 if __name__ == "__main__":
 
     # ─────────────────────────────────────────────────────────
