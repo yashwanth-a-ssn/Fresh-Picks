@@ -171,7 +171,7 @@
                 <div class="text-center mt-3">
                     <p style="font-size:0.85rem;color:var(--text-muted);">
                         Already have an account?
-                        <a href="/login?role=user">Sign in</a>
+                        <a href="/login/user">Sign in</a>
                     </p>
                 </div>
 
@@ -497,7 +497,7 @@
             /* Redirect to login after a short delay so user sees the success message */
             setTimeout(() => {
                 otpModal.hide();
-                window.location.href = "/login?role=user";
+                window.location.href = "/login/user";
             }, 1800);
 
         } else {
