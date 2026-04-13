@@ -737,7 +737,6 @@ function openUserItemsModal(orderId) {
 
 /* Safe receipt download — reads from Map, no inline object literals */
 function downloadOrderReceipt(orderId) {
-    {# const order = _orderDataMap.get(orderId); #}
     if (!orderId) {
         alert("No order ID provided.");
         return;

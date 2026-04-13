@@ -475,50 +475,48 @@ def generate_receipt(data: dict, output_path: str) -> None:
         pdf.set_text_color(*C_LABEL)
         pdf.cell(COL[0], 6, str(row_num), align="C")
 
-        # Item name — plain, no badge here
+        # Item name
         nx = LEFT + COL[0]
         pdf.set_xy(nx + 1, y + (ROW_H - 6) / 2)
         pdf.set_font(F, "B" if not item["is_free"] else "", 8.5)
         pdf.set_text_color(*C_BLACK)
         pdf.cell(COL[1] - 2, 6, item["name"])
 
-        # Rate column — for FREE items: 🎁 icon + "FREE" text centred in the column
-        #               for paid items: rate string right-aligned as normal
-        x = LEFT + COL[0] + COL[1]
+        # FREE badge: 🎁 icon + "FREE" text (or green text badge if icon missing)
         if item["is_free"]:
-            # Total badge width: icon + gap + "FREE" text
-            FREE_LABEL   = "FREE"
-            pdf.set_font(F, "B", 7)
-            free_text_w  = pdf.get_string_width(FREE_LABEL)
-            total_badge_w = GIFT_SIZE + 1.0 + free_text_w   # icon + gap + text
-
-            # Centre the whole badge inside COL[2]
-            badge_x = x + (COL[2] - total_badge_w) / 2
+            name_w  = pdf.get_string_width(item["name"])
+            badge_x = nx + 1 + name_w + 1
+            # Clamp so badge doesn't overflow into Rate column
+            max_bx  = LEFT + COL[0] + COL[1] - 20
+            badge_x = min(badge_x, max_bx)
             icon_y_pos = y + (ROW_H - GIFT_SIZE) / 2
 
             if ICO_GIFT:
+                # 🎁 PNG icon
                 _embed_icon(pdf, ICO_GIFT, badge_x, icon_y_pos, GIFT_SIZE)
-                pdf.set_xy(badge_x + GIFT_SIZE + 1.0, y + (ROW_H - 5) / 2)
-                pdf.set_font(F, "B", 7)
+                # "FREE" text right of icon
+                pdf.set_xy(badge_x + GIFT_SIZE + 0.5, y + (ROW_H - 5) / 2)
+                pdf.set_font(F, "B", 6.5)
                 pdf.set_text_color(*C_GREEN)
-                pdf.cell(free_text_w, 5, FREE_LABEL)
+                pdf.cell(10, 5, "FREE")
             else:
-                # Fallback: green pill centred in Rate column
-                pill_w, pill_h = 16, 5
-                pill_x = x + (COL[2] - pill_w) / 2
+                # Fallback: green rounded pill with "FREE" text
+                pill_w, pill_h = 13, 5
                 pdf.set_fill_color(*C_GREEN_BG)
                 pdf.set_draw_color(*C_GREEN)
                 pdf.set_line_width(0.3)
-                pdf.rect(pill_x, y + (ROW_H - pill_h) / 2, pill_w, pill_h, style="FD")
-                pdf.set_xy(pill_x, y + (ROW_H - pill_h) / 2)
-                pdf.set_font(F, "B", 6.5)
+                pdf.rect(badge_x, y + (ROW_H - pill_h) / 2, pill_w, pill_h, style="FD")
+                pdf.set_xy(badge_x, y + (ROW_H - pill_h) / 2)
+                pdf.set_font(F, "B", 6)
                 pdf.set_text_color(*C_GREEN)
-                pdf.cell(pill_w, pill_h, FREE_LABEL, align="C")
-        else:
-            pdf.set_xy(x, y + (ROW_H - 6) / 2)
-            pdf.set_font(F, "", 8)
-            pdf.set_text_color(*C_BLACK)
-            pdf.cell(COL[2], 6, item["rate_str"], align="R")
+                pdf.cell(pill_w, pill_h, "FREE", align="C")
+
+        # Rate
+        x = LEFT + COL[0] + COL[1]
+        pdf.set_xy(x, y + (ROW_H - 6) / 2)
+        pdf.set_font(F, "", 8)
+        pdf.set_text_color(*C_LABEL if item["is_free"] else C_BLACK)
+        pdf.cell(COL[2], 6, item["rate_str"], align="R")
 
         # Qty
         x += COL[2]
