@@ -340,6 +340,23 @@ def api_get_profile():
         return jsonify({"status": "SUCCESS", "user_id": parts[0], "username": parts[1], "full_name": parts[2], "email": parts[3], "phone": parts[4], "address": parts[5]})
     return jsonify({"status": "ERROR", "message": result["data"]})
 
+@app.route("/api/update_profile", methods=["POST"])
+def api_update_profile():
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+    data      = request.get_json()
+    field     = data.get("field", "").strip()
+    new_value = data.get("value", "").strip()
+
+    allowed = {"full_name", "email", "phone", "address"}
+    if field not in allowed:
+        return jsonify({"status": "ERROR", "message": "Invalid field"})
+    if not new_value:
+        return jsonify({"status": "ERROR", "message": "Value cannot be empty"})
+
+    result = run_c_binary("auth", ["update_profile", session["user_id"], field, new_value])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
 @app.route("/api/change_password", methods=["POST"])
 def api_change_password():
     if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})

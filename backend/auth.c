@@ -466,6 +466,79 @@ void change_pass_admin(const char *admin_id, const char *old_password,
 }
 
 /* ─────────────────────────────────────────────────────────────
+   FUNCTION: update_profile
+   PURPOSE:  Update user's full_name, email, phone, or address
+             (one field at a time) in users.txt.
+   PARAMS:   user_id, field_name, new_value
+             field_name is one of: full_name / email / phone /
+             door / street / area / pincode
+             (address sub-fields are reassembled here)
+   OUTPUT:   SUCCESS|Updated  OR  ERROR|message
+   SCHEMA:   user_id|username|password|full_name|email|phone|address
+   ──────────────────────────────────────────────────────────── */
+void update_profile(const char *user_id, const char *field,
+                    const char *new_value) {
+    FILE *fp = fopen(USERS_FILE, "r");
+    if (fp == NULL) { PRINT_ERROR("Database file not found"); return; }
+
+    char lines[100][MAX_LINE_LEN];
+    int count = 0, found = 0;
+    char line[MAX_LINE_LEN];
+
+    while (fgets(line, sizeof(line), fp) != NULL) {
+        trim_newline(line);
+        if (strlen(line) > 1) strcpy(lines[count++], line);
+    }
+    fclose(fp);
+
+    for (int i = 0; i < count; i++) {
+        char temp[MAX_LINE_LEN];
+        strcpy(temp, lines[i]);
+
+        char *t_id    = strtok(temp, DELIMITER); /* [0] user_id   */
+        char *t_u     = strtok(NULL, DELIMITER); /* [1] username  */
+        char *t_pass  = strtok(NULL, DELIMITER); /* [2] password  */
+        char *t_name  = strtok(NULL, DELIMITER); /* [3] full_name */
+        char *t_email = strtok(NULL, DELIMITER); /* [4] email     */
+        char *t_ph    = strtok(NULL, DELIMITER); /* [5] phone     */
+        char *t_addr  = strtok(NULL, DELIMITER); /* [6] address   */
+
+        if (!t_id || strcmp(t_id, user_id) != 0) continue;
+
+        found = 1;
+
+        /* Buffers so we can modify individual fields */
+        char name_buf[256], email_buf[256], ph_buf[64], addr_buf[512];
+        strncpy(name_buf,  t_name  ? t_name  : "", 255);
+        strncpy(email_buf, t_email ? t_email : "", 255);
+        strncpy(ph_buf,    t_ph    ? t_ph    : "", 63);
+        strncpy(addr_buf,  t_addr  ? t_addr  : "", 511);
+
+        if      (strcmp(field, "full_name") == 0) strncpy(name_buf,  new_value, 255);
+        else if (strcmp(field, "email")     == 0) strncpy(email_buf, new_value, 255);
+        else if (strcmp(field, "phone")     == 0) strncpy(ph_buf,    new_value, 63);
+        else if (strcmp(field, "address")   == 0) strncpy(addr_buf,  new_value, 511);
+        else { PRINT_ERROR("Unknown field"); return; }
+
+        sprintf(lines[i], "%s|%s|%s|%s|%s|%s|%s",
+                t_id,
+                t_u    ? t_u    : "",
+                t_pass ? t_pass : "",
+                name_buf, email_buf, ph_buf, addr_buf);
+        break;
+    }
+
+    if (!found) { PRINT_ERROR("User not found"); return; }
+
+    fp = fopen(USERS_FILE, "w");
+    if (fp == NULL) { PRINT_ERROR("Could not update database"); return; }
+    for (int i = 0; i < count; i++) fprintf(fp, "%s\n", lines[i]);
+    fclose(fp);
+
+    PRINT_SUCCESS("Profile updated");
+}
+
+/* ─────────────────────────────────────────────────────────────
    MAIN - Entry Point
    PURPOSE: Reads argv to determine action, then calls the
             appropriate function above.
@@ -510,6 +583,11 @@ int main(int argc, char *argv[]) {
          */
         if (argc < 5) { PRINT_ERROR("Missing args"); return 1; }
         change_pass_admin(argv[2], argv[3], argv[4]);
+    }
+    else if (strcmp(action, "update_profile") == 0) {
+        /* argv: auth update_profile user_id field new_value */
+        if (argc < 5) { PRINT_ERROR("Missing args"); return 1; }
+        update_profile(argv[2], argv[3], argv[4]);
     }
     else {
         PRINT_ERROR("Unknown action");

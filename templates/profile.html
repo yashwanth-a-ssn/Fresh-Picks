@@ -51,6 +51,7 @@
                     </div>
                     <div class="card-body">
 
+                        <!-- User ID — read-only, never editable -->
                         <div class="profile-field">
                             <span class="profile-field-label">User ID</span>
                             <span class="profile-field-value">
@@ -58,29 +59,58 @@
                             </span>
                         </div>
 
+                        <!-- Username — read-only per requirement -->
                         <div class="profile-field">
                             <span class="profile-field-label">Username</span>
                             <span class="profile-field-value" id="pf-username">—</span>
                         </div>
 
-                        <div class="profile-field">
+                        <!-- Full Name — editable -->
+                        <div class="profile-field" id="row-full_name">
                             <span class="profile-field-label">Full Name</span>
-                            <span class="profile-field-value" id="pf-full-name">—</span>
+                            <span class="profile-field-value d-flex align-items-center gap-2">
+                                <span id="pf-full-name">—</span>
+                                <button class="pf-edit-btn" onclick="startEdit('full_name','text')"
+                                        title="Edit Full Name">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                            </span>
                         </div>
 
-                        <div class="profile-field">
+                        <!-- Email — editable -->
+                        <div class="profile-field" id="row-email">
                             <span class="profile-field-label">Email</span>
-                            <span class="profile-field-value" id="pf-email">—</span>
+                            <span class="profile-field-value d-flex align-items-center gap-2">
+                                <span id="pf-email">—</span>
+                                <button class="pf-edit-btn" onclick="startEdit('email','email')"
+                                        title="Edit Email">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                            </span>
                         </div>
 
-                        <div class="profile-field">
+                        <!-- Phone — editable -->
+                        <div class="profile-field" id="row-phone">
                             <span class="profile-field-label">Phone Number</span>
-                            <span class="profile-field-value" id="pf-phone">—</span>
+                            <span class="profile-field-value d-flex align-items-center gap-2">
+                                <span id="pf-phone">—</span>
+                                <button class="pf-edit-btn" onclick="startEdit('phone','tel')"
+                                        title="Edit Phone">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                            </span>
                         </div>
 
-                        <div class="profile-field">
+                        <!-- Address — editable (4 sub-fields inline) -->
+                        <div class="profile-field" id="row-address">
                             <span class="profile-field-label">Address</span>
-                            <span class="profile-field-value" id="pf-address">—</span>
+                            <span class="profile-field-value d-flex align-items-center gap-2">
+                                <span id="pf-address">—</span>
+                                <button class="pf-edit-btn" onclick="startAddressEdit()"
+                                        title="Edit Address">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                            </span>
                         </div>
 
                     </div>
@@ -182,6 +212,62 @@
 
 
 {% block extra_scripts %}
+<style>
+/* ── Inline edit pencil button ── */
+.pf-edit-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 2px 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+.pf-edit-btn:hover { color: var(--accent); background: rgba(33,150,243,0.1); }
+
+/* ── Inline edit input wrapper ── */
+.pf-inline-edit {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.pf-inline-edit input {
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    color: var(--text-bright);
+    font-size: 0.9rem;
+    padding: 3px 8px;
+    outline: none;
+    min-width: 0;
+    flex: 1;
+}
+.pf-inline-edit .pf-save-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.pf-inline-edit .pf-save-btn:hover { opacity: 0.85; }
+.pf-inline-edit .pf-cancel-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    padding: 3px 9px;
+    cursor: pointer;
+}
+.pf-save-status {
+    font-size: 0.75rem;
+    margin-left: 4px;
+}
+</style>
+
 <script>
     /*
      * PROFILE PAGE JAVASCRIPT
@@ -224,8 +310,8 @@
                  * on its own line, matching the schema note's display requirement.
                  */
                 const addrParts = (result.address || "").split(",");
-                document.getElementById("pf-address").innerHTML =
-                    addrParts.map(p => p.trim()).join("<br>");
+                _addrParts = addrParts.map(p => p.trim());
+                document.getElementById("pf-address").innerHTML = _addrParts.join("<br>");
 
                 /* Hide loader, show content */
                 document.getElementById("profileLoader").classList.add("d-none");
@@ -240,6 +326,162 @@
         }
     }
 
+    /* ── Raw address parts (kept in memory after profile load) ── */
+    let _addrParts = ["", "", "", ""];
+
+    /* ── Generic single-field inline editor ── */
+    function startEdit(field, inputType) {
+        const display = document.getElementById(`pf-${field.replace("_","-")}`);
+        const currentVal = display.textContent.trim();
+
+        display.parentElement.innerHTML = `
+            <div class="pf-inline-edit" id="edit-${field}">
+                <input type="${inputType}" id="inp-${field}"
+                    value="${currentVal}" autocomplete="off">
+                <button class="pf-save-btn" onclick="saveField('${field}')">
+                    <i class="bi bi-check-lg"></i> Save
+                </button>
+                <button class="pf-cancel-btn" onclick="cancelEdit('${field}', \`${currentVal}\`)">
+                    Cancel
+                </button>
+                <span class="pf-save-status" id="status-${field}"></span>
+            </div>`;
+
+        document.getElementById(`inp-${field}`).focus();
+
+        /* Save on Enter key */
+        document.getElementById(`inp-${field}`)
+            .addEventListener("keydown", e => { if (e.key === "Enter") saveField(field); });
+    }
+
+    /* ── Address inline editor (4 sub-fields) ── */
+    function startAddressEdit() {
+        const [door, street, area, pin] = _addrParts;
+        document.getElementById("pf-address").parentElement.innerHTML = `
+            <div class="pf-inline-edit flex-column align-items-start" id="edit-address"
+                style="gap:6px; width:100%;">
+                <div class="d-flex gap-2 w-100 flex-wrap">
+                    <input type="text" id="inp-door"    value="${door}"
+                        placeholder="Door No" style="flex:1; min-width:110px;">
+                    <input type="text" id="inp-street"  value="${street}"
+                        placeholder="Street" style="flex:2; min-width:140px;">
+                </div>
+                <div class="d-flex gap-2 w-100 flex-wrap">
+                    <input type="text" id="inp-area"    value="${area}"
+                        placeholder="Area" style="flex:2; min-width:140px;">
+                    <input type="text" id="inp-pincode" value="${pin}"
+                        placeholder="PIN" maxlength="6" style="flex:1; min-width:80px;">
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="pf-save-btn" onclick="saveAddress()">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                    <button class="pf-cancel-btn" onclick="cancelAddressEdit()">Cancel</button>
+                    <span class="pf-save-status" id="status-address"></span>
+                </div>
+            </div>`;
+
+        /* Strip commas from address sub-fields (same as register.html) */
+        ['inp-door','inp-street','inp-area','inp-pincode'].forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                this.value = this.value.replace(/,/g, "");
+            });
+        });
+    }
+
+    /* ── Save a single field ── */
+    async function saveField(field) {
+        const inp    = document.getElementById(`inp-${field}`);
+        const status = document.getElementById(`status-${field}`);
+        const val    = inp.value.trim();
+
+        if (!val) { status.style.color = "var(--danger)"; status.textContent = "Cannot be empty"; return; }
+
+        status.style.color = "var(--text-muted)"; status.textContent = "Saving…";
+
+        try {
+            const res  = await fetch("/api/update_profile", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ field, value: val })
+            });
+            const data = await res.json();
+
+            if (data.status === "SUCCESS") {
+                const displayId = `pf-${field.replace("_","-")}`;
+                /* Rebuild the display span with the edit button */
+                const inputType = inp.type;
+                document.getElementById(`edit-${field}`).parentElement.innerHTML = `
+                    <span id="${displayId}">${val}</span>
+                    <button class="pf-edit-btn" onclick="startEdit('${field}','${inputType}')"
+                            title="Edit">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>`;
+            } else {
+                status.style.color = "var(--danger)";
+                status.textContent = data.message || "Error";
+            }
+        } catch (_) {
+            status.style.color = "var(--danger)"; status.textContent = "Server error";
+        }
+    }
+
+    /* ── Save address (assembles CSV then calls API) ── */
+    async function saveAddress() {
+        const door    = document.getElementById("inp-door").value.trim();
+        const street  = document.getElementById("inp-street").value.trim();
+        const area    = document.getElementById("inp-area").value.trim();
+        const pincode = document.getElementById("inp-pincode").value.trim();
+        const status  = document.getElementById("status-address");
+
+        if (!door || !street || !area || !pincode) {
+            status.style.color = "var(--danger)"; status.textContent = "All parts required"; return;
+        }
+
+        status.style.color = "var(--text-muted)"; status.textContent = "Saving…";
+        const combined = `${door},${street},${area},${pincode}`;
+
+        try {
+            const res  = await fetch("/api/update_profile", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ field: "address", value: combined })
+            });
+            const data = await res.json();
+
+            if (data.status === "SUCCESS") {
+                _addrParts = [door, street, area, pincode];
+                document.getElementById("edit-address").parentElement.innerHTML = `
+                    <span id="pf-address">${[door, street, area, pincode].map(p=>p.trim()).join("<br>")}</span>
+                    <button class="pf-edit-btn" onclick="startAddressEdit()" title="Edit Address">
+                        <i class="bi bi-pencil-fill"></i>
+                    </button>`;
+            } else {
+                status.style.color = "var(--danger)";
+                status.textContent = data.message || "Error";
+            }
+        } catch (_) {
+            status.style.color = "var(--danger)"; status.textContent = "Server error";
+        }
+    }
+
+    /* ── Cancel helpers ── */
+    function cancelEdit(field, originalVal) {
+        const inputType = document.getElementById(`inp-${field}`)?.type || "text";
+        const displayId = `pf-${field.replace("_","-")}`;
+        document.getElementById(`edit-${field}`).parentElement.innerHTML = `
+            <span id="${displayId}">${originalVal}</span>
+            <button class="pf-edit-btn" onclick="startEdit('${field}','${inputType}')" title="Edit">
+                <i class="bi bi-pencil-fill"></i>
+            </button>`;
+    }
+
+    function cancelAddressEdit() {
+        const [door, street, area, pin] = _addrParts;
+        document.getElementById("edit-address").parentElement.innerHTML = `
+            <span id="pf-address">${_addrParts.map(p=>p.trim()).join("<br>")}</span>
+            <button class="pf-edit-btn" onclick="startAddressEdit()" title="Edit Address">
+                <i class="bi bi-pencil-fill"></i>
+            </button>`;
+    }
     /*
      * FUNCTION: showProfileError
      * PURPOSE:  Show the error panel with a message
