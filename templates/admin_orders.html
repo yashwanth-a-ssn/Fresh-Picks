@@ -56,6 +56,40 @@
         </div>
     </div>
 
+    {# ── Filter / Sort Bar ── #}
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-3 fade-in" id="filterBar" style="display:none !important;">
+        <span class="text-muted" style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em;">Filter:</span>
+
+        <button class="btn btn-sm filter-btn active" data-filter="all"
+                onclick="applyFilter('all', this)">
+            <i class="bi bi-grid me-1"></i>All
+        </button>
+        <button class="btn btn-sm filter-btn" data-filter="Order Placed"
+                onclick="applyFilter('Order Placed', this)"
+                style="border-color:#cc7800; color:#cc7800;">
+            <i class="bi bi-hourglass-split me-1"></i>Order Placed
+        </button>
+        <button class="btn btn-sm filter-btn" data-filter="Out for Delivery"
+                onclick="applyFilter('Out for Delivery', this)"
+                style="border-color:var(--accent); color:var(--accent);">
+            <i class="bi bi-truck me-1"></i>Out for Delivery
+        </button>
+        <button class="btn btn-sm filter-btn" data-filter="Delivered"
+                onclick="applyFilter('Delivered', this)"
+                style="border-color:var(--success); color:var(--success);">
+            <i class="bi bi-check-circle me-1"></i>Delivered
+        </button>
+
+        <div class="ms-auto">
+            <button class="btn btn-sm" onclick="applySort()"
+                    style="border:1px solid var(--border-color); color:var(--text-muted);
+                           background:var(--bg-elevated);">
+                <i class="bi bi-sort-down me-1" id="sortIcon"></i>
+                <span id="sortLabel">Oldest First</span>
+            </button>
+        </div>
+    </div>
+
     {# ── Order Cards Container ── #}
     <div id="ordersContainer" class="row g-3">
         <div class="col-12 text-center py-5" id="loadingPlaceholder">
@@ -205,12 +239,22 @@
     padding: 1px 5px; margin-left: 5px;
     vertical-align: middle; line-height: 1.4;
 }
-</style>
 
-{# html2pdf.js loaded before receipt.js #}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
-        crossorigin="anonymous"></script>
-<script src="/static/js/receipt.js"></script>
+/* ── Filter bar buttons ── */
+.filter-btn {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    transition: all 0.2s ease;
+}
+.filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff !important;
+}
+
+</style>
 
 <script>
 /* ════════════════════════════════════════════════════════════════════════
@@ -231,6 +275,62 @@ function startClock() {
 let _pendingCancelOrderId = null;
 
 const _adminOrderMap = new Map();
+
+/* ─── FILTER + SORT STATE ────────────────────────────────────────────── */
+let _activeFilter = "all";
+let _sortAsc      = true;   // true = oldest first (min-heap order: lowest order ID first)
+
+function applyFilter(filter, clickedBtn) {
+    _activeFilter = filter;
+
+    /* Update button active state */
+    document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+    if (clickedBtn) clickedBtn.classList.add("active");
+
+    _renderVisible();
+}
+
+function applySort() {
+    _sortAsc = !_sortAsc;
+    document.getElementById("sortIcon").className  = _sortAsc
+        ? "bi bi-sort-down me-1"
+        : "bi bi-sort-up me-1";
+    document.getElementById("sortLabel").textContent = _sortAsc
+        ? "Oldest First"
+        : "Newest First";
+    _renderVisible();
+}
+
+function _renderVisible() {
+    const container = document.getElementById("ordersContainer");
+
+    /* Collect all orders from the map */
+    let orders = [..._adminOrderMap.values()];
+
+    /* Filter */
+    if (_activeFilter !== "all") {
+        orders = orders.filter(o => o.status === _activeFilter);
+    }
+
+    /* Sort by order_id numerically — mirrors min-heap priority (lowest ID = oldest) */
+    orders.sort((a, b) => {
+        const numA = parseInt(a.order_id.replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.order_id.replace(/\D/g, "")) || 0;
+        return _sortAsc ? numA - numB : numB - numA;
+    });
+
+    /* Rebuild cards */
+    container.innerHTML = "";
+    if (orders.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-funnel" style="font-size:2.5rem; color:var(--text-muted);"></i>
+                <p class="text-muted mt-3">No orders match this filter.</p>
+            </div>`;
+        return;
+    }
+    orders.forEach(order => container.appendChild(buildOrderCard(order)));
+}
 
 {% raw %}
 /* ─── CSS class maps ─────────────────────────────────────────────────── */
@@ -678,9 +778,14 @@ async function loadOrders() {
         statusMsg.textContent =
             `${data.orders.length} order${data.orders.length !== 1 ? "s" : ""} loaded.`;
         data.orders.forEach(order => {
-            _adminOrderMap.set(order.order_id, order);   // ← ADD THIS
-            container.appendChild(buildOrderCard(order));
+            _adminOrderMap.set(order.order_id, order);
         });
+
+        /* Show filter bar now that data is loaded */
+        document.getElementById("filterBar").style.display = "flex";
+
+        /* Initial render — oldest first (min-heap order) */
+        _renderVisible();
 
 
     } catch (err) {
@@ -697,24 +802,12 @@ async function loadOrders() {
 
 /* ─── PDF RECEIPT (via centralized receipt.js) ────────────────────── */
 function downloadReceipt(orderId) {
-    const order = _adminOrderMap.get(orderId);
-    if (!order) { alert("Order data not found. Please refresh."); return; }
-    generateStandardReceiptPDF({
-        orderId:      order.order_id,
-        userId:       order.user_id,
-        fullName:     order.full_name  || order.user_id,
-        userPhone:    order.user_phone || "",
-        userEmail:    order.user_email || "",
-        userAddress:  order.user_address || "",
-        date:         (order.timestamp || "").slice(0, 10),
-        timestamp:    order.timestamp  || "",
-        status:       order.status     || "Order Placed",
-        deliverySlot: order.delivery_slot || "",
-        total:        parseFloat(order.total_amount) || 0,
-        itemsString:  order.items_string || "",
-        boyName:      order.boy_name  || "",
-        boyPhone:     order.boy_phone || ""
-    });
+    /*  const order = _adminOrderMap.get(orderId); */
+    if (!orderId) {
+        alert("No order ID provided.");
+        return;
+    }
+    window.location.href = `/api/download_receipt/${orderId}`;
 }
 
 {% endraw %}
