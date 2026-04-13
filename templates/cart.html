@@ -1051,7 +1051,7 @@ function renderReceipt(result) {
             <div class="rcpt-value" style="font-size:0.78rem;">
                 ${_profile.phone ? `📞 ${_profile.phone}` : ""}
                 ${_profile.email ? `<br>✉ ${_profile.email}` : ""}
-                ${_profile.address ? `<br><small style="color:#858585;">${_profile.address.replace(/,/g, ', ')}</small>` : ""}
+                ${_profile.address ? _profile.address.split(",").map(p => p.trim()).filter(Boolean).map(p => `<br><small style="color:#858585;">${p}</small>`).join("") : ""}
             </div>`;
     }
 
@@ -1128,16 +1128,12 @@ function renderReceipt(result) {
         tbody.insertAdjacentHTML("beforeend", `
         <tr class="rcpt-item-row">
             <td class="rcpt-td-num"  style="color:#858585;">${rowNum++}</td>
-            <td class="rcpt-td-name" style="color:#ffffff; font-weight:500;">
-                ${name}
-                ${isFree ? `<span class="rcpt-free-badge"
-                                  style="color:#28a745; background:rgba(40,167,69,0.18);
-                                         border:1px solid rgba(40,167,69,0.3); border-radius:3px;
-                                         font-size:0.66rem; font-weight:700; padding:0.1em 0.4em;
-                                         display:inline-block; vertical-align:middle;
-                                         margin-left:0.35rem;">🎁 FREE</span>` : ""}
+            <td class="rcpt-td-name" style="color:#ffffff; font-weight:500;">${name}</td>
+            <td class="rcpt-td-rate" style="text-align:right; font-size:0.8rem; white-space:nowrap;">
+                ${isFree
+                    ? `<span style="color:#28a745; font-weight:700;">🎁 FREE</span>`
+                    : `<span style="color:#ffffff;">${rateDisplay}</span>`}
             </td>
-            <td class="rcpt-td-rate" style="color:#ffffff; text-align:right; font-size:0.8rem; white-space:nowrap;">${rateDisplay}</td>
             <td class="rcpt-td-qty"  style="color:#ffffff; text-align:right; white-space:nowrap;">${qtyDisplay}</td>
             <td class="rcpt-td-amt"  style="text-align:right; font-weight:600; white-space:nowrap;
                                             color:${isFree ? '#28a745' : '#1a9eff'};">${lineAmount}</td>
