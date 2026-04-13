@@ -703,9 +703,9 @@ function openUserItemsModal(orderId) {
     const rows = items.length > 0
         ? items.map(it => `
             <tr>
-                <td>${it.name}${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : ""}</td>
+                <td>${it.name}</td>
                 <td class="text-end" style="color:var(--text-muted); font-family:var(--font-mono);">
-                    ${it.isFree ? "&mdash;" : `₹${it.priceNum.toFixed(2)}/kg`}</td>
+                    ${it.isFree ? `<span class="fp-invoice-badge-free">FREE</span>` : `₹${it.priceNum.toFixed(2)}/kg`}</td>
                 <td class="text-end" style="font-family:var(--font-mono);">${it.qty}</td>
                 <td class="text-end" style="font-family:var(--font-mono);
                     color:${it.isFree ? "var(--success)" : "var(--text-bright)"};">
