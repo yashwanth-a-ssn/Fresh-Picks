@@ -493,7 +493,7 @@ def generate_receipt(data: dict, output_path: str) -> None:
             total_badge_w = GIFT_SIZE + 1.0 + free_text_w   # icon + gap + text
 
             # Centre the whole badge inside COL[2]
-            badge_x = x + (COL[2] - total_badge_w) / 2
+            badge_x = x + COL[2] - total_badge_w
             icon_y_pos = y + (ROW_H - GIFT_SIZE) / 2
 
             if ICO_GIFT:
