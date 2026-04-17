@@ -502,10 +502,7 @@ void cmd_checkout(const char* user_id, const char* slot) {
         boy_id   [MAX_ID_LEN  - 1] = '\0';
         boy_name [MAX_STR_LEN - 1] = '\0';
         boy_phone[MAX_STR_LEN - 1] = '\0';
-
-        // NOTE: save_delivery_boy_sll is already called inside
-        // cll_assign_delivery() in utils.c — do NOT call again here.
-        // save_delivery_boy_sll(boy_sll);
+        save_delivery_boy_sll(boy_sll);
     }
     cll_free(cll);
     free_delivery_boy_sll(boy_sll);
@@ -531,7 +528,7 @@ void cmd_checkout(const char* user_id, const char* slot) {
             if (*p == ':' || *p == ',') *p = ' ';
         }
 
-        char part[256];
+        char part[128];
         snprintf(part, sizeof(part), "%s:%s:%d:%.2f",
             curr->veg_id,
             safe_name,
@@ -680,9 +677,6 @@ void cmd_update_order_status(const char* order_id, const char* new_status) {
     PRINT_SUCCESS("Status updated");
 }
 
-
-// REDUNTANT - Already Defined in elivery.c
-
 /*
  * FUNCTION: cmd_batch_promote_slot
  * PURPOSE:  Promote all "Order Placed" orders in a given slot to
@@ -692,39 +686,39 @@ void cmd_update_order_status(const char* order_id, const char* new_status) {
  *           ERROR|Invalid slot name
  * SCHEMA:   SUCCESS|<count>
  */
-// void cmd_batch_promote_slot(const char* slot_name) {
-//     if (strcmp(slot_name, "Morning")   != 0 &&
-//         strcmp(slot_name, "Afternoon") != 0 &&
-//         strcmp(slot_name, "Evening")   != 0) {
-//         PRINT_ERROR("Invalid slot name");
-//         return;
-//     }
+void cmd_batch_promote_slot(const char* slot_name) {
+    if (strcmp(slot_name, "Morning")   != 0 &&
+        strcmp(slot_name, "Afternoon") != 0 &&
+        strcmp(slot_name, "Evening")   != 0) {
+        PRINT_ERROR("Invalid slot name");
+        return;
+    }
 
-//     OrderNode* head = load_order_sll();
-//     if (!head) {
-//         PRINT_SUCCESS("0");
-//         return;
-//     }
+    OrderNode* head = load_order_sll();
+    if (!head) {
+        PRINT_SUCCESS("0");
+        return;
+    }
 
-//     int        promoted = 0;
-//     OrderNode* curr     = head;
-//     while (curr != NULL) {
-//         if (strcmp(curr->data.delivery_slot, slot_name) == 0 &&
-//             strcmp(curr->data.status, "Order Placed")   == 0) {
-//             strncpy(curr->data.status, "Out for Delivery", MAX_STR_LEN - 1);
-//             curr->data.status[MAX_STR_LEN - 1] = '\0';
-//             promoted++;
-//         }
-//         curr = curr->next;
-//     }
+    int        promoted = 0;
+    OrderNode* curr     = head;
+    while (curr != NULL) {
+        if (strcmp(curr->data.delivery_slot, slot_name) == 0 &&
+            strcmp(curr->data.status, "Order Placed")   == 0) {
+            strncpy(curr->data.status, "Out for Delivery", MAX_STR_LEN - 1);
+            curr->data.status[MAX_STR_LEN - 1] = '\0';
+            promoted++;
+        }
+        curr = curr->next;
+    }
 
-//     save_order_sll(head);
-//     free_order_sll(head);
+    save_order_sll(head);
+    free_order_sll(head);
 
-//     char result[32];
-//     snprintf(result, sizeof(result), "%d", promoted);
-//     PRINT_SUCCESS(result);
-// }
+    char result[32];
+    snprintf(result, sizeof(result), "%d", promoted);
+    PRINT_SUCCESS(result);
+}
 
 /*
  * FUNCTION: cmd_list_all_orders
@@ -838,10 +832,9 @@ int main(int argc, char* argv[]) {
         if (argc < 4) { PRINT_ERROR("Usage: update_order_status <order_id> <status>"); return 1; }
         cmd_update_order_status(argv[2], argv[3]);
 
-    // FUNCTION REMOVED SINCE REDUNDANT
-    // } else if (strcmp(cmd, "batch_promote_slot") == 0) {
-    //     if (argc < 3) { PRINT_ERROR("Usage: batch_promote_slot <slot_name>"); return 1; }
-    //     cmd_batch_promote_slot(argv[2]);
+    } else if (strcmp(cmd, "batch_promote_slot") == 0) {
+        if (argc < 3) { PRINT_ERROR("Usage: batch_promote_slot <slot_name>"); return 1; }
+        cmd_batch_promote_slot(argv[2]);
 
     } else if (strcmp(cmd, "list_all_orders") == 0) {
         cmd_list_all_orders();

@@ -1,6 +1,6 @@
 """
-app.py - Fresh Picks: Main Flask Application (v3 — HTTPS/SSL Edition)
-======================================================================
+app.py - Fresh Picks: Main Flask Application (v4 — Binary Storage Edition)
+============================================================================
 
 DEVELOPER NOTE: SSL, HTTPS & MULTI-DEVICE SETUP
 
@@ -30,160 +30,468 @@ HOW TO BYPASS (for demo):
     Firefox:     Click "Advanced" -> "Accept the Risk"
     (Do this once per device per session.)
 
-PORT 5000 - WHY THIS NUMBER?
-────────────────────────────
-    Think of your laptop's IP address as a building address.
-    Ports are "apartment numbers" inside that building.
-        Port  80  -> Standard HTTP  (web browsers default)
-        Port 443  -> Standard HTTPS (web browsers default)
-        Port 5000 -> Flask's development default
-
-    Ports below 1024 need admin/root privileges on most OSes.
-    Port 5000 is above that threshold, so Flask can use it freely
-    without elevated permissions. That's why it's the standard
-    Flask dev port.
-
-HOW TO CONNECT FROM A TEAMMATE'S DEVICE:
-────────────────────────────────────────
-    Step 1 - Find the host laptop's IPv4 address:
-    Windows:  Open CMD -> type: ipconfig
-                Look for: "IPv4 Address . . . : 192.168.x.x"
-    Mac/Linux: Open Terminal -> type: ifconfig
-                Look for: "inet 192.168.x.x" under en0 or wlan0
-
-    Step 2 - Make sure VERSION B (host="0.0.0.0") is active.
-
-    Step 3 - On the teammate's device, open a browser and go to:
-    https://192.168.x.x:5000
-    (Replace 192.168.x.x with the actual IP from Step 1)
-
-    Step 4 - Accept the self-signed cert warning (Advanced ->
-    Proceed) and the app will load!
-
-    IMPORTANT: All devices must be on the SAME Wi-Fi network.
-    The laptop running app.py and the phone/laptop visiting
-    the site must share the same router/hotspot.
-
-======================================================================
+ARCHITECTURE CHANGE (v4):
+    The C backend now reads/writes binary .dat files instead of
+    plain .txt files. All pipe-delimited stdout contracts between
+    the C binaries and this Flask app remain IDENTICAL — only the
+    internal storage mechanism changed. bridge.py is unchanged.
 
 ROUTES:
   GET  /                        -> Landing page (index.html)
-  GET  /login                   -> Login page
+  GET  /login/<role>            -> Unified login page (user or admin)
   GET  /register                -> Register page
-  POST /api/login               -> Validate login via C binary
-  POST /api/register            -> Register new user via C binary
-  GET  /user_home               -> User dashboard (requires login)
+  GET  /user_home               -> User dashboard (requires user login)
   GET  /admin_dash              -> Admin dashboard (requires admin login)
   GET  /profile                 -> User profile page
-  GET  /security                -> Security/Change Password page (Module 5)
-  POST /api/get_profile         -> Fetch profile data via C binary
-  POST /api/change_password     -> Unified password change (user OR admin)
+  GET  /security                -> Security/Change Password page
+  GET  /shop                    -> Shop / vegetable listing
+  GET  /cart                    -> Cart page
+  GET  /user_orders             -> User order history page
+  GET  /admin_inventory         -> Admin inventory management page
+  GET  /admin_orders            -> Admin orders dispatch page
   GET  /logout                  -> Clear session and redirect to home
+  POST /api/login               -> Validate login via C auth binary
+  POST /api/register            -> Register new user via C auth binary
+  POST /api/get_profile         -> Fetch profile data via C auth binary
+  POST /api/update_profile      -> Update one profile field
+  POST /api/change_password     -> Unified password change (user OR admin)
+  GET  /api/list_products       -> List all vegetables via C order binary
+  POST /api/update_stock        -> Update vegetable stock (admin only)
+  POST /api/update_promo_stock  -> Update freebie stock (admin only)
+  POST /api/add_to_cart         -> Add item to cart
+  POST /api/view_cart           -> View cart contents
+  POST /api/update_cart_qty     -> Update item quantity in cart
+  POST /api/remove_item         -> Remove item from cart
+  POST /api/checkout            -> Place order
+  POST /api/get_user_orders     -> Get order history for logged-in user
+  GET  /api/admin_orders        -> Get all orders (admin, heap-sorted)
+  POST /api/get_admin_orders    -> Get all orders newest-first (admin)
+  POST /api/update_order_status -> Update order status (admin only)
+  POST /api/promote_slot_orders -> Batch-promote slot orders (admin only)
+  POST /api/cancel_order        -> Cancel an order
+  GET  /api/get_active_orders   -> Get active (placed/OFD) orders (admin)
+  POST /api/assign_agent        -> Assign delivery agent (admin only)
+  GET  /api/download_receipt/<order_id> -> Generate and stream PDF receipt
+  POST /api/get_admin_info      -> Return admin session data as JSON
 
 HOW TO RUN:
   1. python generate_certs.py   (once, to create cert.pem + key.pem)
-  2. python app.py              (every time to start the server)
+  2. ./txt_to_bin_converter     (once, to migrate .txt files to .dat)
+  3. python app.py              (every time to start the server)
 
 Team: CodeCrafters | Project: Fresh Picks | SDP-1
 """
 
-import ssl   # Python's built-in SSL module for HTTPS configuration.
-             # ssl.SSLContext wraps our cert.pem + key.pem into a
-             # configuration object that Flask/Werkzeug understands.
-import os    # Used to build file paths to cert.pem and key.pem.
+import ssl
+import os
 import tempfile
 import sys
 from datetime import datetime
 
 from flask import (
-    Flask,              # Creates and initializes the web application
-    render_template,    # Renders HTML templates for frontend pages
-    request,            # Retrieves incoming data from client requests
-    jsonify,            # Converts data into JSON HTTP responses
-    session,            # Stores user session data across requests
-    redirect,           # Redirects user to a different route
-    url_for,            # Generates dynamic URLs for application routes
-    send_from_directory,# Safely serves files from a specified folder (e.g., images, uploads, static files)
-    send_file           # To send the receipt
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    session,
+    redirect,
+    send_from_directory,
+    send_file
 )
 
-from bridge import run_c_binary  # Our reusable C-caller function
-# Executes C backend binary and returns output
+from bridge import run_c_binary
+from generate_receipt import generate_receipt
 
-from generate_receipt import generate_receipt   # our PDF engine
 
 # ─────────────────────────────────────────────────────────────
 # Flask App Setup
 # ─────────────────────────────────────────────────────────────
 app = Flask(
     __name__,
-    template_folder = "../templates",   # HTML files are in /templates/
-    static_folder   = "../static"       # CSS/JS files are in /static/
+    template_folder="../templates",
+    static_folder="../static"
 )
 
-# Secret key for session encryption.
-# In production, use a long random string from os.urandom(24).
 app.secret_key = "fresh_picks_secret_codecrafters_2026"
 
 # ─────────────────────────────────────────────────────────────
-# SSL CERTIFICATE PATHS
-# These files are generated by generate_certs.py (run it once).
-# We build the path relative to THIS file (app.py) so it works
-# regardless of which directory you launch the server from.
-#
-#   os.path.abspath(__file__)  -> full path to app.py itself
-#   os.path.dirname(...)       -> folder that contains app.py
-#   os.path.join(..., "x.pem")-> full path to cert/key in same folder
+# SSL Certificate Paths
+# Built relative to this file so the server works regardless of
+# which directory you launch it from.
 # ─────────────────────────────────────────────────────────────
 _HERE     = os.path.dirname(os.path.abspath(__file__))
-CERT_FILE = os.path.join(_HERE, "cert.pem")  # Public certificate
-KEY_FILE  = os.path.join(_HERE, "key.pem")   # Private key — keep secret!
+CERT_FILE = os.path.join(_HERE, "cert.pem")
+KEY_FILE  = os.path.join(_HERE, "key.pem")
 
-# Helper Function
+
+# =============================================================
+# PRIVATE HELPERS
+# Small, pure functions used only inside this module.
+# =============================================================
+
 def _safe_float(value, default=0.0):
+    """
+    PURPOSE: Safely convert a value to float without raising on bad input.
+    RETURNS: float on success, `default` on any error.
+    """
     try:
         return float(value)
     except (ValueError, TypeError):
         return default
+
+
+def _require_login(role=None):
+    """
+    PURPOSE: Guard clause helper — returns a redirect if the session is invalid.
+             Returns None when the session is valid (caller proceeds normally).
+    PARAMS:  role — "user", "admin", or None (any logged-in session).
+    RETURNS: A Flask redirect response, or None.
+    """
+    if role == "user"  and session.get("role") != "user":
+        return redirect("/login/user")
+    if role == "admin" and session.get("role") != "admin":
+        return redirect("/login/admin")
+    if role is None and "user_id" not in session:
+        return redirect("/")
+    return None
+
+
+def _parse_order_line(line):
+    """
+    PURPOSE: Parse one pipe-delimited order line into a dict.
+             Used by all order-listing API endpoints.
+    PARAMS:  line — one stripped line of raw C stdout output.
+    RETURNS: dict or None if the line has fewer than 8 fields.
+
+    SCHEMA:  order_id|user_id|total_amount|delivery_slot|delivery_boy_id|
+             status|timestamp|items_string[|boy_name|boy_phone]
+    """
+    parts = line.strip().split("|")
+    if len(parts) < 8:
+        return None
+
+    return {
+        "order_id":        parts[0],
+        "user_id":         parts[1],
+        "total_amount":    _safe_float(parts[2]),
+        "delivery_slot":   parts[3],
+        "delivery_boy_id": parts[4],
+        "status":          parts[5],
+        "timestamp":       parts[6],
+        "items_string":    parts[7],
+        "boy_name":        parts[8] if len(parts) > 8 else "Unknown",
+        "boy_phone":       parts[9] if len(parts) > 9 else "N/A",
+    }
+
+
+def _parse_multiline_orders(raw_output):
+    """
+    PURPOSE: Parse multi-line C stdout (header line + data lines) into a list
+             of order dicts. Skips the first line (SUCCESS| header) and any
+             blank lines.
+    PARAMS:  raw_output — the full stdout string from run_c_binary().
+    RETURNS: list of order dicts.
+    """
+    orders = []
+    lines  = raw_output.strip().split("\n")
+
+    for line in lines[1:]:   # lines[0] is the "SUCCESS|" header
+        line = line.strip()
+        if not line:
+            continue
+        order = _parse_order_line(line)
+        if order:
+            orders.append(order)
+
+    return orders
+
+
 # =============================================================
-# PAGE ROUTES - These serve HTML pages
+# PAGE ROUTES — Serve HTML templates
+# All routes apply a guard clause FIRST; if the check fails,
+# we return the redirect immediately without proceeding further.
 # =============================================================
 
 @app.route("/")
 def index():
-    # Only shows User Login & Registration (Admin abstracted)
+    # Public landing page — no login required.
     return render_template("index.html")
+
 
 @app.route("/login/<role>")
 def login_page(role):
-    # Unified Login: handles both /login/user and /login/admin
+    # Unified login: handles both /login/user and /login/admin.
     if role not in ["user", "admin"]:
         return redirect("/")
-    
-    # Auto-redirect if already logged in
+
+    # Auto-redirect if the correct role is already in session.
     if session.get("role") == role:
         return redirect("/admin_dash" if role == "admin" else "/user_home")
-        
+
     return render_template("login.html", role=role)
+
 
 @app.route("/register")
 def register():
     return render_template("register.html")
 
+
 @app.route("/user_home")
 def user_home():
-    if session.get("role") != "user": return redirect("/login/user")
+    guard = _require_login(role="user")
+    if guard: return guard
+
     return render_template("user_home.html", username=session.get("username"))
+
 
 @app.route("/admin_dash")
 def admin_dash():
-    if session.get("role") != "admin": return redirect("/login/admin")
-    return render_template("admin_dash.html", username=session.get("username"), admin_name=session.get("admin_name", "Admin"))
+    guard = _require_login(role="admin")
+    if guard: return guard
+
+    return render_template(
+        "admin_dash.html",
+        username   = session.get("username"),
+        admin_name = session.get("admin_name", "Admin")
+    )
+
+
+@app.route("/profile")
+def profile():
+    guard = _require_login(role="user")
+    if guard: return guard
+
+    return render_template("profile.html")
+
+
+@app.route("/security")
+def security():
+    guard = _require_login()
+    if guard: return guard
+
+    return render_template("security.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
+@app.route("/shop")
+def shop():
+    guard = _require_login(role="user")
+    if guard: return guard
+
+    return render_template("shop.html")
+
+
+@app.route("/cart")
+def cart():
+    guard = _require_login(role="user")
+    if guard: return guard
+
+    return render_template("cart.html")
+
+
+@app.route("/user_orders")
+def user_orders_page():
+    guard = _require_login(role="user")
+    if guard: return guard
+
+    return render_template("user_orders.html", username=session.get("username"))
+
+
+@app.route("/admin_inventory")
+def admin_inventory():
+    guard = _require_login(role="admin")
+    if guard: return guard
+
+    # ── Fetch vegetable list ──────────────────────────────────
+    vegetables = []
+    veg_result = run_c_binary("order", ["list_products"])
+
+    if veg_result["status"] == "SUCCESS":
+        for line in veg_result["raw_output"].strip().split("\n")[1:]:
+            parts = line.split("|")
+            if len(parts) >= 7:
+                vegetables.append({
+                    "veg_id":          parts[0],
+                    "category":        parts[1],
+                    "name":            parts[2],
+                    "stock_g":         int(parts[3]),
+                    "price_per_1000g": float(parts[4]),
+                    "tag":             parts[5],
+                    "validity_days":   int(parts[6])
+                })
+
+    # ── Fetch promotional freebie list ───────────────────────
+    free_items   = []
+    promo_result = run_c_binary("inventory", ["list_promo"])
+
+    if promo_result["status"] == "SUCCESS":
+        for line in promo_result["raw_output"].strip().split("\n")[1:]:
+            parts = line.split("|")
+            if len(parts) >= 5:
+                free_items.append({
+                    "vf_id":           parts[0],
+                    "name":            parts[1],
+                    "stock_g":         int(parts[2]),
+                    "min_trigger_amt": float(parts[3]),
+                    "free_qty_g":      int(parts[4])
+                })
+
+    return render_template(
+        "admin_inventory.html",
+        vegetables = vegetables,
+        free_items = free_items,
+        admin_name = session.get("admin_name", "Admin")
+    )
+
+
+@app.route("/admin_orders")
+def admin_orders():
+    guard = _require_login(role="admin")
+    if guard: return guard
+
+    # ── Determine the active delivery slot by current hour ───
+    current_hour = datetime.now().hour
+    if   7  <= current_hour <= 10: active_slot = "Morning"
+    elif 12 <= current_hour <= 14: active_slot = "Afternoon"
+    elif 17 <= current_hour <= 19: active_slot = "Evening"
+    else:                          active_slot = None
+
+    # ── JIT: auto-promote "Order Placed" → "Out for Delivery" ─
+    jit_promoted = 0
+    if active_slot:
+        # Change from "order" to "delivery"
+        jit_result = run_c_binary("delivery", ["batch_promote_slot", active_slot])
+        if jit_result["status"] == "SUCCESS":
+            try:
+                jit_promoted = int(jit_result["data"].strip())
+            except ValueError:
+                jit_promoted = 0
+
+    return render_template(
+        "admin_orders.html",
+        username     = session.get("username"),
+        admin_name   = session.get("admin_name", "Admin"),
+        jit_promoted = jit_promoted,
+        jit_slot     = active_slot or ""
+    )
+
+
+@app.route("/product_images/<filename>")
+def serve_product_image(filename):
+    # Image bridge: serves files from the /images/ root folder.
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return send_from_directory(os.path.join(root_dir, "images"), filename)
+
+
+# =============================================================
+# API ROUTES — Return JSON, called by JavaScript fetch()
+#
+# RELATIVE PATHS — WHY THIS MATTERS FOR HTTPS:
+#   All fetch() calls in HTML/JS use relative paths ("/api/...").
+#   A hardcoded "http://..." causes a "Mixed Content" error when
+#   the page is served over HTTPS. Relative paths inherit the
+#   current scheme+host automatically.
+# =============================================================
+
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    """
+    POST /api/login
+    Body: { "username": "...", "password": "...", "role": "user|admin" }
+
+    Calls: ./auth login_user <username> <password>
+        OR ./auth login_admin <username> <password>
+
+    Session set on success:
+      user role:  session["role"], session["username"], session["user_id"]
+      admin role: session["role"], session["username"], session["user_id"],
+                  session["admin_name"]
+    """
+    data     = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    role     = data.get("role",     "user").strip()
+
+    if not username or not password:
+        return jsonify({"status": "ERROR", "message": "Required fields missing"})
+
+    if role not in ["user", "admin"]:
+        return jsonify({"status": "ERROR", "message": "Invalid role"})
+
+    # ── Call the appropriate auth command ─────────────────────
+    cmd    = "login_admin" if role == "admin" else "login_user"
+    result = run_c_binary("auth", [cmd, username, password])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    # ── Populate session ──────────────────────────────────────
+    session["role"]     = role
+    session["username"] = username
+
+    if role == "admin":
+        # Admin C output: SUCCESS|admin_id|admin_name
+        admin_parts          = result["data"].split("|")
+        session["user_id"]   = admin_parts[0] if len(admin_parts) > 0 else "A1001"
+        session["admin_name"]= admin_parts[1] if len(admin_parts) > 1 else "Admin"
+    else:
+        # User C output: SUCCESS|user_id
+        session["user_id"] = result["data"]
+
+    redirect_url = "/admin_dash" if role == "admin" else "/user_home"
+    return jsonify({"status": "SUCCESS", "role": role, "redirect": redirect_url})
+
+
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    """
+    POST /api/register
+    Body: { "username", "password", "full_name", "email", "phone",
+            "door", "street", "area", "pincode" }
+
+    Calls: ./auth register <username> <password> <full_name> <email>
+                           <phone> <address>
+    Address is assembled as: "door,street,area,pincode"
+    """
+    data = request.get_json() or {}
+
+    username  = data.get("username",  "")
+    password  = data.get("password",  "")
+    full_name = data.get("full_name", "")
+    email     = data.get("email",     "")
+    phone     = data.get("phone",     "")
+    door      = data.get("door",      "")
+    street    = data.get("street",    "")
+    area      = data.get("area",      "")
+    pincode   = data.get("pincode",   "")
+
+    required = [username, password, full_name, email, phone, door, street, area, pincode]
+    if not all(required):
+        return jsonify({"status": "ERROR", "message": "All fields required"})
+
+    address = f"{door},{street},{area},{pincode}"
+    result  = run_c_binary("auth", ["register", username, password,
+                                    full_name, email, phone, address])
+
+    message = "Registration successful" if result["status"] == "SUCCESS" else result["data"]
+    return jsonify({"status": result["status"], "message": message})
+
 
 @app.route("/api/get_admin_info", methods=["POST"])
 def api_get_admin_info():
+    """
+    POST /api/get_admin_info
+    Returns the current admin's session fields as JSON.
+    Used by the admin dashboard to personalise the header.
+    """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin only"})
+
     return jsonify({
         "status":   "SUCCESS",
         "user_id":  session.get("user_id",    "—"),
@@ -191,339 +499,348 @@ def api_get_admin_info():
         "name":     session.get("admin_name", "—")
     })
 
-@app.route("/profile")
-def profile():
-    if session.get("role") != "user": return redirect("/login/user")
-    return render_template("profile.html")
-
-@app.route("/security")
-def security():
-    if "user_id" not in session: return redirect("/")
-    return render_template("security.html")
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect("/")
-
-@app.route("/shop")
-def shop():
-    # Renamed from /vegetables
-    if session.get("role") != "user": return redirect("/login/user")
-    return render_template("shop.html")
-
-@app.route("/cart")
-def cart():
-    if session.get("role") != "user": return redirect("/login/user")
-    return render_template("cart.html")
-
-@app.route("/user_orders")
-def user_orders_page():
-    if session.get("role") != "user": return redirect("/login/user")
-    return render_template("user_orders.html", username=session.get("username"))
-
-@app.route("/admin_inventory")
-def admin_inventory():
-    if session.get("role") != "admin": return redirect("/login/admin")
-    
-    veg_result = run_c_binary("order", ["list_products"])
-    vegetables = []
-    if veg_result["status"] == "SUCCESS":
-        raw_lines = veg_result["raw_output"].strip().split("\n")
-        for line in raw_lines[1:]:
-            parts = line.split("|")
-            if len(parts) >= 7:
-                vegetables.append({
-                    "veg_id": parts[0], "category": parts[1], "name": parts[2],
-                    "stock_g": int(parts[3]), "price_per_1000g": float(parts[4]),
-                    "tag": parts[5], "validity_days": int(parts[6])
-                })
-
-    promo_result = run_c_binary("inventory", ["list_promo"])
-    free_items = []
-    if promo_result["status"] == "SUCCESS":
-        raw_lines = promo_result["raw_output"].strip().split("\n")
-        for line in raw_lines[1:]:
-            parts = line.split("|")
-            if len(parts) >= 5:
-                free_items.append({
-                    "vf_id": parts[0], "name": parts[1], "stock_g": int(parts[2]),
-                    "min_trigger_amt": float(parts[3]), "free_qty_g": int(parts[4])
-                })
-
-    return render_template("admin_inventory.html", vegetables=vegetables, free_items=free_items, admin_name=session.get("admin_name", "Admin"))
-
-@app.route("/admin_orders")
-def admin_orders():
-    if session.get("role") != "admin": return redirect("/login/admin")
-    
-    current_hour = datetime.now().hour
-    if   7 <= current_hour <= 10: active_slot = "Morning"
-    elif 12 <= current_hour <= 14: active_slot = "Afternoon"
-    elif 17 <= current_hour <= 19: active_slot = "Evening"
-    else: active_slot = None
-
-    jit_promoted = 0
-    if active_slot:
-        jit_result = run_c_binary("order", ["batch_promote_slot", active_slot])
-        if jit_result["status"] == "SUCCESS":
-            try: jit_promoted = int(jit_result["data"].strip())
-            except ValueError: jit_promoted = 0
-
-    return render_template("admin_orders.html", username=session.get("username"), admin_name=session.get("admin_name", "Admin"), jit_promoted=jit_promoted, jit_slot=active_slot or "")
-
-@app.route('/product_images/<filename>')
-def serve_product_image(filename):
-    # Image Bridge to /images/ root folder
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return send_from_directory(os.path.join(root_dir, "images"), filename)
-
-# =============================================================
-# API ROUTES - These return JSON, called by JavaScript fetch()
-#
-# RELATIVE PATHS — WHY THIS MATTERS FOR HTTPS:
-#   All fetch() calls in our HTML/JS files use relative paths:
-#     fetch("/api/login", ...)              <- CORRECT
-#     fetch("http://localhost/api/login")   <- WRONG
-#
-#   A hardcoded "http://..." URL causes a "Mixed Content" error
-#   when the page is served over HTTPS:
-#     "Blocked: The page was loaded over HTTPS, but requested
-#      an insecure HTTP resource."
-#
-#   Relative paths inherit the current scheme+host automatically:
-#     https://192.168.1.5:5000/api/login  (Wi-Fi demo mode)
-#     https://localhost:5000/api/login    (local testing mode)
-#   No code changes needed when switching between modes.
-# =============================================================
-
-@app.route("/api/login", methods=["POST"])
-def api_login():
-    data = request.get_json()
-    username, password, role = data.get("username", "").strip(), data.get("password", "").strip(), data.get("role", "user").strip()
-
-    if not username or not password: return jsonify({"status": "ERROR", "message": "Required fields missing"})
-
-    if role == "admin": result = run_c_binary("auth", ["login_admin", username, password])
-    else:               result = run_c_binary("auth", ["login_user", username, password])
-
-    if result["status"] == "SUCCESS":
-        session["role"], session["username"] = role, username
-        if role == "admin":
-            admin_parts = result["data"].split("|")
-            session["user_id"] = admin_parts[0] if len(admin_parts) > 0 else "A1001"
-            session["admin_name"] = admin_parts[1] if len(admin_parts) > 1 else "Admin"
-        else:
-            session["user_id"] = result["data"]
-
-        return jsonify({"status": "SUCCESS", "role": role, "redirect": "/admin_dash" if role == "admin" else "/user_home"})
-    return jsonify({"status": "ERROR", "message": result["data"]})
-
-@app.route("/api/register", methods=["POST"])
-def api_register():
-    data = request.get_json()
-    u, p, fn, e, ph = data.get("username", ""), data.get("password", ""), data.get("full_name", ""), data.get("email", ""), data.get("phone", "")
-    address = f"{data.get('door','')},{data.get('street','')},{data.get('area','')},{data.get('pincode','')}"
-
-    if not all([u, p, fn, e, ph, data.get('door'), data.get('street'), data.get('area'), data.get('pincode')]):
-        return jsonify({"status": "ERROR", "message": "All fields required"})
-
-    result = run_c_binary("auth", ["register", u, p, fn, e, ph, address])
-    return jsonify({"status": result["status"], "message": "Registration successful" if result["status"] == "SUCCESS" else result["data"]})
 
 @app.route("/api/get_profile", methods=["POST"])
 def api_get_profile():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
+    """
+    POST /api/get_profile
+    Calls: ./auth get_profile <user_id>
+
+    C output: SUCCESS|user_id|username|full_name|email|phone|address
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
     result = run_c_binary("auth", ["get_profile", session["user_id"]])
-    if result["status"] == "SUCCESS":
-        parts = result["data"].split("|")
-        return jsonify({"status": "SUCCESS", "user_id": parts[0], "username": parts[1], "full_name": parts[2], "email": parts[3], "phone": parts[4], "address": parts[5]})
-    return jsonify({"status": "ERROR", "message": result["data"]})
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    parts = result["data"].split("|")
+    return jsonify({
+        "status":    "SUCCESS",
+        "user_id":   parts[0] if len(parts) > 0 else "",
+        "username":  parts[1] if len(parts) > 1 else "",
+        "full_name": parts[2] if len(parts) > 2 else "",
+        "email":     parts[3] if len(parts) > 3 else "",
+        "phone":     parts[4] if len(parts) > 4 else "",
+        "address":   parts[5] if len(parts) > 5 else "",
+    })
+
 
 @app.route("/api/update_profile", methods=["POST"])
 def api_update_profile():
+    """
+    POST /api/update_profile
+    Body: { "field": "full_name|email|phone|address", "value": "..." }
+    Calls: ./auth update_profile <user_id> <field> <new_value>
+    """
     if "user_id" not in session:
         return jsonify({"status": "ERROR", "message": "Not logged in"})
-    data      = request.get_json()
+
+    data      = request.get_json() or {}
     field     = data.get("field", "").strip()
     new_value = data.get("value", "").strip()
 
-    allowed = {"full_name", "email", "phone", "address"}
-    if field not in allowed:
+    ALLOWED_FIELDS = {"full_name", "email", "phone", "address"}
+    if field not in ALLOWED_FIELDS:
         return jsonify({"status": "ERROR", "message": "Invalid field"})
     if not new_value:
         return jsonify({"status": "ERROR", "message": "Value cannot be empty"})
 
-    result = run_c_binary("auth", ["update_profile", session["user_id"], field, new_value])
+    result = run_c_binary("auth", ["update_profile", session["user_id"],
+                                   field, new_value])
     return jsonify({"status": result["status"], "message": result["data"]})
+
 
 @app.route("/api/change_password", methods=["POST"])
 def api_change_password():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
-    data = request.get_json()
-    old_p, new_p = data.get("old_password", "").strip(), data.get("new_password", "").strip()
-    
-    if session.get("role") == "admin": result = run_c_binary("auth", ["change_pass_admin", session["user_id"], old_p, new_p])
-    else:                              result = run_c_binary("auth", ["change_pass_user", session["user_id"], old_p, new_p])
-    return jsonify({"status": result["status"], "message": result["data"]})
-
-@app.route("/api/list_products", methods=["GET"])
-def api_list_products():
-    result = run_c_binary("order", ["list_products"])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    
-    products = []
-    for line in result["raw_output"].strip().split("\n")[1:]:
-        parts = line.strip().split("|")
-        if len(parts) >= 7: products.append({"veg_id": parts[0], "category": parts[1], "name": parts[2], "stock_g": int(parts[3]), "price_per_1000g": float(parts[4]), "tag": parts[5], "validity_days": int(parts[6])})
-    return jsonify({"status": "SUCCESS", "products": products})
-
-@app.route("/api/update_stock", methods=["POST"])
-def api_update_stock():
-    if session.get("role") != "admin":
-        return jsonify({"status": "ERROR", "message": "Admin only"})
-    data = request.get_json()
-    veg_id   = data.get("veg_id",   "").strip()
-    stock_g  = int(data.get("stock_g",  0))
-    price    = float(data.get("price",  0))
-    validity = int(data.get("validity", 1))
-    if not veg_id:
-        return jsonify({"status": "error", "message": "veg_id required"})
-    result = run_c_binary("inventory", [
-        "update_stock", veg_id, str(stock_g), str(price), str(validity)
-    ])
-    return jsonify({
-        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
-        "message": result["data"]
-    })
-
-@app.route("/api/update_promo_stock", methods=["POST"])
-def api_update_promo_stock():
-    if session.get("role") != "admin":
-        return jsonify({"status": "ERROR", "message": "Admin only"})
-    data    = request.get_json()
-    vf_id   = data.get("vf_id",   "").strip()
-    stock_g = int(data.get("stock_g", 0))
-    if not vf_id:
-        return jsonify({"status": "error", "message": "vf_id required"})
-    result = run_c_binary("inventory", ["update_promo_stock", vf_id, str(stock_g)])
-    return jsonify({
-        "status":  "SUCCESS" if result["status"] == "SUCCESS" else "ERROR",
-        "message": result["data"]
-    })
-
-@app.route("/api/add_to_cart", methods=["POST"])
-def api_add_to_cart():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
-    data = request.get_json()
-    result = run_c_binary("order", ["add_to_cart", session["user_id"], data.get("veg_id", "").strip(), str(int(data.get("qty_g", 0)))])
-    return jsonify({"status": result["status"], "message": result["data"]})
-
-@app.route("/api/view_cart", methods=["POST"])
-def api_view_cart():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
-    result = run_c_binary("order", ["view_cart", session["user_id"]])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    
-    lines = result["raw_output"].strip().split("\n")
-    items = []
-    for line in lines[1:]:
-        parts = line.strip().split("|")
-        if len(parts) >= 6: items.append({"veg_id": parts[0], "name": parts[1], "qty_g": int(parts[2]), "price_per_1000g": float(parts[3]), "item_total": float(parts[4]), "is_free": int(parts[5])})
-    return jsonify({"status": "SUCCESS", "total": float(lines[0].split("|")[1]), "items": items})
-
-@app.route("/api/update_cart_qty", methods=["POST"])
-def api_update_cart_qty():
     """
-    Called by onQtyChange debounce in cart.html.
-    Updates one item's quantity in the user's cart DLL (re-writes cart file via C).
-    Body: { "veg_id": "V1001", "qty_g": 750 }
+    POST /api/change_password
+    Body: { "old_password": "...", "new_password": "..." }
+
+    Routes to the correct C command based on session role:
+      user  → ./auth change_pass_user  <user_id> <old> <new>
+      admin → ./auth change_pass_admin <user_id> <old> <new>
     """
     if "user_id" not in session:
         return jsonify({"status": "ERROR", "message": "Not logged in"})
 
-    data   = request.get_json()
+    data  = request.get_json() or {}
+    old_p = data.get("old_password", "").strip()
+    new_p = data.get("new_password", "").strip()
+
+    cmd = "change_pass_admin" if session.get("role") == "admin" else "change_pass_user"
+    result = run_c_binary("auth", [cmd, session["user_id"], old_p, new_p])
+
+    return jsonify({"status": result["status"], "message": result["data"]})
+
+
+@app.route("/api/list_products", methods=["GET"])
+def api_list_products():
+    """
+    GET /api/list_products
+    Calls: ./order list_products
+
+    C output (multi-line):
+      SUCCESS|
+      veg_id|category|name|stock_g|price_per_1000g|tag|validity_days
+      ...
+    """
+    result = run_c_binary("order", ["list_products"])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    products = []
+    for line in result["raw_output"].strip().split("\n")[1:]:
+        parts = line.strip().split("|")
+        if len(parts) >= 7:
+            products.append({
+                "veg_id":          parts[0],
+                "category":        parts[1],
+                "name":            parts[2],
+                "stock_g":         int(parts[3]),
+                "price_per_1000g": float(parts[4]),
+                "tag":             parts[5],
+                "validity_days":   int(parts[6])
+            })
+
+    return jsonify({"status": "SUCCESS", "products": products})
+
+
+@app.route("/api/update_stock", methods=["POST"])
+def api_update_stock():
+    """
+    POST /api/update_stock  (admin only)
+    Body: { "veg_id": "V1001", "stock_g": 75000, "price": 45.50, "validity": 10 }
+    Calls: ./inventory update_stock <veg_id> <stock_g> <price> <validity>
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+
+    data     = request.get_json() or {}
+    veg_id   = data.get("veg_id",   "").strip()
+    stock_g  = int(data.get("stock_g",  0))
+    price    = float(data.get("price",  0))
+    validity = int(data.get("validity", 1))
+
+    if not veg_id:
+        return jsonify({"status": "ERROR", "message": "veg_id required"})
+
+    result = run_c_binary("inventory", [
+        "update_stock", veg_id, str(stock_g), str(price), str(validity)
+    ])
+    status = "SUCCESS" if result["status"] == "SUCCESS" else "ERROR"
+    return jsonify({"status": status, "message": result["data"]})
+
+
+@app.route("/api/update_promo_stock", methods=["POST"])
+def api_update_promo_stock():
+    """
+    POST /api/update_promo_stock  (admin only)
+    Body: { "vf_id": "VF1001", "stock_g": 5000 }
+    Calls: ./inventory update_promo_stock <vf_id> <stock_g>
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+
+    data    = request.get_json() or {}
+    vf_id   = data.get("vf_id",   "").strip()
+    stock_g = int(data.get("stock_g", 0))
+
+    if not vf_id:
+        return jsonify({"status": "ERROR", "message": "vf_id required"})
+
+    result = run_c_binary("inventory", ["update_promo_stock", vf_id, str(stock_g)])
+    status = "SUCCESS" if result["status"] == "SUCCESS" else "ERROR"
+    return jsonify({"status": status, "message": result["data"]})
+
+
+@app.route("/api/add_to_cart", methods=["POST"])
+def api_add_to_cart():
+    """
+    POST /api/add_to_cart
+    Body: { "veg_id": "V1001", "qty_g": 500 }
+    Calls: ./order add_to_cart <user_id> <veg_id> <qty_g>
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data   = request.get_json() or {}
+    veg_id = data.get("veg_id", "").strip()
+    qty_g  = int(data.get("qty_g", 0))
+
+    result = run_c_binary("order", ["add_to_cart", session["user_id"],
+                                    veg_id, str(qty_g)])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
+
+@app.route("/api/view_cart", methods=["POST"])
+def api_view_cart():
+    """
+    POST /api/view_cart
+    Calls: ./order view_cart <user_id>
+
+    C output (multi-line):
+      SUCCESS|<cart_total>
+      veg_id|name|qty_g|price_per_1000g|item_total|is_free
+      ...
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    result = run_c_binary("order", ["view_cart", session["user_id"]])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    lines = result["raw_output"].strip().split("\n")
+    items = []
+
+    for line in lines[1:]:
+        parts = line.strip().split("|")
+        if len(parts) >= 6:
+            items.append({
+                "veg_id":          parts[0],
+                "name":            parts[1],
+                "qty_g":           int(parts[2]),
+                "price_per_1000g": float(parts[3]),
+                "item_total":      float(parts[4]),
+                "is_free":         int(parts[5])
+            })
+
+    cart_total = _safe_float(lines[0].split("|")[1]) if lines else 0.0
+    return jsonify({"status": "SUCCESS", "total": cart_total, "items": items})
+
+
+@app.route("/api/update_cart_qty", methods=["POST"])
+def api_update_cart_qty():
+    """
+    POST /api/update_cart_qty
+    Body: { "veg_id": "V1001", "qty_g": 750 }
+
+    Re-uses add_to_cart which performs an update_or_append in C.
+    Calls: ./order add_to_cart <user_id> <veg_id> <qty_g>
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data   = request.get_json() or {}
     veg_id = data.get("veg_id", "").strip()
     qty_g  = int(data.get("qty_g", 0))
 
     if not veg_id or qty_g <= 0:
         return jsonify({"status": "ERROR", "message": "Invalid veg_id or qty_g"})
 
-    # Re-uses the existing add_to_cart C command which does update_or_append
-    result = run_c_binary("order", [
-        "add_to_cart", session["user_id"], veg_id, str(qty_g)
-    ])
-    return jsonify({
-        "status":  result["status"],
-        "message": result["data"]
-    })
+    result = run_c_binary("order", ["add_to_cart", session["user_id"],
+                                    veg_id, str(qty_g)])
+    return jsonify({"status": result["status"], "message": result["data"]})
+
 
 @app.route("/api/remove_item", methods=["POST"])
 def api_remove_item():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
-    result = run_c_binary("order", ["remove_item", session["user_id"], request.get_json().get("veg_id", "").strip()])
+    """
+    POST /api/remove_item
+    Body: { "veg_id": "V1001" }
+    Calls: ./order remove_item <user_id> <veg_id>
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    data   = request.get_json() or {}
+    veg_id = data.get("veg_id", "").strip()
+
+    result = run_c_binary("order", ["remove_item", session["user_id"], veg_id])
     return jsonify({"status": result["status"], "message": result["data"]})
+
 
 @app.route("/api/checkout", methods=["POST"])
 def api_checkout():
-    if "user_id" not in session: return jsonify({"status": "ERROR", "message": "Not logged in"})
-    slot = request.get_json().get("delivery_slot", "").strip()
-    if slot not in ["Morning", "Afternoon", "Evening"]: return jsonify({"status": "ERROR", "message": "Invalid slot"})
-    
-    result = run_c_binary("order", ["checkout", session["user_id"], slot])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    
-    parts = result["raw_output"].strip().split("\n")[0].split("|")
-    return jsonify({"status": "SUCCESS", "order_id": parts[1], "total": float(parts[2]), "slot": parts[3], "boy_name": parts[4], "boy_phone": parts[5], "items": parts[6] if len(parts)>6 else ""})
+    """
+    POST /api/checkout
+    Body: { "delivery_slot": "Morning|Afternoon|Evening" }
+    Calls: ./order checkout <user_id> <delivery_slot>
 
-@app.route("/api/get_user_orders", methods=["POST"])
-def api_get_user_orders():
+    C output (first line):
+      SUCCESS|order_id|total|slot|boy_name|boy_phone|items_string
+    """
     if "user_id" not in session:
         return jsonify({"status": "ERROR", "message": "Not logged in"})
-    result = run_c_binary("order", ["get_orders", session["user_id"]])
+
+    data = request.get_json() or {}
+    slot = data.get("delivery_slot", "").strip()
+
+    VALID_SLOTS = {"Morning", "Afternoon", "Evening"}
+    if slot not in VALID_SLOTS:
+        return jsonify({"status": "ERROR", "message": "Invalid slot"})
+
+    result = run_c_binary("order", ["checkout", session["user_id"], slot])
+
     if result["status"] != "SUCCESS":
         return jsonify({"status": "ERROR", "message": result["data"]})
 
-    orders = []
-    for line in result["raw_output"].strip().split("\n")[1:]:
-        parts = line.strip().split("|")
-        if len(parts) < 8:
-            continue
-        orders.append({
-            "order_id":        parts[0],
-            "user_id":         parts[1],
-            "total_amount":    _safe_float(parts[2]),
-            "delivery_slot":   parts[3],
-            "delivery_boy_id": parts[4],
-            "status":          parts[5],
-            "timestamp":       parts[6],
-            "items_string":    parts[7],
-            "boy_name":        parts[8] if len(parts) > 8 else "Unknown",
-            "boy_phone":       parts[9] if len(parts) > 9 else "N/A",
-        })
+    parts = result["raw_output"].strip().split("\n")[0].split("|")
+    return jsonify({
+        "status":   "SUCCESS",
+        "order_id": parts[1] if len(parts) > 1 else "",
+        "total":    _safe_float(parts[2]) if len(parts) > 2 else 0.0,
+        "slot":     parts[3] if len(parts) > 3 else "",
+        "boy_name": parts[4] if len(parts) > 4 else "Unknown",
+        "boy_phone":parts[5] if len(parts) > 5 else "N/A",
+        "items":    parts[6] if len(parts) > 6 else ""
+    })
+
+
+@app.route("/api/get_user_orders", methods=["POST"])
+def api_get_user_orders():
+    """
+    POST /api/get_user_orders
+    Calls: ./order get_orders <user_id>
+
+    C output: multi-line, header + one order per line.
+    SCHEMA: order_id|user_id|total|slot|boy_id|status|timestamp|items_string
+            [|boy_name|boy_phone]
+    """
+    if "user_id" not in session:
+        return jsonify({"status": "ERROR", "message": "Not logged in"})
+
+    result = run_c_binary("order", ["get_orders", session["user_id"]])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    orders = _parse_multiline_orders(result["raw_output"])
     return jsonify({"status": "SUCCESS", "orders": orders})
+
 
 @app.route("/api/admin_orders", methods=["GET"])
 def api_admin_orders():
-    if session.get("role") != "admin": return jsonify({"status": "ERROR", "message": "Admin only"})
+    """
+    GET /api/admin_orders  (admin only)
+    Calls: ./order admin_orders
+
+    Returns heap-sorted (priority by slot) full order list.
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"})
+
     result = run_c_binary("order", ["admin_orders"])
-    if result["status"] != "SUCCESS": return jsonify({"status": "ERROR", "message": result["data"]})
-    
-    orders = []
-    for line in result["raw_output"].strip().split("\n")[1:]:
-        parts = line.strip().split("|")
-        if len(parts) >= 8: orders.append({"order_id": parts[0], "user_id": parts[1], "total_amount": float(parts[2]), "delivery_slot": parts[3], "delivery_boy_id": parts[4], "status": parts[5], "timestamp": parts[6], "items": parts[7], "boy_name": parts[8] if len(parts)>8 else "Unknown", "boy_phone": parts[9] if len(parts)>9 else "N/A"})
+
+    if result["status"] != "SUCCESS":
+        return jsonify({"status": "ERROR", "message": result["data"]})
+
+    orders = _parse_multiline_orders(result["raw_output"])
     return jsonify({"status": "SUCCESS", "orders": orders})
+
 
 @app.route("/api/get_admin_orders", methods=["POST"])
 def api_get_admin_orders():
     """
-    POST /api/get_admin_orders
-    Called by admin_orders.html on page load.
-    NOW delegates to: ./delivery list_all_orders
-    (previously called ./order admin_orders which was heap-sorted + active-only)
+    POST /api/get_admin_orders  (admin only)
+    Delegates to: ./delivery list_all_orders_sorted
 
-    Returns all orders, newest-first, with boy enrichment.
+    Returns all orders newest-first, enriched with boy_name + boy_phone.
     """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
@@ -534,40 +851,19 @@ def api_get_admin_orders():
         return jsonify({"status": "SUCCESS", "orders": [],
                         "warning": result.get("data", "")})
 
-    orders = []
-    raw_lines = result["raw_output"].strip().split("\n")
-    for line in raw_lines[1:]:
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        if len(parts) < 8:
-            continue
-        orders.append({
-            "order_id":        parts[0],
-            "user_id":         parts[1],
-            "total_amount":    _safe_float(parts[2]),
-            "delivery_slot":   parts[3],
-            "delivery_boy_id": parts[4],
-            "status":          parts[5],
-            "timestamp":       parts[6],
-            "items_string":    parts[7],
-            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
-            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
-        })
+    orders = _parse_multiline_orders(result["raw_output"])
+    return jsonify({"status": "SUCCESS", "orders": orders})
 
-    return jsonify({"status": "SUCCESS", "orders": orders})   
 
 @app.route("/api/update_order_status", methods=["POST"])
 def api_update_order_status():
     """
-    POST /api/update_order_status
-    Body: { "order_id": "ORD107", "status": "Out for Delivery" }
+    POST /api/update_order_status  (admin only)
+    Body: { "order_id": "ORD1007", "status": "Out for Delivery" }
+    Calls: ./delivery update_status <order_id> <status>
 
-    Delegates to: ./delivery update_status <order_id> <status>
-
-    Valid status values (must match delivery.c string literals exactly):
-      "Order Placed" | "Out for Delivery" | "Delivered" | "Cancelled"
+    Valid status values: "Order Placed" | "Out for Delivery" |
+                         "Delivered"    | "Cancelled"
     """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin access required"}), 403
@@ -577,35 +873,34 @@ def api_update_order_status():
     new_status = data.get("status",    "").strip()
 
     VALID_STATUSES = {"Order Placed", "Out for Delivery", "Delivered", "Cancelled"}
+
     if not order_id:
         return jsonify({"status": "ERROR", "message": "order_id is required"})
     if new_status not in VALID_STATUSES:
         return jsonify({"status": "ERROR", "message": f"Invalid status: {new_status}"})
 
-    # ── Delegate to the NEW delivery binary ───────────────────────────
     result = run_c_binary("delivery", ["update_status", order_id, new_status])
-    return jsonify({
-        "status":  result["status"],
-        "message": result.get("data", "")
-    })
+    return jsonify({"status": result["status"], "message": result.get("data", "")})
+
 
 @app.route("/api/promote_slot_orders", methods=["POST"])
 def api_promote_slot_orders():
     """
-    POST /api/promote_slot_orders
-    Body: { "slot": "Morning" }
-
-    Delegates to: ./delivery batch_promote_slot <slot>
+    POST /api/promote_slot_orders  (admin only)
+    Body: { "slot": "Morning|Afternoon|Evening" }
+    Calls: ./delivery batch_promote_slot <slot>
     Returns: { "status": "SUCCESS", "promoted": <int> }
     """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin only"})
 
     slot = (request.get_json(silent=True) or {}).get("slot", "").strip()
-    if slot not in ["Morning", "Afternoon", "Evening"]:
+
+    if slot not in {"Morning", "Afternoon", "Evening"}:
         return jsonify({"status": "ERROR", "message": "Invalid slot"})
 
     result = run_c_binary("delivery", ["batch_promote_slot", slot])
+
     if result["status"] != "SUCCESS":
         return jsonify({"status": "ERROR", "message": result.get("data", "")})
 
@@ -616,24 +911,18 @@ def api_promote_slot_orders():
 
     return jsonify({"status": "SUCCESS", "promoted": promoted})
 
+
 @app.route("/api/cancel_order", methods=["POST"])
 def api_cancel_order():
     """
     POST /api/cancel_order
-    Body: { "order_id": "ORD107" }
+    Body: { "order_id": "ORD1007" }
 
     Business rules enforced in delivery.c:
       - Only "Order Placed" orders may be cancelled.
-      - ₹50 cancellation fee is surfaced in the UI disclaimer only
-        (actual refund processing is outside scope for this project).
-
-    Delegates to: ./delivery cancel_order <order_id>
-
-    Returns:
-      { "status": "SUCCESS", "message": "Order cancelled" }
-      { "status": "ERROR",   "message": "Only Order Placed orders..." }
+    Calls: ./delivery cancel_order <order_id>
+    Returns: { "status": "SUCCESS"|"ERROR", "message": "..." }
     """
-    # Both admin and logged-in users may cancel their own orders.
     if "user_id" not in session:
         return jsonify({"status": "ERROR", "message": "Not logged in"}), 401
 
@@ -644,63 +933,36 @@ def api_cancel_order():
         return jsonify({"status": "ERROR", "message": "order_id is required"})
 
     result = run_c_binary("delivery", ["cancel_order", order_id])
-    return jsonify({
-        "status":  result["status"],
-        "message": result.get("data", "")
-    })
+    return jsonify({"status": result["status"], "message": result.get("data", "")})
+
 
 @app.route("/api/get_active_orders", methods=["GET"])
 def api_get_active_orders():
     """
-    GET /api/get_active_orders
-
+    GET /api/get_active_orders  (admin only)
     Returns only "Order Placed" and "Out for Delivery" orders,
     enriched with boy_name + boy_phone.
-
-    Delegates to: ./delivery get_active_orders
-
-    Returns:
-      { "status": "SUCCESS", "orders": [...] }
+    Calls: ./delivery get_active_orders
     """
     if session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Admin only"}), 403
 
     result = run_c_binary("delivery", ["get_active_orders"])
+
     if result["status"] != "SUCCESS":
         return jsonify({"status": "SUCCESS", "orders": [],
                         "warning": result.get("data", "")})
 
-    orders = []
-    raw_lines = result["raw_output"].strip().split("\n")
-    for line in raw_lines[1:]:
-        line = line.strip()
-        if not line:
-            continue
-        parts = line.split("|")
-        if len(parts) < 8:
-            continue
-        orders.append({
-            "order_id":        parts[0],
-            "user_id":         parts[1],
-            "total_amount":    _safe_float(parts[2]),
-            "delivery_slot":   parts[3],
-            "delivery_boy_id": parts[4],
-            "status":          parts[5],
-            "timestamp":       parts[6],
-            "items_string":    parts[7],
-            "boy_name":        parts[8]  if len(parts) > 8  else "Unknown",
-            "boy_phone":       parts[9]  if len(parts) > 9  else "N/A",
-        })
-
+    orders = _parse_multiline_orders(result["raw_output"])
     return jsonify({"status": "SUCCESS", "orders": orders})
+
 
 @app.route("/api/assign_agent", methods=["POST"])
 def api_assign_agent():
     """
-    POST /api/assign_agent
-    Body: { "order_id": "ORD107", "boy_id": "D003" }
-
-    Delegates to: ./delivery assign_agent <order_id> <boy_id>
+    POST /api/assign_agent  (admin only)
+    Body: { "order_id": "ORD1007", "boy_id": "D1003" }
+    Calls: ./delivery assign_agent <order_id> <boy_id>
     Returns: { "status": "SUCCESS", "message": "Agent assigned" }
     """
     if session.get("role") != "admin":
@@ -711,13 +973,12 @@ def api_assign_agent():
     boy_id   = data.get("boy_id",   "").strip()
 
     if not order_id or not boy_id:
-        return jsonify({"status": "ERROR", "message": "order_id and boy_id are required"})
+        return jsonify({"status": "ERROR",
+                        "message": "order_id and boy_id are required"})
 
     result = run_c_binary("delivery", ["assign_agent", order_id, boy_id])
-    return jsonify({
-        "status":  result["status"],
-        "message": result.get("data", "")
-    })
+    return jsonify({"status": result["status"], "message": result.get("data", "")})
+
 
 @app.route("/api/download_receipt/<order_id>", methods=["GET"])
 def api_download_receipt(order_id):
@@ -725,22 +986,21 @@ def api_download_receipt(order_id):
     GET /api/download_receipt/<order_id>
 
     1. Calls the `receipt` C binary with the order_id.
-    2. Parses the pipe-delimited stdout into a data dict.
+    2. Parses the 13-field pipe-delimited stdout into a data dict.
     3. Generates a PDF via generate_receipt.py.
     4. Streams the PDF back as a file attachment.
 
-    Accessible by both logged-in users AND admins (both need receipts).
-    Only requires an active session (any role).
+    Accessible by both logged-in users AND admins.
+
+    C output FORMAT (13 fields after SUCCESS):
+      SUCCESS|order_id|user_id|full_name|user_phone|user_email|
+              address|slot|status|timestamp|boy_name|boy_phone|
+              total|items_string
     """
     if "user_id" not in session and session.get("role") != "admin":
         return jsonify({"status": "ERROR", "message": "Not logged in"}), 401
 
-    # ── Step 1: Call the receipt C binary ────────────────────
-    # Handle Windows (.exe) gracefully
-    binary = "receipt"
-    if sys.platform.startswith("win"):
-        binary = "receipt.exe"
-
+    # ── Step 1: Call the receipt binary ──────────────────────
     result = run_c_binary("receipt", [order_id])
 
     if result["status"] != "SUCCESS":
@@ -750,24 +1010,17 @@ def api_download_receipt(order_id):
         }), 404
 
     # ── Step 2: Parse the pipe-delimited output ───────────────
-    #
-    # FORMAT: SUCCESS|order_id|user_id|full_name|user_phone|user_email|
-    #                 address|slot|status|timestamp|boy_name|boy_phone|
-    #                 total|items_string
-    #
-    # raw_output already has the full stdout string.
-    # The first line is the data line (starts with SUCCESS|).
-    raw = result["raw_output"].strip().split("\n")[0]
+    raw   = result["raw_output"].strip().split("\n")[0]
     parts = raw.split("|")
 
-    # parts[0] = "SUCCESS", parts[1..] = the 13 data fields
+    # parts[0] = "SUCCESS", parts[1..13] = data fields
     if len(parts) < 14:
         return jsonify({
             "status":  "ERROR",
             "message": f"Malformed receipt data ({len(parts)} fields)"
         }), 500
 
-    data = {
+    receipt_data = {
         "order_id":    parts[1],
         "user_id":     parts[2],
         "full_name":   parts[3],
@@ -779,9 +1032,9 @@ def api_download_receipt(order_id):
         "timestamp":   parts[9],
         "boy_name":    parts[10],
         "boy_phone":   parts[11],
-        "total":       float(parts[12]) if parts[12] else 0.0,
-        # items_string may itself contain "|" if a name ever does —
-        # join remaining parts back to be safe
+        "total":       _safe_float(parts[12]),
+        # items_string may itself contain "|" if item names do —
+        # join remaining parts back to preserve them.
         "items_string": "|".join(parts[13:]),
     }
 
@@ -790,11 +1043,11 @@ def api_download_receipt(order_id):
         with tempfile.NamedTemporaryFile(
             suffix=".pdf",
             delete=False,
-            prefix=f"{data['order_id']}_{data['user_id']}_"
+            prefix=f"{receipt_data['order_id']}_{receipt_data['user_id']}_"
         ) as tmp:
             tmp_path = tmp.name
 
-        generate_receipt(data, tmp_path)
+        generate_receipt(receipt_data, tmp_path)
 
     except Exception as e:
         return jsonify({
@@ -803,33 +1056,13 @@ def api_download_receipt(order_id):
         }), 500
 
     # ── Step 4: Stream the PDF back to the browser ────────────
-    filename = f"{data['order_id']}_{data['user_id']}.pdf"
+    filename = f"{receipt_data['order_id']}_{receipt_data['user_id']}.pdf"
     return send_file(
         tmp_path,
         mimetype="application/pdf",
         as_attachment=True,
         download_name=filename
     )
-
-# ─────────────────────────────────────────────────────────────
-# NOTE FOR BRIDGE.PY:
-# ─────────────────────────────────────────────────────────────
-# The run_c_binary() function in bridge.py must return both
-# result["data"] (the part after "SUCCESS|" or "ERROR|")
-# AND result["raw_output"] (the complete stdout string).
-#
-# If your current bridge.py does not include "raw_output",
-# add this to the return dict in run_c_binary():
-#
-#   return {
-#       "status":     parts[0],
-#       "data":       "|".join(parts[1:]),
-#       "raw_output": output   # <-- ADD THIS LINE
-#   }
-#
-# This lets Flask parse multi-line output (used by list_products,
-# view_cart, get_orders, admin_orders).
-# ─────────────────────────────────────────────────────────────
 
 
 # =============================================================
@@ -839,25 +1072,12 @@ def api_download_receipt(order_id):
 if __name__ == "__main__":
 
     # ─────────────────────────────────────────────────────────
-    # SSL CONTEXT SETUP
-    # ─────────────────────────────────────────────────────────
-    # ssl.SSLContext is a Python object that holds our certificate
-    # and private key. We pass it to app.run() so Flask/Werkzeug
-    # wraps every connection in TLS encryption.
-    #
-    # ssl.PROTOCOL_TLS_SERVER:
-    #   Tells Python we are the SERVER (not a client connecting to
-    #   someone else). It automatically negotiates the best available
-    #   TLS version (1.2 or 1.3) supported by both sides.
+    # SSL Context Setup
+    # ssl.SSLContext wraps our cert.pem + key.pem and instructs
+    # Flask/Werkzeug to wrap every TCP connection in TLS.
     # ─────────────────────────────────────────────────────────
     ssl_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
-    # load_cert_chain(certfile, keyfile):
-    #   Loads our public certificate AND private key into the context.
-    #   certfile = cert.pem -> shown to browsers to prove our identity
-    #   keyfile  = key.pem  -> used to decrypt incoming encrypted data
-    #
-    # If files don't exist, we print a helpful message and exit cleanly.
     try:
         ssl_ctx.load_cert_chain(certfile=CERT_FILE, keyfile=KEY_FILE)
     except FileNotFoundError:
@@ -868,114 +1088,43 @@ if __name__ == "__main__":
         exit(1)
 
     # ─────────────────────────────────────────────────────────
-    # CHOOSE YOUR LAUNCH MODE
-    # Comment out the version you are NOT using.
-    # Only one HOST value should be active at a time.
+    # Launch Mode: VERSION B (Wi-Fi / Demo Mode) active.
+    # Comment HOST = "0.0.0.0" and uncomment HOST = "127.0.0.1"
+    # to switch to VERSION A (local testing only).
     # ─────────────────────────────────────────────────────────
 
-    # ══════════════════════════════════════════════════════════
-    # VERSION A — LOCAL TESTING (Private, single laptop only)
-    # ══════════════════════════════════════════════════════════
-    # host="127.0.0.1" is the "loopback" address.
-    # Traffic on 127.0.0.1 never leaves your laptop — it loops
-    # back internally. It's invisible to any other device on the
-    # network, providing a private development environment.
-    #
-    # USE WHEN: Testing alone, not needing other devices.
-    # ACCESS:   https://localhost:5000
-    # ══════════════════════════════════════════════════════════
+    # VERSION A — Local testing (single laptop, invisible to network)
+    # HOST = "127.0.0.1"
 
-    # ══════════════════════════════════════════════════════════
-    # VERSION B — DEMO MODE (Wi-Fi, all devices on same network)
-    # ══════════════════════════════════════════════════════════
-    # host="0.0.0.0" means INADDR_ANY — a special address that
-    # tells the OS kernel: "Bind to ALL available network interfaces
-    # simultaneously."
-    #
-    # Your laptop has multiple network interfaces, each with its own IP:
-    #   127.0.0.1    -> Loopback (internal only)
-    #   192.168.x.x  -> Wi-Fi adapter (router-assigned, LAN-visible)
-    #   10.x.x.x     -> Sometimes VPN or Ethernet adapter
-    #
-    # 0.0.0.0 listens on ALL of them at once. Any device on the
-    # same LAN/Wi-Fi can then reach your server using your Wi-Fi IP.
-    #
-    # HOW TO FIND YOUR Wi-Fi IP:
-    #   Windows:  CMD -> ipconfig
-    #             "Wireless LAN adapter Wi-Fi:"
-    #             "   IPv4 Address. . . . .: 192.168.x.x"  <- this one
-    #
-    #   Mac:      Terminal -> ifconfig en0
-    #             "inet 192.168.x.x netmask ..."            <- this one
-    #
-    #   Linux:    Terminal -> ip addr show wlan0
-    #             "inet 192.168.x.x/24 ..."                 <- this one
-    #
-    # TEAMMATES: Open browser on their device and go to:
-    #   https://192.168.x.x:5000  (your IP, not theirs)
-    #   Accept the certificate warning -> Advanced -> Proceed
-    #
-    # USE WHEN: College demo, professor review, team testing.
-    # ══════════════════════════════════════════════════════════
-
-
-    """
-    === LAUNCH MODE ===
-    """
-
-    # UNCOMMENT for Version A (Local)
-    # HOST = "127.0.0.1"   
-
-    # UNCOMMENT for Version B (Demo/Wi-Fi)
-    HOST = "0.0.0.0"   
-
-    PORT  = 5000   # Flask's standard dev port. Free to use without admin rights.
-    DEBUG = True   # Auto-reload on code changes. Set False for production.
-
-
-    # ─────────────────────────────────────────────────────────
-    # GET LOCAL IPv4 ADDRESS (Wi-Fi / LAN IP)
-    # ─────────────────────────────────────────────────────────
-    # This function automatically detects your machine's active
-    # network IP address (usually 192.168.x.x).
-    #
-    # HOW IT WORKS:
-    # - Creates a UDP socket (no actual data is sent)
-    # - "Connects" to a public DNS server (8.8.8.8)
-    # - OS selects the correct network interface (Wi-Fi/Ethernet)
-    # - Extracts the local IP assigned to that interface
-    #
-    # WHY THIS IS USEFUL:
-    # - Eliminates manual lookup using ipconfig / ifconfig
-    # - Automatically prints the correct Wi-Fi URL for demos
-    # - Makes your project look clean and production-ready
-    #
-    # FALLBACK:
-    # - If detection fails, returns 127.0.0.1 (safe default)
-    # ─────────────────────────────────────────────────────────
+    # VERSION B — Demo mode (all devices on same Wi-Fi can connect)
+    HOST  = "0.0.0.0"
+    PORT  = 5000
+    DEBUG = True
 
     import socket
 
     def get_local_ip():
+        """
+        Detect the machine's active LAN/Wi-Fi IPv4 address without
+        sending any real traffic. Falls back to 127.0.0.1 on failure.
+        """
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))  # No real connection made
+            s.connect(("8.8.8.8", 80))
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
-            return "127.0.0.1"    
+        except Exception:
+            return "127.0.0.1"
 
     LOCAL_IP = get_local_ip()
-    # ─────────────────────────────────────────────────────────
-    # START-UP BANNER
-    # Clearly shows which mode is active and connection details.
-    # ─────────────────────────────────────────────────────────
+
     print()
     print("=" * 62)
     print("  FreshPicks  |  CodeCrafters  |  SDP-1  |  HTTPS Server")
     print("=" * 62)
     print()
+
     if HOST == "127.0.0.1":
         print("  Mode        :  VERSION A  (Local only)")
         print(f"  Home         :  https://localhost:{PORT}/")
@@ -987,30 +1136,19 @@ if __name__ == "__main__":
         print("  Mode        :  VERSION B  (Wi-Fi / Demo Mode)")
         print()
         print(f"  Home         :  https://{LOCAL_IP}:{PORT}/")
-        print(f"  Admin Portal :  https://{LOCAL_IP}:{PORT}/login/admin")  # <-- HTTPS absolute URL
-        print(f"  User Portal  :  https://{LOCAL_IP}:{PORT}/login/user")   # <-- HTTPS absolute URL
+        print(f"  Admin Portal :  https://{LOCAL_IP}:{PORT}/login/admin")
+        print(f"  User Portal  :  https://{LOCAL_IP}:{PORT}/login/user")
         print()
         print(f"  Localhost    :  https://localhost:{PORT}/")
         print()
         print("  Share the Wi-Fi URLs above with teammates.")
         print("  Each device: Advanced -> Proceed (accept self-signed cert).")
+
     print()
     print("  Browser shows 'Not private'? That is expected (self-signed cert).")
     print("=" * 62)
     print()
 
-    # ─────────────────────────────────────────────────────────
-    # LAUNCH FLASK WITH SSL
-    #
-    # ssl_context=ssl_ctx:
-    #   This single argument is what converts the server from
-    #   plain HTTP to encrypted HTTPS. Werkzeug (Flask's dev server)
-    #   reads the cert+key from ssl_ctx and wraps every TCP connection
-    #   in a TLS handshake before any HTTP data is exchanged.
-    #
-    # WITHOUT ssl_context: http://localhost:5000  (plain text)
-    # WITH    ssl_context: https://localhost:5000 (encrypted)
-    # ─────────────────────────────────────────────────────────
     app.run(
         host        = HOST,
         port        = PORT,

@@ -11,7 +11,7 @@
 #
 # HOW TO RUN:
 #   Linux / macOS:   chmod +x build.sh && ./build.sh
-#   Windows (Bash):  bash build.sh
+#   Windows (Powershell):  bash build.sh
 #
 # FIRST-TIME SETUP:
 #   After running this script, run the converter once:
@@ -108,6 +108,6 @@ echo ""
 echo "  NEXT STEPS (every time):"
 echo "    2. Start Flask:"
 echo "       Linux/macOS:  cd ../app && python3 app.py"
-echo "       Windows Bash: cd ../app && python app.py"
+echo "       Windows Powershell: cd ../app && python app.py"
 echo ""
 echo "================================================"
