@@ -128,6 +128,7 @@ void cmd_list_promo(void) {
     printf("SUCCESS|\n");
 
     FreeItemNode *curr = head;
+    int count = 0;
     while (curr != NULL) {
         printf("%s|%s|%d|%.2f|%d\n",
                curr->data.vf_id,
@@ -135,10 +136,15 @@ void cmd_list_promo(void) {
                curr->data.stock_g,
                curr->data.min_trigger_amt,
                curr->data.free_qty_g);
+        count++;
         curr = curr->next;
     }
 
     free_free_item_sll(head);
+
+    if (count == 0) {
+        PRINT_ERROR("No promo items found");
+    }
 }
 
 

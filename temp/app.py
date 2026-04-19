@@ -364,8 +364,7 @@ def admin_orders():
     # ── JIT: auto-promote "Order Placed" → "Out for Delivery" ─
     jit_promoted = 0
     if active_slot:
-        # Change from "order" to "delivery"
-        jit_result = run_c_binary("delivery", ["batch_promote_slot", active_slot])
+        jit_result = run_c_binary("order", ["batch_promote_slot", active_slot])
         if jit_result["status"] == "SUCCESS":
             try:
                 jit_promoted = int(jit_result["data"].strip())

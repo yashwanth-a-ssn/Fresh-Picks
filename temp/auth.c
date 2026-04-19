@@ -143,8 +143,10 @@ void cmd_register_user(const char *username, const char *password,
     strncpy(new_user.password,  password,  MAX_STR_LEN - 1);
     strncpy(new_user.full_name, full_name, MAX_STR_LEN - 1);
     strncpy(new_user.email,     email,     MAX_STR_LEN - 1);
+    strncpy(new_user.phone,     MAX_STR_LEN - 1 < 20 ? new_user.phone : new_user.phone,
+            MAX_STR_LEN - 1);
     strncpy(new_user.phone,     phone,     MAX_STR_LEN - 1);
-    strncpy(new_user.address,   address,   MAX_ADD_LEN - 1);
+    strncpy(new_user.address,   address,   MAX_ADDR_LEN - 1);
 
     /* Append new node to the tail of the SLL */
     UserNode *new_node = (UserNode *)malloc(sizeof(UserNode));
@@ -187,20 +189,15 @@ void cmd_get_profile(const char *user_id) {
     UserNode *curr = head;
     while (curr != NULL) {
         if (strcmp(curr->data.user_id, user_id) == 0) {
-            char uid  [MAX_ID_LEN];
-            char uname[MAX_STR_LEN];
-            char fname[MAX_STR_LEN];
-            char em   [MAX_STR_LEN];
-            char ph   [MAX_STR_LEN];
-            char addr [MAX_ADD_LEN];
-
-            strncpy(uid,   curr->data.user_id,   MAX_ID_LEN  - 1); uid  [MAX_ID_LEN  - 1] = '\0';
-            strncpy(uname, curr->data.username,  MAX_STR_LEN - 1); uname[MAX_STR_LEN - 1] = '\0';
-            strncpy(fname, curr->data.full_name, MAX_STR_LEN - 1); fname[MAX_STR_LEN - 1] = '\0';
-            strncpy(em,    curr->data.email,     MAX_STR_LEN - 1); em   [MAX_STR_LEN - 1] = '\0';
-            strncpy(ph,    curr->data.phone,     MAX_STR_LEN - 1); ph   [MAX_STR_LEN - 1] = '\0';
-            strncpy(addr,  curr->data.address,   MAX_ADD_LEN - 1); addr [MAX_ADD_LEN - 1] = '\0';
-
+            /* Capture all fields before freeing */
+            char uid[MAX_ID_LEN], uname[MAX_STR_LEN], fname[MAX_STR_LEN];
+            char em[MAX_STR_LEN], ph[MAX_STR_LEN], addr[MAX_ADDR_LEN];
+            strncpy(uid,   curr->data.user_id,   MAX_ID_LEN   - 1); uid[MAX_ID_LEN   - 1] = '\0';
+            strncpy(uname, curr->data.username,  MAX_STR_LEN  - 1); uname[MAX_STR_LEN - 1] = '\0';
+            strncpy(fname, curr->data.full_name, MAX_STR_LEN  - 1); fname[MAX_STR_LEN - 1] = '\0';
+            strncpy(em,    curr->data.email,     MAX_STR_LEN  - 1); em[MAX_STR_LEN    - 1] = '\0';
+            strncpy(ph,    curr->data.phone,     MAX_STR_LEN  - 1); ph[MAX_STR_LEN    - 1] = '\0';
+            strncpy(addr,  curr->data.address,   MAX_ADDR_LEN - 1); addr[MAX_ADDR_LEN - 1] = '\0';
             free_user_sll(head);
             printf("SUCCESS|%s|%s|%s|%s|%s|%s\n", uid, uname, fname, em, ph, addr);
             return;
@@ -336,37 +333,17 @@ void cmd_update_profile(const char *user_id, const char *field,
     int found = 0;
     while (curr != NULL) {
         if (strcmp(curr->data.user_id, user_id) == 0) {
-            if (strcmp(field, "full_name") == 0) {
-                strncpy(curr->data.full_name, new_value, MAX_STR_LEN - 1);
-                curr->data.full_name[MAX_STR_LEN - 1] = '\0';
-            } else if (strcmp(field, "email") == 0) {
-                strncpy(curr->data.email, new_value, MAX_STR_LEN - 1);
-                curr->data.email[MAX_STR_LEN - 1] = '\0';
-            } else if (strcmp(field, "phone") == 0) {
-                strncpy(curr->data.phone, new_value, MAX_STR_LEN - 1);
-                curr->data.phone[MAX_STR_LEN - 1] = '\0';
-            } else { /* address */
-                strncpy(curr->data.address, new_value, MAX_ADD_LEN - 1);
-                curr->data.address[MAX_ADD_LEN - 1] = '\0';
-            }
+            if (strcmp(field, "full_name") == 0)
+                strncpy(curr->data.full_name, new_value, MAX_STR_LEN  - 1);
+            else if (strcmp(field, "email") == 0)
+                strncpy(curr->data.email,     new_value, MAX_STR_LEN  - 1);
+            else if (strcmp(field, "phone") == 0)
+                strncpy(curr->data.phone,     new_value, MAX_STR_LEN  - 1);
+            else /* address */
+                strncpy(curr->data.address,   new_value, MAX_ADDR_LEN - 1);
             found = 1;
             break;
         }
-
-        // OLD VERSION -> Doesn't have "\0"
-
-        // if (strcmp(curr->data.user_id, user_id) == 0) {
-        //     if (strcmp(field, "full_name") == 0)
-        //         strncpy(curr->data.full_name, new_value, MAX_STR_LEN  - 1);
-        //     else if (strcmp(field, "email") == 0)
-        //         strncpy(curr->data.email,     new_value, MAX_STR_LEN  - 1);
-        //     else if (strcmp(field, "phone") == 0)
-        //         strncpy(curr->data.phone,     new_value, MAX_STR_LEN  - 1);
-        //     else /* address */
-        //         strncpy(curr->data.address, new_value, MAX_ADD_LEN - 1);
-        //     found = 1;
-        //     break;
-        // }
         curr = curr->next;
     }
 
