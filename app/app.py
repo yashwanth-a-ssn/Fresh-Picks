@@ -348,6 +348,84 @@ def admin_inventory():
         admin_name = session.get("admin_name", "Admin")
     )
 
+"""
+app.py — ADDITIONS FOR USER MANAGEMENT MODULE
+=============================================
+Paste these two blocks into app.py at the indicated positions.
+
+BLOCK 1 → Page route: add after the /admin_orders route (around line 368).
+BLOCK 2 → API routes: add before the "START THE SERVER" section at the bottom.
+
+Both blocks follow the exact same guard-clause + bridge-call pattern
+already used by /admin_inventory and /api/admin_orders in the existing app.py.
+
+Team: CodeCrafters | Project: Fresh Picks | SDP-1
+"""
+
+
+# =============================================================
+# BLOCK 1 — PAGE ROUTE
+# Add this after the existing /admin_orders page route.
+# =============================================================
+
+@app.route("/admin/users")
+def admin_users():
+    """
+    GET /admin/users  (admin only)
+
+    Calls users.exe list_users and passes the full user list to the
+    admin_users.html template as a Jinja variable so the page renders
+    server-side. Client-side JS then handles search/filter locally
+    without additional API calls, keeping the UI snappy.
+
+    Template context:
+      users       — list of user dicts
+      total_count — total users in the binary
+    """
+    guard = _require_login(role="admin")
+    if guard:
+        return guard
+
+    users      = []
+    total_count = 0
+
+    result = run_c_binary("users", ["list_users"])
+
+    if result["status"] == "SUCCESS":
+        lines = result["raw_output"].strip().split("\n")
+
+        # lines[0] → "SUCCESS|<count>"
+        # lines[1+] → pipe-delimited user records
+        if lines:
+            header_parts = lines[0].split("|")
+            if len(header_parts) >= 2:
+                try:
+                    total_count = int(header_parts[1])
+                except ValueError:
+                    total_count = 0
+
+        for line in lines[1:]:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("|")
+            if len(parts) >= 7:
+                users.append({
+                    "user_id":   parts[0],
+                    "username":  parts[1],
+                    "full_name": parts[2],
+                    "email":     parts[3],
+                    "phone":     parts[4],
+                    "address":   parts[5],
+                    "status":    parts[6],
+                })
+
+    return render_template(
+        "admin_users.html",
+        users       = users,
+        total_count = total_count,
+        admin_name  = session.get("admin_name", "Admin"),
+    )
 
 @app.route("/admin_orders")
 def admin_orders():
@@ -1064,6 +1142,189 @@ def api_download_receipt(order_id):
         download_name=filename
     )
 
+# =============================================================
+# BLOCK 2 — API ROUTES
+# Add these before the "START THE SERVER" section.
+# =============================================================
+
+@app.route("/api/admin/list_users", methods=["GET"])
+def api_admin_list_users():
+    """
+    GET /api/admin/list_users?filter=active|inactive  (admin only)
+
+    Query params:
+      filter — optional: "active" or "inactive" (omit for all users)
+
+    Calls users.exe list_users [filter] and returns a JSON array.
+    Used by the frontend for dynamic re-filtering without a page reload.
+
+    Returns:
+      { "status": "SUCCESS", "users": [...], "total": N }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    status_filter = request.args.get("filter", "").strip().lower()
+    args = ["list_users"]
+    if status_filter in ("active", "inactive"):
+        args.append(status_filter)
+
+    result = run_c_binary("users", args)
+
+    if result["status"] != "SUCCESS":
+        return jsonify({
+            "status":  "ERROR",
+            "message": result.get("data", "Could not load users"),
+            "users":   [],
+            "total":   0,
+        })
+
+    users       = []
+    total_count = 0
+    lines       = result["raw_output"].strip().split("\n")
+
+    if lines:
+        header_parts = lines[0].split("|")
+        if len(header_parts) >= 2:
+            try:
+                total_count = int(header_parts[1])
+            except ValueError:
+                total_count = 0
+
+    for line in lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) >= 7:
+            users.append({
+                "user_id":   parts[0],
+                "username":  parts[1],
+                "full_name": parts[2],
+                "email":     parts[3],
+                "phone":     parts[4],
+                "address":   parts[5],
+                "status":    parts[6],
+            })
+
+    return jsonify({"status": "SUCCESS", "users": users, "total": total_count})
+
+
+@app.route("/api/admin/search_users", methods=["POST"])
+def api_admin_search_users():
+    """
+    POST /api/admin/search_users  (admin only)
+    Body: { "query": "Ravi" }   OR   { "query": "U1003" }
+
+    Calls users.exe search_users <query> and returns a JSON array.
+    The C binary handles both user_id (exact) and full_name (substring) matching.
+
+    Returns:
+      { "status": "SUCCESS", "users": [...], "total": N }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    data  = request.get_json(silent=True) or {}
+    query = data.get("query", "").strip()
+
+    if not query:
+        return jsonify({"status": "ERROR", "message": "query is required"})
+
+    result = run_c_binary("users", ["search_users", query])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({
+            "status":  "ERROR",
+            "message": result.get("data", "Search failed"),
+            "users":   [],
+            "total":   0,
+        })
+
+    users       = []
+    total_count = 0
+    lines       = result["raw_output"].strip().split("\n")
+
+    if lines:
+        header_parts = lines[0].split("|")
+        if len(header_parts) >= 2:
+            try:
+                total_count = int(header_parts[1])
+            except ValueError:
+                total_count = 0
+
+    for line in lines[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split("|")
+        if len(parts) >= 7:
+            users.append({
+                "user_id":   parts[0],
+                "username":  parts[1],
+                "full_name": parts[2],
+                "email":     parts[3],
+                "phone":     parts[4],
+                "address":   parts[5],
+                "status":    parts[6],
+            })
+
+    return jsonify({"status": "SUCCESS", "users": users, "total": total_count})
+
+
+@app.route("/api/admin/get_user", methods=["POST"])
+def api_admin_get_user():
+    """
+    POST /api/admin/get_user  (admin only)
+    Body: { "user_id": "U1003" }
+
+    Fetches the full profile of a single user. Used by the
+    "View Details" modal on admin_users.html.
+
+    Calls users.exe get_user <user_id>
+
+    Returns:
+      { "status": "SUCCESS", "user": { ...all fields... } }
+    """
+    if session.get("role") != "admin":
+        return jsonify({"status": "ERROR", "message": "Admin only"}), 403
+
+    data    = request.get_json(silent=True) or {}
+    user_id = data.get("user_id", "").strip()
+
+    if not user_id:
+        return jsonify({"status": "ERROR", "message": "user_id is required"})
+
+    result = run_c_binary("users", ["get_user", user_id])
+
+    if result["status"] != "SUCCESS":
+        return jsonify({
+            "status":  "ERROR",
+            "message": result.get("data", "User not found"),
+        })
+
+    # Output: SUCCESS|user_id|username|full_name|email|phone|address|status
+    raw   = result["raw_output"].strip().split("\n")[0]
+    parts = raw.split("|")
+
+    # parts[0] = "SUCCESS", parts[1..7] = user fields
+    if len(parts) < 8:
+        return jsonify({
+            "status":  "ERROR",
+            "message": f"Malformed user data ({len(parts)} fields)",
+        })
+
+    user = {
+        "user_id":   parts[1],
+        "username":  parts[2],
+        "full_name": parts[3],
+        "email":     parts[4],
+        "phone":     parts[5],
+        "address":   parts[6],
+        "status":    parts[7],
+    }
+
+    return jsonify({"status": "SUCCESS", "user": user})
 
 # =============================================================
 # START THE SERVER — with SSL/HTTPS
