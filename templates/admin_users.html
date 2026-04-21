@@ -1,38 +1,22 @@
 {% extends "base.html" %}
 {#
-  admin_users.html — Fresh Picks: Admin User Directory
-  =====================================================
-  PURPOSE:
-    Full-featured User Management dashboard for admins.
-    Replaces the "Coming Soon" Users placeholder from admin_dash.html.
+  admin_users.html — Fresh Picks: Admin User Directory (Session 3 Redesign)
+  =========================================================================
+  CHANGES from previous version:
+    - Cards redesigned: horizontal layout (ID on left, details in centre, button on right)
+    - Centre shows: Full Name, Username, Email, Status
+    - Modal restyled to match admin_orders.html (bg-surface, border-color, no Bootstrap default)
+    - Address displayed as single comma-separated line (not 4 lines)
+    - "View Details" button right-aligned on card
 
-  FEATURES:
-    - Server-side rendered user cards from Jinja context (no initial API call)
-    - Client-side search bar (Name or User ID, debounced 300ms)
-    - Client-side status filter tabs (All / Active / Inactive)
-    - "View Details" modal — fetches full profile via /api/admin/get_user
-    - Responsive card grid: 6/row Desktop, 3/row Tablet, 1/row Mobile
-    - "No users found" empty state with icon
-    - Matches Fresh Picks dark theme (CSS variables from dark-theme.css)
-
-  GRID BREAKDOWN:
-    col-lg-2  → 6 per row on ≥992px (desktop)
-    col-md-4  → 3 per row on ≥768px (tablet)
-    col-12    → 1 per row on <768px  (mobile)
-
-  DATA FLOW:
-    1. Flask calls users.exe list_users → parses → passes `users` list
-    2. Jinja renders every card server-side (fast first paint)
-    3. JS attaches search/filter handlers that show/hide cards in-place
-    4. "View Details" click → POST /api/admin/get_user → populates modal
-
-  Team: CodeCrafters | Project: Fresh Picks | SDP-1
+  Team: CodeCrafters | SDP-1 | Session 3
 #}
 
-{% block title %}User Directory{% endblock %}
+{% block title %}User Directory | Fresh Picks{% endblock %}
 
 {% block extra_head %}
 <style>
+
     /* ── Page layout ──────────────────────────────────────────── */
     .ud-header {
         background: linear-gradient(135deg,
@@ -57,7 +41,6 @@
         position: relative;
         flex: 1 1 260px;
     }
-
     .ud-search-wrap .bi-search {
         position: absolute;
         left: 0.85rem;
@@ -67,7 +50,6 @@
         font-size: 0.9rem;
         pointer-events: none;
     }
-
     #ud-search {
         padding-left: 2.3rem;
         background: var(--card-bg);
@@ -87,12 +69,7 @@
     #ud-search::placeholder { color: var(--text-muted); }
 
     /* Filter tab buttons */
-    .ud-filter-group {
-        display: flex;
-        gap: 0.4rem;
-        flex-wrap: wrap;
-    }
-
+    .ud-filter-group { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .ud-filter-btn {
         padding: 0.35rem 1rem;
         border-radius: 20px;
@@ -104,10 +81,7 @@
         transition: all 0.18s ease;
         white-space: nowrap;
     }
-    .ud-filter-btn:hover {
-        border-color: var(--accent);
-        color: var(--accent);
-    }
+    .ud-filter-btn:hover { border-color: var(--accent); color: var(--accent); }
     .ud-filter-btn.active {
         background: var(--accent);
         border-color: var(--accent);
@@ -115,91 +89,106 @@
         font-weight: 600;
     }
 
-    /* Result count text */
     #ud-result-count {
         font-size: 0.82rem;
         color: var(--text-muted);
         white-space: nowrap;
     }
 
-    /* ── User Cards ───────────────────────────────────────────── */
+    /* ── Horizontal User Card ─────────────────────────────────── */
     .ud-card {
         background: var(--card-bg);
         border: 1px solid var(--border-color);
         border-radius: 12px;
-        padding: 1.25rem 1rem;
-        text-align: center;
-        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-        cursor: default;
-        height: 100%;
+        padding: 0.85rem 1.1rem;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        justify-content: space-between;
+        gap: 1rem;
+        transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
     .ud-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 10px 28px rgba(0, 122, 204, 0.18);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 122, 204, 0.16);
         border-color: rgba(0, 122, 204, 0.4);
     }
 
-    /* Avatar circle */
+    /* Left: UID badge block */
+    .ud-uid-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-width: 64px;
+        flex-shrink: 0;
+    }
     .ud-avatar {
-        width: 56px;
-        height: 56px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         background: linear-gradient(135deg, var(--accent) 0%, #0d5ea6 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.3rem;
+        font-size: 1.1rem;
         font-weight: 700;
         color: #fff;
-        margin: 0 auto 0.75rem;
-        flex-shrink: 0;
         text-transform: uppercase;
+        margin-bottom: 0.3rem;
+    }
+    .ud-uid-text {
+        font-size: 0.68rem;
+        font-family: monospace;
+        color: var(--accent);
+        letter-spacing: 0.04em;
+        text-align: center;
     }
 
-    /* Card text areas */
-    .ud-card-name {
-        font-size: 0.9rem;
-        font-weight: 700;
-        color: var(--text-bright);
-        margin-bottom: 0.15rem;
-        line-height: 1.2;
-        word-break: break-word;
+    /* Centre: user info */
+    .ud-info {
+        flex: 1;
+        min-width: 0;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.15rem 1.2rem;
     }
-    .ud-card-uid {
-        font-size: 0.72rem;
-        color: var(--accent);
-        font-family: monospace;
-        margin-bottom: 0.2rem;
-        letter-spacing: 0.03em;
+    .ud-info-item {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
     }
-    .ud-card-username {
-        font-size: 0.75rem;
+    .ud-info-label {
+        font-size: 0.65rem;
         color: var(--text-muted);
-        margin-bottom: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.05rem;
+    }
+    .ud-info-value {
+        font-size: 0.82rem;
+        color: var(--text-bright);
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     /* Status badge */
     .ud-status-badge {
         display: inline-block;
-        font-size: 0.68rem;
-        padding: 0.2em 0.65em;
+        font-size: 0.65rem;
+        padding: 0.18em 0.55em;
         border-radius: 20px;
         font-weight: 600;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        margin-bottom: 0.75rem;
     }
     .ud-status-active   { background: rgba(78,201,176,0.15); color: var(--success); }
     .ud-status-inactive { background: rgba(244,71,71,0.12);  color: var(--danger);  }
 
-    /* View Details button */
+    /* Right: View Details button */
     .ud-details-btn {
-        width: 100%;
-        padding: 0.35rem 0;
+        flex-shrink: 0;
+        padding: 0.4rem 0.9rem;
         font-size: 0.78rem;
         border-radius: 8px;
         border: 1px solid var(--accent);
@@ -207,6 +196,7 @@
         color: var(--accent);
         cursor: pointer;
         transition: all 0.18s ease;
+        white-space: nowrap;
     }
     .ud-details-btn:hover {
         background: var(--accent);
@@ -220,29 +210,26 @@
         padding: 4rem 1rem;
         color: var(--text-muted);
     }
-    #ud-empty .ud-empty-icon {
-        font-size: 3.5rem;
-        margin-bottom: 1rem;
-        opacity: 0.4;
-    }
-    #ud-empty p {
-        font-size: 0.95rem;
-        margin: 0;
-    }
+    #ud-empty .ud-empty-icon { font-size: 3.5rem; margin-bottom: 1rem; opacity: 0.4; }
 
-    /* ── Details Modal overrides ──────────────────────────────── */
-    .modal-content {
-        background: var(--card-bg) !important;
+    /* ── Orders-style Modal ───────────────────────────────────── */
+    #ud-modal .modal-content {
+        background: var(--bg-surface) !important;
         border: 1px solid var(--border-color) !important;
         border-radius: 14px !important;
     }
-    .modal-header {
+    #ud-modal .modal-header {
         border-bottom: 1px solid var(--border-color) !important;
+        padding: 1rem 1.25rem;
     }
-    .modal-footer {
+    #ud-modal .modal-footer {
         border-top: 1px solid var(--border-color) !important;
     }
+    #ud-modal .modal-body {
+        padding: 1.2rem 1.4rem;
+    }
 
+    /* Profile rows inside modal */
     .ud-profile-row {
         display: flex;
         align-items: flex-start;
@@ -251,10 +238,9 @@
         gap: 0.5rem;
     }
     .ud-profile-row:last-child { border-bottom: none; }
-
     .ud-profile-label {
         min-width: 110px;
-        font-size: 0.78rem;
+        font-size: 0.75rem;
         color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.05em;
@@ -272,26 +258,33 @@
         font-size: 0.82rem;
     }
 
-    /* Modal avatar */
+    /* Modal header avatar */
     .ud-modal-avatar {
-        width: 72px;
-        height: 72px;
+        width: 60px;
+        height: 60px;
         border-radius: 50%;
         background: linear-gradient(135deg, var(--accent) 0%, #0d5ea6 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.8rem;
+        font-size: 1.4rem;
         font-weight: 700;
         color: #fff;
         flex-shrink: 0;
     }
 
-    /* Loading spinner inside modal */
+    /* Loading spinner */
     .ud-modal-spinner {
         text-align: center;
         padding: 2rem;
         color: var(--text-muted);
+    }
+
+    /* Mobile: stack card vertically on very small screens */
+    @media (max-width: 480px) {
+        .ud-card { flex-wrap: wrap; }
+        .ud-info { grid-template-columns: 1fr; }
+        .ud-details-btn { width: 100%; text-align: center; }
     }
 </style>
 {% endblock %}
@@ -360,47 +353,64 @@
         </span>
     </div>
 
-    {# ── User Card Grid ── #}
-    <div class="row g-3" id="ud-grid">
+    {# ── User Card List ── #}
+    <div class="d-flex flex-column gap-2" id="ud-grid">
 
         {% if users %}
             {% for u in users %}
-            <div class="col-12 col-md-4 col-lg-2 ud-item"
+            <div class="ud-item"
                  data-name="{{ u.full_name | lower }}"
                  data-uid="{{ u.user_id | lower }}"
                  data-status="{{ u.status | lower }}">
 
                 <div class="ud-card">
-                    {# Avatar initials: first letter of each word in full_name #}
-                    <div class="ud-avatar">
-                        {{ u.full_name.split()[0][0] if u.full_name else '?' }}
-                    </div>
 
-                    <div style="width:100%;">
-                        <div class="ud-card-name">{{ u.full_name }}</div>
-                        <div class="ud-card-uid">{{ u.user_id }}</div>
-                        <div class="ud-card-username">@{{ u.username }}</div>
-
-                        <div class="mb-2">
-                            {% if u.status == "Active" %}
-                                <span class="ud-status-badge ud-status-active">
-                                    <i class="bi bi-circle-fill me-1" style="font-size:0.5rem;"></i>Active
-                                </span>
-                            {% else %}
-                                <span class="ud-status-badge ud-status-inactive">
-                                    <i class="bi bi-circle me-1" style="font-size:0.5rem;"></i>Inactive
-                                </span>
-                            {% endif %}
+                    {# LEFT — avatar + UID #}
+                    <div class="ud-uid-block">
+                        <div class="ud-avatar">
+                            {{ u.full_name.split()[0][0] if u.full_name else '?' }}
                         </div>
-
-                        <button class="ud-details-btn"
-                                data-uid="{{ u.user_id }}"
-                                data-name="{{ u.full_name }}">
-                            <i class="bi bi-person-lines-fill me-1"></i>View Details
-                        </button>
+                        <div class="ud-uid-text">{{ u.user_id }}</div>
                     </div>
-                </div>
 
+                    {# CENTRE — 4 key details in 2×2 grid #}
+                    <div class="ud-info">
+                        <div class="ud-info-item">
+                            <span class="ud-info-label">Full Name</span>
+                            <span class="ud-info-value">{{ u.full_name }}</span>
+                        </div>
+                        <div class="ud-info-item">
+                            <span class="ud-info-label">Username</span>
+                            <span class="ud-info-value">@{{ u.username }}</span>
+                        </div>
+                        <div class="ud-info-item">
+                            <span class="ud-info-label">Email</span>
+                            <span class="ud-info-value">{{ u.email }}</span>
+                        </div>
+                        <div class="ud-info-item">
+                            <span class="ud-info-label">Status</span>
+                            <span class="ud-info-value">
+                                {% if u.status == "Active" %}
+                                    <span class="ud-status-badge ud-status-active">
+                                        <i class="bi bi-circle-fill me-1" style="font-size:0.45rem;"></i>Active
+                                    </span>
+                                {% else %}
+                                    <span class="ud-status-badge ud-status-inactive">
+                                        <i class="bi bi-circle me-1" style="font-size:0.45rem;"></i>Inactive
+                                    </span>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </div>
+
+                    {# RIGHT — View Details button #}
+                    <button class="ud-details-btn"
+                            data-uid="{{ u.user_id }}"
+                            data-name="{{ u.full_name }}">
+                        <i class="bi bi-person-lines-fill me-1"></i>View Details
+                    </button>
+
+                </div>
             </div>
             {% endfor %}
         {% endif %}
@@ -415,13 +425,10 @@
     </div>
 
     {% if not users %}
-    {# Server-side empty state: users.dat missing or empty #}
     <div style="text-align:center; padding:4rem 1rem; color:var(--text-muted);">
         <div style="font-size:3.5rem; margin-bottom:1rem; opacity:0.4;">📭</div>
         <p class="fw-bold text-bright mb-1">No user data available</p>
-        <p style="font-size:0.9rem;">
-            users.dat may be missing or empty. Check your data files.
-        </p>
+        <p style="font-size:0.9rem;">users.dat may be missing or empty. Check your data files.</p>
     </div>
     {% endif %}
 
@@ -429,9 +436,7 @@
 
 
 {# ══════════════════════════════════════════════
-   USER DETAILS MODAL
-   Populated dynamically by JS when "View Details"
-   is clicked. Fetches from /api/admin/get_user.
+   USER DETAILS MODAL — styled like admin_orders.html
    ══════════════════════════════════════════════ #}
 <div class="modal fade" id="ud-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-md">
@@ -442,10 +447,12 @@
                     <div class="ud-modal-avatar" id="modal-avatar">?</div>
                     <div>
                         <h5 class="modal-title mb-0 text-bright" id="modal-name">—</h5>
-                        <small class="text-muted" id="modal-uid-sub">—</small>
+                        <small style="color:var(--accent); font-family:monospace;"
+                               id="modal-uid-sub">—</small>
                     </div>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white"
+                        data-bs-dismiss="modal"></button>
             </div>
 
             <div class="modal-body" id="modal-body">
@@ -456,7 +463,10 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">
+                <button class="btn btn-sm btn-action"
+                        style="background:var(--bg-elevated); border:1px solid var(--border-color);
+                               color:var(--text-bright);"
+                        data-bs-dismiss="modal">
                     <i class="bi bi-x me-1"></i>Close
                 </button>
             </div>
@@ -471,34 +481,26 @@
 <script>
 /*
  * ═══════════════════════════════════════════════════════════════
- * ADMIN USER DIRECTORY — Client-Side Logic
+ * ADMIN USER DIRECTORY — Client-Side Logic (Session 3 Redesign)
  *
  * 1. SEARCH  — Live filter on #ud-search (debounced 300ms)
  * 2. FILTER  — Tab buttons (All / Active / Inactive)
  * 3. MODAL   — "View Details" → fetch /api/admin/get_user → render
- *
- * All search and filter operations work on the already-rendered
- * server-side cards using data attributes (data-name, data-uid,
- * data-status). No round-trip needed for basic filtering.
+ *              Address shown as single comma-separated line.
  * ═══════════════════════════════════════════════════════════════
  */
 
 (function () {
 
-    /* ── State ─────────────────────────────────────────────────── */
-    let currentFilter = "all";   /* "all" | "active" | "inactive" */
-    let currentSearch = "";      /* lowercase search query          */
+    let currentFilter = "all";
+    let currentSearch = "";
 
     const grid        = document.getElementById("ud-grid");
     const emptyState  = document.getElementById("ud-empty");
     const shownBadge  = document.getElementById("ud-shown");
     const searchInput = document.getElementById("ud-search");
 
-
-    /* ── applyFilters ───────────────────────────────────────────
-     * Shows/hides .ud-item cards based on currentFilter and
-     * currentSearch. Updates the result count badge.
-     */
+    /* ── applyFilters ─────────────────────────────────────────── */
     function applyFilters() {
         const items = grid.querySelectorAll(".ud-item");
         let shown = 0;
@@ -508,11 +510,7 @@
             const uid    = item.dataset.uid    || "";
             const status = item.dataset.status || "";
 
-            /* Check filter */
-            const filterMatch = (currentFilter === "all") ||
-                                (status === currentFilter);
-
-            /* Check search */
+            const filterMatch = (currentFilter === "all") || (status === currentFilter);
             const searchMatch = !currentSearch ||
                                 name.includes(currentSearch) ||
                                 uid.includes(currentSearch);
@@ -525,21 +523,14 @@
             }
         });
 
-        /* Update counter */
         if (shownBadge) shownBadge.textContent = shown;
-
-        /* Toggle empty state */
         if (emptyState) {
-            emptyState.style.display = (shown === 0 && items.length > 0)
-                ? "block"
-                : "none";
+            emptyState.style.display = (shown === 0 && items.length > 0) ? "block" : "none";
         }
     }
 
-
-    /* ── Search input (debounced 300ms) ─────────────────────────── */
+    /* ── Search (debounced 300ms) ─────────────────────────────── */
     let searchTimer = null;
-
     if (searchInput) {
         searchInput.addEventListener("input", function () {
             clearTimeout(searchTimer);
@@ -550,28 +541,17 @@
         });
     }
 
-
-    /* ── Filter tab buttons ──────────────────────────────────────── */
+    /* ── Filter tab buttons ───────────────────────────────────── */
     document.querySelectorAll(".ud-filter-btn").forEach(function (btn) {
         btn.addEventListener("click", function () {
-            document.querySelectorAll(".ud-filter-btn").forEach(function (b) {
-                b.classList.remove("active");
-            });
+            document.querySelectorAll(".ud-filter-btn").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             currentFilter = btn.dataset.filter || "all";
             applyFilters();
         });
     });
 
-
-    /* ── "View Details" Modal ────────────────────────────────────── */
-    const udModal    = new bootstrap.Modal(document.getElementById("ud-modal"));
-    const modalBody  = document.getElementById("modal-body");
-    const modalName  = document.getElementById("modal-name");
-    const modalUidSub = document.getElementById("modal-uid-sub");
-    const modalAvatar = document.getElementById("modal-avatar");
-
-    /* Helper: get initials from full_name */
+    /* ── Helpers ──────────────────────────────────────────────── */
     function getInitials(name) {
         if (!name) return "?";
         const words = name.trim().split(/\s+/);
@@ -580,26 +560,47 @@
             : words[0][0].toUpperCase();
     }
 
-    /* Helper: build the profile table HTML */
+    function escHtml(str) {
+        if (!str) return "";
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+    }
+
+    /*
+     * formatAddress — converts multi-part address into one comma-separated line.
+     * Handles strings that may already use newlines, semicolons, or pipes as separators.
+     */
+    function formatAddress(raw) {
+        if (!raw) return "—";
+        return raw
+            .split(/[\n\r|;]+/)          /* split on newlines / pipe / semicolon */
+            .map(s => s.trim())
+            .filter(Boolean)
+            .join(", ");
+    }
+
+    /* ── Build modal profile HTML ─────────────────────────────── */
     function buildProfileHTML(user) {
         const rows = [
-            { label: "User ID",    value: user.user_id,   mono: true },
-            { label: "Username",   value: "@" + user.username },
-            { label: "Email",      value: user.email     },
-            { label: "Phone",      value: user.phone     },
-            { label: "Address",    value: user.address   },
-            { label: "Status",     value: user.status,    badge: true },
+            { label: "User ID",   value: user.user_id,              mono: true  },
+            { label: "Username",  value: "@" + user.username                    },
+            { label: "Email",     value: user.email                             },
+            { label: "Phone",     value: user.phone                             },
+            { label: "Address",   value: formatAddress(user.address)            },
+            { label: "Status",    value: user.status,               badge: true },
         ];
 
         let html = "";
         rows.forEach(function (row) {
             let valHTML;
-
             if (row.badge) {
-                const cls = (row.value.toLowerCase() === "active")
-                    ? "ud-status-badge ud-status-active"
-                    : "ud-status-badge ud-status-inactive";
-                valHTML = `<span class="${cls}">${row.value}</span>`;
+                const isActive = (row.value || "").toLowerCase() === "active";
+                const cls = isActive ? "ud-status-badge ud-status-active"
+                                     : "ud-status-badge ud-status-inactive";
+                valHTML = `<span class="${cls}">${escHtml(row.value)}</span>`;
             } else if (row.mono) {
                 valHTML = `<span class="ud-profile-value mono">${escHtml(row.value)}</span>`;
             } else {
@@ -612,20 +613,16 @@
                     ${valHTML}
                 </div>`;
         });
-
         return html;
     }
 
-    function escHtml(str) {
-        if (!str) return "";
-        return str
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;");
-    }
+    /* ── "View Details" click (delegated) ────────────────────── */
+    const udModal     = new bootstrap.Modal(document.getElementById("ud-modal"));
+    const modalBody   = document.getElementById("modal-body");
+    const modalName   = document.getElementById("modal-name");
+    const modalUidSub = document.getElementById("modal-uid-sub");
+    const modalAvatar = document.getElementById("modal-avatar");
 
-    /* Delegate click on all "View Details" buttons */
     if (grid) {
         grid.addEventListener("click", async function (e) {
             const btn = e.target.closest(".ud-details-btn");
@@ -634,12 +631,10 @@
             const uid  = btn.dataset.uid  || "";
             const name = btn.dataset.name || "User";
 
-            /* Pre-populate modal header with known info */
-            if (modalName)   modalName.textContent  = name;
-            if (modalUidSub) modalUidSub.textContent = uid;
+            if (modalName)   modalName.textContent   = name;
+            if (modalUidSub) modalUidSub.textContent  = uid;
             if (modalAvatar) modalAvatar.textContent  = getInitials(name);
 
-            /* Show spinner */
             if (modalBody) {
                 modalBody.innerHTML = `
                     <div class="ud-modal-spinner">
@@ -650,7 +645,6 @@
 
             udModal.show();
 
-            /* Fetch full profile */
             try {
                 const res  = await fetch("/api/admin/get_user", {
                     method:  "POST",
@@ -660,13 +654,11 @@
                 const data = await res.json();
 
                 if (data.status === "SUCCESS" && data.user) {
-                    if (modalBody) {
-                        modalBody.innerHTML = buildProfileHTML(data.user);
-                    }
+                    if (modalBody) modalBody.innerHTML = buildProfileHTML(data.user);
                 } else {
                     if (modalBody) {
                         modalBody.innerHTML = `
-                            <div class="text-center py-3 text-danger">
+                            <div class="text-center py-3" style="color:var(--danger);">
                                 <i class="bi bi-exclamation-triangle me-1"></i>
                                 ${escHtml(data.message || "Could not load profile.")}
                             </div>`;
@@ -675,7 +667,7 @@
             } catch (err) {
                 if (modalBody) {
                     modalBody.innerHTML = `
-                        <div class="text-center py-3 text-danger">
+                        <div class="text-center py-3" style="color:var(--danger);">
                             <i class="bi bi-wifi-off me-1"></i>
                             Network error. Please try again.
                         </div>`;
