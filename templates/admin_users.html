@@ -574,13 +574,13 @@
      * Handles strings that may already use newlines, semicolons, or pipes as separators.
      */
     function formatAddress(raw) {
-        if (!raw) return "—";
-        return raw
-            .split(/[\n\r|;]+/)          /* split on newlines / pipe / semicolon */
-            .map(s => s.trim())
-            .filter(Boolean)
-            .join(", ");
-    }
+    if (!raw) return "—";
+    return raw
+        .split(/[\n\r|;]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .join("<br>");
+}
 
     /* ── Build modal profile HTML ─────────────────────────────── */
     function buildProfileHTML(user) {
@@ -589,7 +589,7 @@
             { label: "Username",  value: "@" + user.username                    },
             { label: "Email",     value: user.email                             },
             { label: "Phone",     value: user.phone                             },
-            { label: "Address",   value: formatAddress(user.address)            },
+            { label: "Address",   value: formatAddress(user.address), html: true },
             { label: "Status",    value: user.status,               badge: true },
         ];
 
@@ -603,6 +603,8 @@
                 valHTML = `<span class="${cls}">${escHtml(row.value)}</span>`;
             } else if (row.mono) {
                 valHTML = `<span class="ud-profile-value mono">${escHtml(row.value)}</span>`;
+            } else if (row.html) {
+                valHTML = `<span class="ud-profile-value">${row.value || "—"}</span>`;
             } else {
                 valHTML = `<span class="ud-profile-value">${escHtml(row.value || "—")}</span>`;
             }
