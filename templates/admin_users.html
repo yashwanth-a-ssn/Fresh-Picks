@@ -576,7 +576,7 @@
     function formatAddress(raw) {
     if (!raw) return "—";
     return raw
-        .split(/[\n\r|;]+/)
+        .split(/[\n\r|;,]+/)
         .map(s => s.trim())
         .filter(Boolean)
         .join("<br>");
