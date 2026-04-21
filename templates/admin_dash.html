@@ -101,15 +101,18 @@
             </div>
         </div>
 
-        {# ── Users Card → placeholder (future sprint) ── #}
+        {# --users card-- #}
         <div class="col-sm-6 col-lg-3">
-            <div class="card text-center" style="border-left: 3px solid var(--warning) !important; opacity: 0.6; cursor: not-allowed;"
-                 title="Coming in a future sprint">
-                <div class="card-body py-3">
-                    <div style="font-size:1.8rem;">👥</div>
-                    <div class="text-bright fw-bold mt-1">Users</div>
-                    <div class="text-muted" style="font-size:0.78rem;">Coming Soon</div>
-                </div>
+            <div class="stat-card-wrap">
+                <a class="stat-card-link" href="/admin/users">
+                    <div class="card text-center" style="border-left: 3px solid var(--warning) !important;">
+                        <div class="card-body py-3">
+                            <div style="font-size:1.8rem;">👥</div>
+                            <div class="text-bright fw-bold mt-1">Users</div>
+                            <div class="text-muted" style="font-size:0.78rem;">User Directory</div>
+                        </div>
+                    </div>
+                </a>
             </div>
         </div>
 
@@ -208,30 +211,31 @@
                         </div>
                     </div>
 
-                    {# ── NEW: Orders Shortcut ── #}
-                    <div class="card" style="border: 1px solid var(--success) !important;
-                                             background: rgba(78,201,176,0.06) !important;">
-                        <div class="card-body py-3">
-                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                                <div>
-                                    <div class="d-flex align-items-center gap-2 mb-1">
-                                        <i class="bi bi-truck"
-                                           style="color:var(--success); font-size:1.2rem;"></i>
-                                        <strong class="text-bright">Order Dispatch</strong>
-                                    </div>
-                                    <p class="text-muted mb-0" style="font-size:0.82rem;">
-                                        Dispatch and confirm deliveries by slot.
-                                    </p>
-                                </div>
-                                <a href="/admin_orders"
-                                   class="btn btn-sm"
-                                   style="background:var(--success); color:#1E1E1E; border:none;
-                                          min-width:130px; text-align:center;">
-                                    <i class="bi bi-arrow-right me-1"></i>Open Orders
-                                </a>
-                            </div>
+                    {# ── User Directory Shortcut ── #}
+        <div class="card" style="border: 1px solid var(--warning) !important;
+                         background: rgba(255,204,0,0.05) !important;">
+            <div class="card-body py-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="bi bi-people-fill"
+                            style="color:var(--warning); font-size:1.2rem;"></i>
+                            <strong class="text-bright">User Directory</strong>
                         </div>
+                        <p class="text-muted mb-0" style="font-size:0.82rem;">
+                        Browse, search, and inspect customer accounts.
+                        </p>
                     </div>
+                    <a href="/admin/users"
+                        class="btn btn-sm"
+                        style="background:var(--warning); color:#1E1E1E; border:none;
+                        min-width:150px; text-align:center;">
+                        <i class="bi bi-arrow-right me-1"></i>Open User Directory
+                    </a>
+                </div>
+            </div>
+        </div>
+                            
 
                     {#
                       SECURITY SETTINGS BUTTON (unchanged from v2)
