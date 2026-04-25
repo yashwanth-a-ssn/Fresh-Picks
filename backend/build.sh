@@ -46,7 +46,7 @@ echo "      ✓ receipt compiled successfully"
 # gcc -Wall -Wextra -o receipt receipt.c -lm
 
 # ── 6. users binary ───────────────────────────────────────────
-echo "[5/6] Compiling users..."
+echo "[6/6] Compiling users..."
 gcc -Wall -Wextra -o users users.c utils.c -lm
 echo "      ✓ users compiled successfully"
 # gcc -Wall -Wextra -o users users.c -lm
